@@ -1,0 +1,975 @@
+# Celery Documentation
+
+> **Purpose:** Distributed task queue for Python with real-time processing and scheduling.
+
+## 📦 Installation
+
+```bash
+pip install celery
+# Message brokers (choose one)
+pip install redis        # Redis broker
+pip install kombu        # RabbitMQ broker
+pip install pymongo      # MongoDB broker
+# Result backends
+pip install redis        # Redis backend
+pip install sqlalchemy   # Database backend
+```
+
+## 🛠️ Configuration
+
+**Strategy:** Use Celery for background tasks, scheduled jobs, and distributed processing.
+
+### 1. Celery Configuration (`src/config/celery.py`)
+
+```python
+import os
+from celery import Celery
+from kombu import Queue, Exchange
+
+# Celery app configuration
+app = Celery('myapp')
+
+# Configuration from environment
+app.config_from_object('src.config.celery_config')
+
+# Define queues
+app.conf.task_queues = (
+    Queue('default', Exchange('default'), routing_key='default'),
+    Queue('high_priority', Exchange('high_priority'), routing_key='high_priority'),
+    Queue('low_priority', Exchange('low_priority'), routing_key='low_priority'),
+    Queue('email', Exchange('email'), routing_key='email'),
+    Queue('reports', Exchange('reports'), routing_key='reports'),
+)
+
+# Define exchanges
+app.conf.task_default_exchange = 'default'
+app.conf.task_default_exchange_type = 'direct'
+app.conf.task_default_routing_key = 'default'
+
+# Task routing
+app.conf.task_routes = {
+    'src.tasks.email_tasks.*': {'queue': 'email'},
+    'src.tasks.report_tasks.*': {'queue': 'reports'},
+    'src.tasks.high_priority_tasks.*': {'queue': 'high_priority'},
+    'src.tasks.low_priority_tasks.*': {'queue': 'low_priority'},
+}
+
+# Worker configuration
+app.conf.worker_prefetch_multiplier = 1
+app.conf.task_acks_late = True
+app.conf.worker_max_tasks_per_child = 1000
+app.conf.worker_disable_rate_limits = False
+
+# Beat scheduler configuration
+app.conf.beat_schedule = {
+    'cleanup-expired-sessions': {
+        'task': 'src.tasks.maintenance_tasks.cleanup_expired_sessions',
+        'schedule': 3600.0,  # Every hour
+    },
+    'send-daily-reports': {
+        'task': 'src.tasks.report_tasks.send_daily_reports',
+        'schedule': 86400.0,  # Every day at midnight
+        'options': {'queue': 'reports'},
+    },
+    'update-user-statistics': {
+        'task': 'src.tasks.analytics_tasks.update_user_statistics',
+        'schedule': 1800.0,  # Every 30 minutes
+    },
+}
+
+# Timezone
+app.conf.enable_utc = True
+app.conf.timezone = 'UTC'
+
+# Task serialization
+app.conf.task_serializer = 'json'
+app.conf.result_serializer = 'json'
+app.conf.accept_content = ['json']
+app.conf.result_expires = 3600  # Results expire after 1 hour
+
+# Security
+app.conf.worker_send_task_events = True
+app.conf.task_send_sent_event = True
+
+# Auto-discover tasks
+app.autodiscover_tasks(['src.tasks'])
+```
+
+### 2. Celery Settings (`src/config/celery_config.py`)
+
+```python
+import os
+
+# Broker configuration
+broker_type = os.getenv('CELERY_BROKER_TYPE', 'redis')
+
+if broker_type == 'redis':
+    broker_url = f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', '6379')}/{os.getenv('REDIS_DB', 0)}"
+elif broker_type == 'rabbitmq':
+    broker_url = f"amqp://{os.getenv('RABBITMQ_USER', 'guest')}:{os.getenv('RABBITMQ_PASSWORD', 'guest')}@{os.getenv('RABBITMQ_HOST', 'localhost')}:{os.getenv('RABBITMQ_PORT', '5672')}//"
+elif broker_type == 'mongodb':
+    broker_url = f"mongodb://{os.getenv('MONGODB_HOST', 'localhost')}:{os.getenv('MONGODB_PORT', '27017')}/{os.getenv('MONGODB_DB', 'celery')}"
+else:
+    broker_url = "redis://localhost:6379/0"
+
+# Result backend configuration
+result_backend_type = os.getenv('CELERY_RESULT_BACKEND_TYPE', 'redis')
+
+if result_backend_type == 'redis':
+    result_backend = f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', '6379')}/{os.getenv('REDIS_DB', 1)}"
+elif result_backend_type == 'database':
+    result_backend = f"db+postgresql://{os.getenv('DB_USER', 'user')}:{os.getenv('DB_PASSWORD', 'password')}@{os.getenv('DB_HOST', 'localhost')}:{os.getenv('DB_PORT', '5432')}/{os.getenv('DB_NAME', 'celery')}"
+else:
+    result_backend = "redis://localhost:6379/1"
+
+# Celery configuration
+celery_config = {
+    # Broker settings
+    'broker_url': broker_url,
+    'broker_connection_retry_on_startup': True,
+    'broker_connection_retry': True,
+    'broker_connection_max_retries': 10,
+    
+    # Result backend settings
+    'result_backend': result_backend,
+    'result_backend_transport_options': {
+        'master_name': 'mymaster',
+    },
+    
+    # Task settings
+    'task_always_eager': os.getenv('CELERY_ALWAYS_EAGER', 'false').lower() == 'true',
+    'task_eager_propagates': True,
+    'task_ignore_result': os.getenv('CELERY_IGNORE_RESULT', 'false').lower() == 'true',
+    'task_store_errors_even_if_ignored': True,
+    'task_compression': 'gzip',
+    
+    # Worker settings
+    'worker_concurrency': int(os.getenv('CELERY_WORKER_CONCURRENCY', '4')),
+    'worker_log_color': True,
+    'worker_log_format': '[%(asctime)s: %(levelname)s/%(processName)s] %(message)s',
+    'worker_task_log_format': '[%(asctime)s: %(levelname)s/%(processName)s][%(task_name)s(%(task_id)s)] %(message)s',
+    'worker_max_memory_per_child': 200000,  # 200MB
+    
+    # Beat scheduler settings
+    'beat_scheduler': 'django_celery_beat.schedulers:DatabaseScheduler',
+    'beat_schedule_filename': os.path.join(os.getcwd(), 'celerybeat-schedule'),
+    
+    # Monitoring
+    'worker_send_task_events': True,
+    'task_send_sent_event': True,
+    'task_track_started': True,
+    
+    # Error handling
+    'task_reject_on_worker_lost': True,
+    'task_acks_late': True,
+    'task_reject_on_worker_lost': True,
+    'task_default_priority': 5,
+    'task_priority_max': 9,
+    'task_priority_min': 1,
+    'task_priority_default': 5,
+    'task_priority_strict': False,
+    
+    # Security
+    'broker_use_ssl': os.getenv('CELERY_BROKER_USE_SSL', 'false').lower() == 'true',
+    'broker_transport_options': {
+        'visibility_timeout': 3600,
+        'retry_policy': {
+            'timeout': 5.0
+        }
+    },
+    
+    # Performance
+    'worker_prefetch_multiplier': 1,
+    'task_acks_late': True,
+    'worker_disable_rate_limits': False,
+    'worker_max_tasks_per_child': 1000,
+    'worker_max_memory_per_child': 200000,
+}
+```
+
+## 📝 Task Definitions
+
+### 1. Base Task (`src/tasks/base.py`)
+
+```python
+import logging
+from celery import Task
+from datetime import datetime
+from functools import wraps
+
+logger = logging.getLogger(__name__)
+
+class BaseTask(Task):
+    """Base task with common functionality."""
+    
+    def on_success(self, retval, task_id, args, kwargs):
+        """Task success handler."""
+        logger.info(f"Task {task_id} completed successfully")
+        super().on_success(retval, task_id, args, kwargs)
+    
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        """Task failure handler."""
+        logger.error(f"Task {task_id} failed: {exc}")
+        super().on_failure(exc, task_id, args, kwargs, einfo)
+    
+    def on_retry(self, exc, task_id, args, kwargs, einfo):
+        """Task retry handler."""
+        logger.warning(f"Task {task_id} retrying: {exc}")
+        super().on_retry(exc, task_id, args, kwargs, einfo)
+    
+    def run(self, *args, **kwargs):
+        """Override run method to add logging."""
+        logger.info(f"Starting task {self.request.id}")
+        start_time = datetime.utcnow()
+        
+        try:
+            result = super().run(*args, **kwargs)
+            
+            end_time = datetime.utcnow()
+            duration = (end_time - start_time).total_seconds()
+            logger.info(f"Task {self.request.id} completed in {duration:.2f}s")
+            
+            return result
+        except Exception as exc:
+            end_time = datetime.utcnow()
+            duration = (end_time - start_time).total_seconds()
+            logger.error(f"Task {self.request.id} failed after {duration:.2f}s: {exc}")
+            raise
+
+def task_with_retry(*args, **kwargs):
+    """Decorator for tasks with retry configuration."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*f_args, **f_kwargs):
+            return func(*f_args, **f_kwargs)
+        
+        # Set default retry options
+        default_retry_options = {
+            'autoretry_for': (Exception,),
+            'retry_kwargs': {'max_retries': 3},
+            'retry_backoff': True,
+            'retry_backoff_max': 300,
+            'retry_jitter': True,
+        }
+        
+        # Update with provided options
+        default_retry_options.update(kwargs)
+        
+        # Create Celery task
+        return app.task(
+            base=BaseTask,
+            bind=True,
+            **default_retry_options
+        )(wrapper)
+    
+    if args and callable(args[0]):
+        # Called without arguments
+        return decorator(args[0])
+    else:
+        # Called with arguments
+        return decorator
+
+def high_priority_task(func):
+    """Decorator for high priority tasks."""
+    return app.task(
+        base=BaseTask,
+        bind=True,
+        queue='high_priority',
+        priority=9,
+    )(func)
+
+def low_priority_task(func):
+    """Decorator for low priority tasks."""
+    return app.task(
+        base=BaseTask,
+        bind=True,
+        queue='low_priority',
+        priority=1,
+    )(func)
+
+def email_task(func):
+    """Decorator for email tasks."""
+    return app.task(
+        base=BaseTask,
+        bind=True,
+        queue='email',
+        max_retries=3,
+        default_retry_delay=60,
+    )(func)
+```
+
+### 2. Email Tasks (`src/tasks/email_tasks.py`)
+
+```python
+import logging
+from datetime import datetime
+from .base import email_task
+from ..services.email_service import EmailService
+from ..models.user import User
+
+logger = logging.getLogger(__name__)
+
+@email_task
+def send_welcome_email(self, user_id):
+    """Send welcome email to new user."""
+    try:
+        user = User.objects.get(id=user_id)
+        
+        email_service = EmailService()
+        await email_service.send_welcome_email(user)
+        
+        logger.info(f"Welcome email sent to user {user_id}")
+        return f"Welcome email sent to {user.email}"
+    
+    except User.DoesNotExist:
+        logger.error(f"User {user_id} not found")
+        raise Exception(f"User {user_id} not found")
+    except Exception as exc:
+        logger.error(f"Failed to send welcome email to user {user_id}: {exc}")
+        raise self.retry(exc=exc, countdown=60)
+
+@email_task
+def send_password_reset_email(self, user_id, reset_token):
+    """Send password reset email."""
+    try:
+        user = User.objects.get(id=user_id)
+        
+        email_service = EmailService()
+        await email_service.send_password_reset_email(user, reset_token)
+        
+        logger.info(f"Password reset email sent to user {user_id}")
+        return f"Password reset email sent to {user.email}"
+    
+    except User.DoesNotExist:
+        logger.error(f"User {user_id} not found")
+        raise Exception(f"User {user_id} not found")
+    except Exception as exc:
+        logger.error(f"Failed to send password reset email to user {user_id}: {exc}")
+        raise self.retry(exc=exc, countdown=60)
+
+@email_task
+def send_notification_email(self, user_id, subject, message, notification_type='info'):
+    """Send notification email to user."""
+    try:
+        user = User.objects.get(id=user_id)
+        
+        email_service = EmailService()
+        await email_service.send_notification_email(user, subject, message, notification_type)
+        
+        logger.info(f"Notification email sent to user {user_id}")
+        return f"Notification email sent to {user.email}"
+    
+    except User.DoesNotExist:
+        logger.error(f"User {user_id} not found")
+        raise Exception(f"User {user_id} not found")
+    except Exception as exc:
+        logger.error(f"Failed to send notification email to user {user_id}: {exc}")
+        raise self.retry(exc=exc, countdown=60)
+
+@email_task
+def send_bulk_emails(self, email_data_list):
+    """Send bulk emails to multiple users."""
+    try:
+        email_service = EmailService()
+        results = []
+        
+        for email_data in email_data_list:
+            try:
+                result = await email_service.send_email(
+                    to=email_data['email'],
+                    subject=email_data['subject'],
+                    template=email_data['template'],
+                    context=email_data.get('context', {})
+                )
+                results.append({'email': email_data['email'], 'status': 'sent', 'result': result})
+            except Exception as exc:
+                results.append({'email': email_data['email'], 'status': 'failed', 'error': str(exc)})
+                logger.error(f"Failed to send email to {email_data['email']}: {exc}")
+        
+        sent_count = sum(1 for r in results if r['status'] == 'sent')
+        logger.info(f"Bulk email completed: {sent_count}/{len(email_data_list)} sent")
+        
+        return results
+    
+    except Exception as exc:
+        logger.error(f"Failed to send bulk emails: {exc}")
+        raise self.retry(exc=exc, countdown=300)
+
+@email_task
+def send_daily_digest(self, user_id):
+    """Send daily digest email to user."""
+    try:
+        user = User.objects.get(id=user_id)
+        
+        email_service = EmailService()
+        await email_service.send_daily_digest(user)
+        
+        logger.info(f"Daily digest sent to user {user_id}")
+        return f"Daily digest sent to {user.email}"
+    
+    except User.DoesNotExist:
+        logger.error(f"User {user_id} not found")
+        raise Exception(f"User {user_id} not found")
+    except Exception as exc:
+        logger.error(f"Failed to send daily digest to user {user_id}: {exc}")
+        raise self.retry(exc=exc, countdown=300)
+```
+
+### 3. Report Tasks (`src/tasks/report_tasks.py`)
+
+```python
+import logging
+from datetime import datetime, timedelta
+from .base import task_with_retry
+from ..services.report_service import ReportService
+from ..models.user import User
+
+logger = logging.getLogger(__name__)
+
+@task_with_retry(
+    queue='reports',
+    max_retries=3,
+    default_retry_delay=300
+)
+def generate_user_report(self, user_id, report_type='daily', start_date=None, end_date=None):
+    """Generate user activity report."""
+    try:
+        user = User.objects.get(id=user_id)
+        
+        if not start_date:
+            if report_type == 'daily':
+                start_date = datetime.now().date()
+            elif report_type == 'weekly':
+                start_date = datetime.now().date() - timedelta(days=7)
+            elif report_type == 'monthly':
+                start_date = datetime.now().date() - timedelta(days=30)
+        
+        if not end_date:
+            end_date = datetime.now().date()
+        
+        report_service = ReportService()
+        report_data = await report_service.generate_user_report(
+            user=user,
+            report_type=report_type,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        logger.info(f"User report generated for user {user_id}")
+        return report_data
+    
+    except User.DoesNotExist:
+        logger.error(f"User {user_id} not found")
+        raise Exception(f"User {user_id} not found")
+    except Exception as exc:
+        logger.error(f"Failed to generate user report for user {user_id}: {exc}")
+        raise self.retry(exc=exc, countdown=300)
+
+@task_with_retry(
+    queue='reports',
+    max_retries=3,
+    default_retry_delay=300
+)
+def generate_system_report(self, report_type='daily'):
+    """Generate system-wide report."""
+    try:
+        report_service = ReportService()
+        report_data = await report_service.generate_system_report(report_type)
+        
+        logger.info(f"System report generated: {report_type}")
+        return report_data
+    
+    except Exception as exc:
+        logger.error(f"Failed to generate system report: {exc}")
+        raise self.retry(exc=exc, countdown=300)
+
+@task_with_retry(
+    queue='reports',
+    max_retries=3,
+    default_retry_delay=300
+)
+def send_daily_reports(self):
+    """Send daily reports to all users."""
+    try:
+        users = User.objects.filter(is_active=True, is_subscribed_reports=True)
+        report_service = ReportService()
+        
+        results = []
+        for user in users:
+            try:
+                await report_service.send_daily_report(user)
+                results.append({'user_id': user.id, 'status': 'sent'})
+            except Exception as exc:
+                results.append({'user_id': user.id, 'status': 'failed', 'error': str(exc)})
+                logger.error(f"Failed to send daily report to user {user.id}: {exc}")
+        
+        sent_count = sum(1 for r in results if r['status'] == 'sent')
+        logger.info(f"Daily reports sent: {sent_count}/{len(users)}")
+        
+        return results
+    
+    except Exception as exc:
+        logger.error(f"Failed to send daily reports: {exc}")
+        raise self.retry(exc=exc, countdown=600)
+
+@task_with_retry(
+    queue='reports',
+    max_retries=3,
+    default_retry_delay=300
+)
+def export_user_data(self, user_id, export_format='csv'):
+    """Export user data in specified format."""
+    try:
+        user = User.objects.get(id=user_id)
+        
+        report_service = ReportService()
+        export_data = await report_service.export_user_data(user, export_format)
+        
+        logger.info(f"User data exported for user {user_id} in {export_format} format")
+        return export_data
+    
+    except User.DoesNotExist:
+        logger.error(f"User {user_id} not found")
+        raise Exception(f"User {user_id} not found")
+    except Exception as exc:
+        logger.error(f"Failed to export user data for user {user_id}: {exc}")
+        raise self.retry(exc=exc, countdown=300)
+```
+
+### 4. Maintenance Tasks (`src/tasks/maintenance_tasks.py`)
+
+```python
+import logging
+from datetime import datetime, timedelta
+from .base import task_with_retry
+from ..services.cache_service import CacheService
+from ..services.session_service import SessionService
+from ..models.user import User
+
+logger = logging.getLogger(__name__)
+
+@task_with_retry(
+    queue='low_priority',
+    max_retries=3,
+    default_retry_delay=300
+)
+def cleanup_expired_sessions(self):
+    """Clean up expired user sessions."""
+    try:
+        session_service = SessionService()
+        cleaned_count = await session_service.cleanup_expired_sessions()
+        
+        logger.info(f"Cleaned up {cleaned_count} expired sessions")
+        return f"Cleaned up {cleaned_count} expired sessions"
+    
+    except Exception as exc:
+        logger.error(f"Failed to cleanup expired sessions: {exc}")
+        raise self.retry(exc=exc, countdown=300)
+
+@task_with_retry(
+    queue='low_priority',
+    max_retries=3,
+    default_retry_delay=300
+)
+def cleanup_expired_cache(self):
+    """Clean up expired cache entries."""
+    try:
+        cache_service = CacheService()
+        cleaned_count = await cache_service.cleanup_expired()
+        
+        logger.info(f"Cleaned up {cleaned_count} expired cache entries")
+        return f"Cleaned up {cleaned_count} expired cache entries"
+    
+    except Exception as exc:
+        logger.error(f"Failed to cleanup expired cache: {exc}")
+        raise self.retry(exc=exc, countdown=300)
+
+@task_with_retry(
+    queue='low_priority',
+    max_retries=3,
+    default_retry_delay=300
+)
+def cleanup_inactive_users(self, days_inactive=90):
+    """Clean up inactive users."""
+    try:
+        cutoff_date = datetime.now() - timedelta(days=days_inactive)
+        inactive_users = User.objects.filter(
+            last_login__lt=cutoff_date,
+            is_active=True
+        )
+        
+        deactivated_count = 0
+        for user in inactive_users:
+            user.is_active = False
+            user.save()
+            deactivated_count += 1
+        
+        logger.info(f"Deactivated {deactivated_count} inactive users")
+        return f"Deactivated {deactivated_count} inactive users"
+    
+    except Exception as exc:
+        logger.error(f"Failed to cleanup inactive users: {exc}")
+        raise self.retry(exc=exc, countdown=300)
+
+@task_with_retry(
+    queue='low_priority',
+    max_retries=3,
+    default_retry_delay=300
+)
+def backup_database(self, backup_path=None):
+    """Create database backup."""
+    try:
+        import shutil
+        from django.conf import settings
+        
+        if not backup_path:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_path = f"/backups/db_backup_{timestamp}.sql"
+        
+        # This is a simplified example - implement proper backup logic
+        logger.info(f"Database backup created at {backup_path}")
+        return f"Database backup created at {backup_path}"
+    
+    except Exception as exc:
+        logger.error(f"Failed to create database backup: {exc}")
+        raise self.retry(exc=exc, countdown=600)
+
+@task_with_retry(
+    queue='low_priority',
+    max_retries=3,
+    default_retry_delay=300
+)
+def rotate_logs(self):
+    """Rotate application logs."""
+    try:
+        import os
+        import glob
+        
+        log_dir = '/var/log/myapp'
+        log_files = glob.glob(f"{log_dir}/*.log")
+        
+        rotated_count = 0
+        for log_file in log_files:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            rotated_file = f"{log_file}.{timestamp}"
+            
+            os.rename(log_file, rotated_file)
+            rotated_count += 1
+        
+        logger.info(f"Rotated {rotated_count} log files")
+        return f"Rotated {rotated_count} log files"
+    
+    except Exception as exc:
+        logger.error(f"Failed to rotate logs: {exc}")
+        raise self.retry(exc=exc, countdown=300)
+```
+
+## 🔄 Task Management
+
+### 1. Task Manager (`src/services/task_manager.py`)
+
+```python
+import logging
+from celery import current_app
+from celery.result import AsyncResult
+from typing import Dict, List, Optional, Any
+
+logger = logging.getLogger(__name__)
+
+class TaskManager:
+    """Service for managing Celery tasks."""
+    
+    def __init__(self):
+        self.app = current_app
+    
+    def submit_task(self, task_name: str, args: tuple = (), kwargs: dict = None, 
+                    queue: str = None, priority: int = None, eta=None, countdown=None) -> AsyncResult:
+        """Submit a task to Celery."""
+        try:
+            task_kwargs = kwargs or {}
+            
+            task = self.app.send_task(
+                task_name,
+                args=args,
+                kwargs=task_kwargs,
+                queue=queue,
+                priority=priority,
+                eta=eta,
+                countdown=countdown
+            )
+            
+            logger.info(f"Task {task_name} submitted with ID: {task.id}")
+            return task
+        
+        except Exception as exc:
+            logger.error(f"Failed to submit task {task_name}: {exc}")
+            raise
+    
+    def get_task_status(self, task_id: str) -> Dict[str, Any]:
+        """Get task status and result."""
+        try:
+            result = AsyncResult(task_id, app=self.app)
+            
+            status_info = {
+                'task_id': task_id,
+                'status': result.state,
+                'result': result.result if result.ready() else None,
+                'traceback': result.traceback if result.failed() else None,
+                'date_done': result.date_done,
+            }
+            
+            return status_info
+        
+        except Exception as exc:
+            logger.error(f"Failed to get task status for {task_id}: {exc}")
+            return {'task_id': task_id, 'status': 'UNKNOWN', 'error': str(exc)}
+    
+    def revoke_task(self, task_id: str, terminate: bool = False) -> bool:
+        """Revoke or terminate a task."""
+        try:
+            self.app.control.revoke(task_id, terminate=terminate)
+            logger.info(f"Task {task_id} revoked (terminate={terminate})")
+            return True
+        
+        except Exception as exc:
+            logger.error(f"Failed to revoke task {task_id}: {exc}")
+            return False
+    
+    def get_active_tasks(self) -> List[Dict[str, Any]]:
+        """Get list of active tasks."""
+        try:
+            inspect = self.app.control.inspect()
+            active_tasks = inspect.active()
+            
+            if not active_tasks:
+                return []
+            
+            tasks = []
+            for worker, task_list in active_tasks.items():
+                for task in task_list:
+                    tasks.append({
+                        'worker': worker,
+                        'task_id': task['id'],
+                        'name': task['name'],
+                        'args': task['args'],
+                        'kwargs': task['kwargs'],
+                    })
+            
+            return tasks
+        
+        except Exception as exc:
+            logger.error(f"Failed to get active tasks: {exc}")
+            return []
+    
+    def get_scheduled_tasks(self) -> List[Dict[str, Any]]:
+        """Get list of scheduled tasks."""
+        try:
+            inspect = self.app.control.inspect()
+            scheduled_tasks = inspect.scheduled()
+            
+            if not scheduled_tasks:
+                return []
+            
+            tasks = []
+            for worker, task_list in scheduled_tasks.items():
+                for task in task_list:
+                    tasks.append({
+                        'worker': worker,
+                        'task_id': task['request']['id'],
+                        'name': task['request']['task'],
+                        'args': task['request']['args'],
+                        'kwargs': task['request']['kwargs'],
+                        'eta': task['eta'],
+                    })
+            
+            return tasks
+        
+        except Exception as exc:
+            logger.error(f"Failed to get scheduled tasks: {exc}")
+            return []
+    
+    def get_worker_stats(self) -> Dict[str, Any]:
+        """Get worker statistics."""
+        try:
+            inspect = self.app.control.inspect()
+            stats = inspect.stats()
+            
+            if not stats:
+                return {}
+            
+            return stats
+        
+        except Exception as exc:
+            logger.error(f"Failed to get worker stats: {exc}")
+            return {}
+    
+    def get_queue_length(self, queue_name: str) -> int:
+        """Get number of tasks in queue."""
+        try:
+            with self.app.connection() as conn:
+                with conn.channel() as channel:
+                    queue = channel.queue_declare(queue_name, passive=True)
+                    return queue.message_count or 0
+        
+        except Exception as exc:
+            logger.error(f"Failed to get queue length for {queue_name}: {exc}")
+            return 0
+    
+    def purge_queue(self, queue_name: str) -> int:
+        """Purge all tasks from queue."""
+        try:
+            with self.app.connection() as conn:
+                with conn.channel() as channel:
+                    return channel.queue_purge(queue_name)
+        
+        except Exception as exc:
+            logger.error(f"Failed to purge queue {queue_name}: {exc}")
+            return 0
+    
+    def scale_workers(self, worker_name: str, concurrency: int) -> bool:
+        """Scale worker concurrency."""
+        try:
+            self.app.control.pool_grow(worker_name, n=concurrency)
+            logger.info(f"Scaled worker {worker_name} to {concurrency} concurrency")
+            return True
+        
+        except Exception as exc:
+            logger.error(f"Failed to scale worker {worker_name}: {exc}")
+            return False
+
+# Singleton instance
+task_manager = TaskManager()
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Blocking Operations:**
+   - **Bad:** Running blocking operations in Celery tasks.
+   - **Good:** Use async operations or break into smaller tasks.
+
+2. **Large Task Payloads:**
+   - **Bad:** Passing large objects as task arguments.
+   - **Good:** Pass IDs and fetch data in the task.
+
+3. **No Error Handling:**
+   - **Bad:** Not handling task failures properly.
+   - **Good:** Implement proper error handling and retry logic.
+
+4. **Infinite Retries:**
+   - **Bad:** Tasks that retry forever without backoff.
+   - **Good:** Use exponential backoff and max retry limits.
+
+5. **Missing Monitoring:**
+   - **Bad:** Not monitoring task performance and failures.
+   - **Good:** Implement proper logging and monitoring.
+
+## 🧪 Testing Strategy
+
+```python
+# tests/test_email_tasks.py
+import pytest
+from unittest.mock import Mock, patch
+from src.tasks.email_tasks import send_welcome_email
+from src.models.user import User
+
+@pytest.mark.asyncio
+async def test_send_welcome_email():
+    """Test welcome email task."""
+    # Create mock user
+    mock_user = Mock()
+    mock_user.id = 1
+    mock_user.email = "test@example.com"
+    
+    with patch('src.tasks.email_tasks.User.objects.get', return_value=mock_user):
+        with patch('src.tasks.email_tasks.EmailService') as mock_email_service:
+            mock_service_instance = Mock()
+            mock_email_service.return_value = mock_service_instance
+            
+            # Execute task
+            result = await send_welcome_email(1)
+            
+            # Verify email service was called
+            mock_service_instance.send_welcome_email.assert_called_once_with(mock_user)
+            
+            # Verify result
+            assert "Welcome email sent to test@example.com" in result
+
+@pytest.mark.asyncio
+async def test_send_welcome_email_user_not_found():
+    """Test welcome email task with non-existent user."""
+    with patch('src.tasks.email_tasks.User.objects.get', side_effect=User.DoesNotExist):
+        with pytest.raises(Exception, match="User 1 not found"):
+            await send_welcome_email(1)
+
+@pytest.mark.asyncio
+async def test_send_welcome_email_retry():
+    """Test welcome email task retry on failure."""
+    mock_user = Mock()
+    mock_user.id = 1
+    mock_user.email = "test@example.com"
+    
+    with patch('src.tasks.email_tasks.User.objects.get', return_value=mock_user):
+        with patch('src.tasks.email_tasks.EmailService') as mock_email_service:
+            mock_service_instance = Mock()
+            mock_service_instance.send_welcome_email.side_effect = Exception("SMTP Error")
+            mock_email_service.return_value = mock_service_instance
+            
+            # Create mock task with retry
+            mock_task = Mock()
+            mock_task.retry = Mock()
+            
+            # Execute task
+            with pytest.raises(Exception):
+                await send_welcome_email.apply_async(args=(1,), throw=True)
+            
+            # Verify retry was called
+            mock_task.retry.assert_called_once()
+```
+
+## 📦 Environment Variables
+
+```env
+# Celery Configuration
+CELERY_BROKER_TYPE=redis
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND_TYPE=redis
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
+
+# Worker Settings
+CELERY_WORKER_CONCURRENCY=4
+CELERY_ALWAYS_EAGER=false
+CELERY_IGNORE_RESULT=false
+
+# Security
+CELERY_BROKER_USE_SSL=false
+
+# Monitoring
+CELERY_SEND_TASK_EVENTS=true
+CELERY_TASK_TRACK_STARTED=true
+```
+
+## 📦 Commands
+
+```bash
+# Start worker
+celery -A src.config.celery worker --loglevel=info
+
+# Start beat scheduler
+celery -A src.config.celery beat --loglevel=info
+
+# Monitor tasks
+celery -A src.config.celery events
+
+# Flower monitoring (install flower first)
+pip install flower
+celery -A src.config.celery flower
+
+# Purge queue
+celery -A src.config.celery purge
+
+# Check active tasks
+celery -A src.config.celery inspect active
+
+# Check worker stats
+celery -A src.config.celery inspect stats
+```

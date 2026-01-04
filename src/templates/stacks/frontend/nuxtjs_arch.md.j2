@@ -1,0 +1,69 @@
+# Nuxt.js Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built using **Nuxt.js** (v3+), leveraging its Full-stack capabilities powered by the **Nitro** server engine.
+It follows the "Convention over Configuration" principle, relying heavily on Nuxt's file-system based routing and auto-imports.
+
+## 📂 Directory Structure
+
+```text
+.
+├── app.vue              # Root component
+├── assets/              # SCSS, Fonts, Images
+├── components/          # Auto-imported Vue components
+├── composables/         # Auto-imported logic (Custom Hooks)
+├── layouts/             # Page layouts
+├── middleware/          # Route middleware (Auth guards)
+├── pages/               # File-system Routing
+├── plugins/             # Client/Server plugins (Use sparingly)
+├── public/              # Static files (Robots.txt, Favicon)
+├── server/              # Nitro API Routes (Backend logic)
+│   ├── api/             # /api/... endpoints
+│   ├── middleware/      # Server-side middleware
+│   └── utils/           # Server-side utilities
+├── utils/               # Auto-imported helper functions
+├── nuxt.config.ts       # Main configuration file
+└── tsconfig.json
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Auto-Imports & Modules
+Nuxt automatically imports components, composables, and Vue APIs (`ref`, `computed`).
+- **Rule:** Do not manually import `ref`, `useRouter`, or components inside `components/`. Keep the code clean.
+- **Modules:** Prefer official **Nuxt Modules** (e.g., `@nuxtjs/tailwindcss`, `@pinia/nuxt`) over manual plugin configuration.
+
+### 2. Data Fetching (UseFetch)
+We strictly use Nuxt's built-in data fetching composables which handle SSR hydration automatically.
+- **`useFetch`:** For fetching data inside components.
+- **`useAsyncData`:** For wrapping complex async logic.
+- **Avoid:** Do not use `axios` directly in components. Use the built-in `$fetch` (powered by `ofetch`) which is smarter and lighter.
+
+### 3. Server-Side Logic (Nitro)
+The `server/` directory acts as our Backend-for-Frontend (BFF).
+- API routes are defined in `server/api/`.
+- Unlike Next.js, Nitro routes are strictly typed and can return objects directly (no need for `res.json()`).
+
+{% if "Pinia" in libraries %}
+### 4. State Management (Pinia)
+- Use the `@pinia/nuxt` module.
+- Stores are defined in `stores/` and are auto-imported.
+- Use **Setup Stores** syntax (`export const useUserStore = defineStore(...)`).
+{% endif %}
+
+{% if "Nuxt UI" in libraries %}
+### 5. UI Library (Nuxt UI)
+- We use **Nuxt UI** (based on Tailwind).
+- Components are available globally (e.g., `<UButton>`, `<UInput>`).
+- Config is handled in `app.config.ts`.
+{% endif %}
+
+## 🎨 Styling Architecture
+{% if "TailwindCSS" in libraries or "Nuxt UI" in libraries %}
+- **Tailwind CSS** is integrated via `@nuxtjs/tailwindcss`.
+- Use the `class` attribute for utilities.
+- Configuration is in `tailwind.config.ts`.
+{% else %}
+- Global styles are defined in `assets/css/main.css` and registered in `nuxt.config.ts`.
+{% endif %}

@@ -1,0 +1,100 @@
+# Node.js Coding Standards
+
+## 📝 Naming Conventions
+
+- **Files:**
+  {% if "NestJS" in libraries %}
+  - `kebab-case` with type suffix (e.g., `user.controller.ts`, `auth.service.ts`).
+  {% else %}
+  - `camelCase` or `kebab-case` (Consistent within project).
+  - e.g., `userController.ts` OR `user-controller.ts`.
+  {% endif %}
+- **Classes:** `PascalCase`.
+- **Variables/Functions:** `camelCase`.
+- **Constants:** `UPPER_SNAKE_CASE` (for env vars or config constants).
+- **Interfaces:** `PascalCase` (No `I` prefix, e.g., `User` not `IUser`).
+
+## ⚡ Modern Node.js Rules (Critical)
+
+### 1. Async/Await Over Promises/Callbacks
+**Rule:** Strictly use `async/await`. Do not use callbacks (except for legacy libraries) or raw `.then()`.
+```typescript
+// ❌ Bad
+getUser(id).then(user => { ... });
+
+// ✅ Good
+const user = await getUser(id);
+```
+
+### 2. ES Modules (ESM)
+**Rule:** Use `import` and `export`. Do not use `require()` or `module.exports`.
+- Ensure `package.json` has `"type": "module"` (if not using a bundler like TS/Nest CLI).
+
+### 3. No `console.log` in Production
+**Rule:** Use a structured logger like **Winston**, **Pino**, or **NestJS Logger**.
+- `console.log` is synchronous (blocking) in some environments and lacks formatting/levels.
+
+```typescript
+// ❌ Bad
+console.log('User logged in');
+
+// ✅ Good
+logger.info('User logged in', { userId });
+```
+
+## 🛡️ Framework Specifics
+
+{% if "NestJS" in libraries %}
+### NestJS Rules
+1. **Dependency Injection:** Never manually instantiate services (`new UserService()`). Use constructor injection.
+2. **DTOs:** Use Classes (not Interfaces) for DTOs to leverage `class-validator` decorators.
+3. **Environment:** Use `ConfigService` to access env vars. Never use `process.env` directly in business logic.
+
+```typescript
+// ✅ Good
+constructor(private configService: ConfigService) {}
+const dbHost = this.configService.get<string>('DB_HOST');
+```
+{% endif %}
+
+{% if "Express" in libraries %}
+### Express Rules
+1. **Middleware Return:** Always `return` when sending a response in middleware/controllers to prevent execution flow continuation.
+2. **Status Codes:** Explicitly set status codes. Don't default to 200 for everything.
+   ```typescript
+   return res.status(201).json(data);
+   ```
+{% endif %}
+
+## 💾 Data & Validation
+
+### 1. Input Validation
+**Rule:** Never trust user input. Validate incoming data at the Controller/Route level.
+{% if "Zod" in libraries %}
+- Use **Zod** for schema validation.
+{% elif "NestJS" in libraries %}
+- Use `class-validator` and `class-transformer` with proper DTOs.
+{% else %}
+- Use a validation library (Joi/Zod).
+{% endif %}
+
+### 2. Secrets Management
+**Rule:** Never commit `.env` files.
+- Use `dotenv` or framework equivalents to load configuration.
+- Validate the existence of required env vars at startup.
+
+## 🧪 Testing
+
+{% if "NestJS" in libraries %}
+- **Unit Tests:** `*.spec.ts` files alongside source files. Use `Test.createTestingModule` for isolation.
+- **E2E Tests:** Located in `test/` directory.
+{% else %}
+- **Structure:** Tests usually live in `tests/` or `__tests__/`.
+- **Runner:** Use **Jest**, **Vitest**, or the native **Node.js Test Runner** (`node:test`).
+{% endif %}
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Blocking the Event Loop:** Avoid CPU-intensive tasks (heavy calculation, image processing) on the main thread. Use Worker Threads or offload to a job queue (BullMQ/Redis).
+2. **Ignoring Errors:** Empty `catch` blocks are forbidden. Always log or re-throw.
+3. **Global State:** Avoid global variables. They make testing difficult and cause race conditions in concurrent requests.

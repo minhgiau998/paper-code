@@ -1,0 +1,621 @@
+# Fastify Documentation
+
+> **Purpose:** Fast and low overhead web framework, for Node.js.
+
+## 📦 Installation
+
+```bash
+npm install fastify
+npm install -D @types/node typescript ts-node nodemon
+```
+
+## 🛠️ Basic Setup
+
+**Strategy:** Leverage Fastify's plugin system and built-in features for optimal performance.
+
+### 1. Main Server File (`src/server.ts`)
+
+```typescript
+import fastify from 'fastify';
+import { FastifyInstance } from 'fastify';
+import { authRoutes } from './routes/auth';
+import { userRoutes } from './routes/users';
+import { errorHandler } from './plugins/errorHandler';
+import { authPlugin } from './plugins/auth';
+
+// Create Fastify instance
+const createServer = async (): Promise<FastifyInstance> => {
+  const app = fastify({
+    logger: {
+      level: process.env.LOG_LEVEL || 'info',
+      prettyPrint: process.env.NODE_ENV === 'development',
+    },
+  });
+
+  // Register plugins
+  await app.register(import('@fastify/helmet'));
+  await app.register(import('@fastify/cors'), {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+  });
+  await app.register(import('@fastify/compress'));
+  
+  // Register custom plugins
+  await app.register(errorHandler);
+  await app.register(authPlugin);
+
+  // Register routes
+  await app.register(authRoutes, { prefix: '/api/auth' });
+  await app.register(userRoutes, { prefix: '/api/users' });
+
+  // Health check
+  app.get('/health', async (request, reply) => {
+    return {
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+    };
+  });
+
+  return app;
+};
+
+// Start server
+const start = async () => {
+  try {
+    const app = await createServer();
+    const PORT = parseInt(process.env.PORT || '5000', 10);
+    
+    await app.listen({ port: PORT, host: '0.0.0.0' });
+    app.log.info(`Server listening on http://localhost:${PORT}`);
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
+};
+
+start();
+```
+
+## 🔌 Plugin System
+
+### 1. Error Handler Plugin (`src/plugins/errorHandler.ts`)
+
+```typescript
+import { FastifyError, FastifyInstance, FastifyRequest } from 'fastify';
+
+export const errorHandler = async (app: FastifyInstance) => {
+  app.setErrorHandler((error: FastifyError, request: FastifyRequest, reply) => {
+    app.log.error(error);
+
+    // Handle validation errors
+    if (error.validation) {
+      return reply.status(400).send({
+        success: false,
+        message: 'Validation failed',
+        errors: error.validation,
+      });
+    }
+
+    // Handle custom errors
+    if (error.statusCode) {
+      return reply.status(error.statusCode).send({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    // Handle unknown errors
+    return reply.status(500).send({
+      success: false,
+      message: 'Internal Server Error',
+    });
+  });
+};
+```
+
+### 2. Auth Plugin (`src/plugins/auth.ts`)
+
+```typescript
+import { FastifyInstance, FastifyRequest } from 'fastify';
+import jwt from 'jsonwebtoken';
+
+export const authPlugin = async (app: FastifyInstance) => {
+  // Add user property to request type
+  app.decorateRequest('user', null);
+
+  // Add pre-validation hook for protected routes
+  app.addHook('preValidation', async (request: FastifyRequest, reply) => {
+    if (request.routeOptions.config?.requiresAuth) {
+      const token = request.headers.authorization?.replace('Bearer ', '');
+
+      if (!token) {
+        return reply.status(401).send({
+          success: false,
+          message: 'No token provided',
+        });
+      }
+
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+        request.user = decoded;
+      } catch (err) {
+        return reply.status(401).send({
+          success: false,
+          message: 'Invalid token',
+        });
+      }
+    }
+  });
+};
+
+// Declare module for TypeScript
+declare module 'fastify' {
+  export interface FastifyRequest {
+    user: any;
+  }
+}
+```
+
+## 🚀 Route Structure
+
+### 1. Auth Routes (`src/routes/auth.ts`)
+
+```typescript
+import { FastifyInstance } from 'fastify';
+import { register, login, logout, getProfile } from '../controllers/auth';
+import { registerSchema, loginSchema } from '../schemas/auth';
+
+export const authRoutes = async (app: FastifyInstance) => {
+  app.post('/register', { schema: registerSchema }, register);
+  app.post('/login', { schema: loginSchema }, login);
+  app.post('/logout', { config: { requiresAuth: true } }, logout);
+  app.get('/profile', { config: { requiresAuth: true } }, getProfile);
+};
+```
+
+### 2. User Routes (`src/routes/users.ts`)
+
+```typescript
+import { FastifyInstance } from 'fastify';
+import { getUsers, getUser, updateUser, deleteUser } from '../controllers/users';
+import { updateUserSchema } from '../schemas/user';
+
+export const userRoutes = async (app: FastifyInstance) => {
+  app.get('/', { config: { requiresAuth: true } }, getUsers);
+  app.get('/:id', { config: { requiresAuth: true } }, getUser);
+  app.put('/:id', { 
+    config: { requiresAuth: true }, 
+    schema: { body: updateUserSchema } 
+  }, updateUser);
+  app.delete('/:id', { config: { requiresAuth: true } }, deleteUser);
+};
+```
+
+## 📝 JSON Schemas
+
+### 1. Auth Schemas (`src/schemas/auth.ts`)
+
+```typescript
+export const registerSchema = {
+  type: 'object',
+  required: ['name', 'email', 'password'],
+  properties: {
+    name: { type: 'string', minLength: 1 },
+    email: { type: 'string', format: 'email' },
+    password: { type: 'string', minLength: 6 },
+  },
+};
+
+export const loginSchema = {
+  type: 'object',
+  required: ['email', 'password'],
+  properties: {
+    email: { type: 'string', format: 'email' },
+    password: { type: 'string', minLength: 1 },
+  },
+};
+
+export const authResponseSchema = {
+  type: 'object',
+  properties: {
+    success: { type: 'boolean' },
+    token: { type: 'string' },
+    user: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+        email: { type: 'string' },
+      },
+    },
+  },
+};
+```
+
+### 2. User Schemas (`src/schemas/user.ts`)
+
+```typescript
+export const updateUserSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string', minLength: 1 },
+    email: { type: 'string', format: 'email' },
+  },
+};
+
+export const userResponseSchema = {
+  type: 'object',
+  properties: {
+    success: { type: 'boolean' },
+    data: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+        email: { type: 'string' },
+        createdAt: { type: 'string' },
+        updatedAt: { type: 'string' },
+      },
+    },
+  },
+};
+```
+
+## 🎮 Controllers
+
+### 1. Auth Controller (`src/controllers/auth.ts`)
+
+```typescript
+import { FastifyRequest, FastifyReply } from 'fastify';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { User } from '../models/User';
+
+export const register = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  const { name, email, password } = request.body as any;
+
+  // Check if user exists
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    return reply.status(400).send({
+      success: false,
+      message: 'User already exists',
+    });
+  }
+
+  // Hash password
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
+
+  // Create user
+  const user = await User.create({
+    name,
+    email,
+    password: hashedPassword,
+  });
+
+  // Generate token
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET!, {
+    expiresIn: '1d',
+  });
+
+  return reply.status(201).send({
+    success: true,
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+    },
+  });
+};
+
+export const login = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  const { email, password } = request.body as any;
+
+  // Find user
+  const user = await User.findOne({ email }).select('+password');
+  if (!user) {
+    return reply.status(401).send({
+      success: false,
+      message: 'Invalid credentials',
+    });
+  }
+
+  // Check password
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    return reply.status(401).send({
+      success: false,
+      message: 'Invalid credentials',
+    });
+  }
+
+  // Generate token
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET!, {
+    expiresIn: '1d',
+  });
+
+  return reply.status(200).send({
+    success: true,
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+    },
+  });
+};
+
+export const getProfile = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  const user = await User.findById(request.user.id);
+  
+  return reply.status(200).send({
+    success: true,
+    user: {
+      id: user?._id,
+      name: user?.name,
+      email: user?.email,
+    },
+  });
+};
+
+export const logout = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  return reply.status(200).send({
+    success: true,
+    message: 'Logged out successfully',
+  });
+};
+```
+
+### 2. User Controller (`src/controllers/users.ts`)
+
+```typescript
+import { FastifyRequest, FastifyReply } from 'fastify';
+import { User } from '../models/User';
+
+export const getUsers = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  const users = await User.find().select('-password');
+  
+  return reply.status(200).send({
+    success: true,
+    data: users,
+  });
+};
+
+export const getUser = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  const { id } = request.params as any;
+  
+  const user = await User.findById(id).select('-password');
+  if (!user) {
+    return reply.status(404).send({
+      success: false,
+      message: 'User not found',
+    });
+  }
+
+  return reply.status(200).send({
+    success: true,
+    data: user,
+  });
+};
+
+export const updateUser = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  const { id } = request.params as any;
+  const updates = request.body as any;
+
+  const user = await User.findByIdAndUpdate(
+    id,
+    updates,
+    { new: true, runValidators: true }
+  ).select('-password');
+
+  if (!user) {
+    return reply.status(404).send({
+      success: false,
+      message: 'User not found',
+    });
+  }
+
+  return reply.status(200).send({
+    success: true,
+    data: user,
+  });
+};
+
+export const deleteUser = async (
+  request: FastifyRequest,
+  reply: FastifyReply
+) => {
+  const { id } = request.params as any;
+
+  const user = await User.findByIdAndDelete(id);
+  if (!user) {
+    return reply.status(404).send({
+      success: false,
+      message: 'User not found',
+    });
+  }
+
+  return reply.status(200).send({
+    success: true,
+    message: 'User deleted successfully',
+  });
+};
+```
+
+## 🗄️ Database Integration
+
+### 1. MongoDB Plugin (`src/plugins/mongodb.ts`)
+
+```typescript
+import { FastifyInstance } from 'fastify';
+import mongoose from 'mongoose';
+
+export const mongodbPlugin = async (app: FastifyInstance) => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/fastify');
+    app.log.info('Connected to MongoDB');
+  } catch (error) {
+    app.log.error('Failed to connect to MongoDB:', error);
+    process.exit(1);
+  }
+};
+```
+
+### 2. User Model (`src/models/User.ts`)
+
+```typescript
+import mongoose, { Document, Schema } from 'mongoose';
+
+export interface IUser extends Document {
+  name: string;
+  email: string;
+  password: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const userSchema = new Schema<IUser>({
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true,
+  },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6,
+  },
+}, {
+  timestamps: true,
+});
+
+// Don't return password in queries
+userSchema.methods.toJSON = function() {
+  const userObject = this.toObject();
+  delete userObject.password;
+  return userObject;
+};
+
+export const User = mongoose.model<IUser>('User', userSchema);
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Ignoring Schema Validation:**
+   - **Bad:** Not using Fastify's built-in JSON schema validation.
+   - **Good:** Always define schemas for request/response validation.
+
+2. **Mixing Concerns:**
+   - **Bad:** Putting business logic directly in route handlers.
+   - **Good:** Use controllers and services to separate concerns.
+
+3. **Not Using Plugins:**
+   - **Bad:** Manually adding middleware to every route.
+   - **Good:** Use Fastify's plugin system for reusable functionality.
+
+4. **Blocking Event Loop:**
+   - **Bad:** Using synchronous operations.
+   - **Good:** Always use async/await with non-blocking operations.
+
+5. **Missing Error Handling:**
+   - **Bad:** Not handling errors properly.
+   - **Good:** Use global error handler plugin.
+
+## 🧪 Testing Strategy
+
+{% if "Jest" in libraries %}
+Fastify provides excellent testing utilities:
+
+```typescript
+// tests/auth.test.ts
+import { build } from '../src/server';
+import { FastifyInstance } from 'fastify';
+
+describe('Auth Routes', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = build();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  test('POST /api/auth/register', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: {
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'password123',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toHaveProperty('token');
+  });
+
+  test('POST /api/auth/login', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        email: 'test@example.com',
+        password: 'password123',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toHaveProperty('token');
+  });
+});
+```
+{% endif %}
+
+## 📦 Package.json Scripts
+
+```json
+{
+  "scripts": {
+    "dev": "nodemon src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  }
+}
+```

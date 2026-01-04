@@ -1,0 +1,103 @@
+# Angular Coding Standards
+
+## 📝 Naming Conventions
+
+- **Files:** `kebab-case` (e.g., `user-profile.component.ts`).
+- **Classes:** `PascalCase` (e.g., `UserProfileComponent`).
+- **Selectors:** `kebab-case` with strict prefix `app-` (e.g., `app-user-profile`).
+- **Signals:** CamelCase (e.g., `isLoading`, `users`). **Do not** use the `$` suffix for signals (reserve `$` for Observables).
+- **Observables:** CamelCase with `$` suffix (e.g., `users$`).
+
+## ⚡ Modern Angular Rules (Critical)
+
+### 1. Control Flow Syntax (v17+)
+**Strict Rule:** Use the built-in control flow syntax. **Do not** use `*ngIf` or `*ngFor`.
+```html
+<!-- ✅ Good -->
+@if (isLoggedIn()) {
+  <user-profile />
+} @else {
+  <login-form />
+}
+
+@for (item of items(); track item.id) {
+  <item-card [data]="item" />
+}
+```
+
+### 2. Injection Pattern
+**Rule:** Use the `inject()` function instead of Constructor Injection. It allows initialization logic to remain type-safe and composable.
+```typescript
+// ❌ Avoid
+constructor(private http: HttpClient) {}
+
+// ✅ Good
+private http = inject(HttpClient);
+```
+
+### 3. Signal Inputs & Queries
+**Rule:** Use the new Signal-based inputs and view queries (v17.2+).
+```typescript
+// ❌ Avoid
+@Input() title: string = '';
+
+// ✅ Good
+title = input.required<string>();
+child = viewChild<ChildComponent>('childRef');
+```
+
+## 🛡️ Reactivity & Performance
+
+### 1. Subscription Management
+- **Avoid Manual Subscriptions:** Never use `.subscribe()` inside components unless absolutely necessary.
+- **Async Pipe / toSignal:** Use `AsyncPipe` in templates or convert to signal using `toSignal(obs$)`.
+- **Cleanup:** If you must subscribe, use `takeUntilDestroyed()` operator to prevent memory leaks.
+
+```typescript
+// ✅ Good
+private route = inject(ActivatedRoute);
+id = toSignal(this.route.params.pipe(map(p => p['id'])));
+
+constructor() {
+  // Auto-cleaned up
+  this.someStream$.pipe(takeUntilDestroyed()).subscribe();
+}
+```
+
+### 2. Change Detection
+- **OnPush:** All components **must** use `ChangeDetectionStrategy.OnPush`.
+- Since we use Signals, Angular knows exactly what changed without checking the whole tree.
+
+```typescript
+@Component({
+  selector: 'app-feature',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush, // <-- Mandatory
+  // ...
+})
+```
+
+## 🏗️ Structure & Logic
+
+### 1. Logic in Services
+- Components should only handle View logic. Business logic, API calls, and complex data transformation must be in **Services**.
+
+### 2. Interceptors
+- Use **Functional Interceptors** defined in `app.config.ts`. Do not use class-based interceptors (`HTTP_INTERCEPTORS` token).
+
+{% if "RxJS" in libraries or "Angular" in tech_stack %}
+### 3. RxJS Best Practices
+- Avoid nested subscriptions. Use **High-order Mapping Operators** (`switchMap`, `concatMap`, `mergeMap`).
+- Use `catchError` to handle errors in streams; do not let the stream die silently.
+{% endif %}
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **SharedModule:** Do not create a giant `SharedModule`. Import what you need directly into the Standalone Component.
+2. **Deep Coupling:** Avoid `@ViewChild` to manipulate child components directly. Use Data Down (Inputs) / Events Up (Outputs) or a shared Service.
+3. **Any:** Explicitly type everything. Angular's strength is TypeScript.
+
+## 🧪 Testing
+
+- **Harnesses:** Use **Angular CDK Component Harnesses** for robust component testing (especially if using Angular Material).
+- **Spectator / Testing Library:** Prefer `ng-mocks` or `@testing-library/angular` over the verbose standard TestBed.

@@ -1,0 +1,64 @@
+# Rust CLI Architecture (Clap)
+
+## 🏗️ High-Level Overview
+
+This project is a high-performance Command Line Interface built with **Rust** and **Clap v4+**.
+It uses the **Derive API** for argument parsing to ensure type safety and strictly follows **Semantic Versioning**.
+
+## 📂 Directory Structure
+
+We follow the standard Cargo binary layout with a separation between the binary entry point and the application logic.
+
+```text
+root/
+├── Cargo.toml           # Dependencies & Metadata
+├── src/
+│   ├── main.rs          # Binary Entry Point (Parsing & Error Handling)
+│   ├── lib.rs           # (Optional) Library Entry for logic
+│   ├── cli.rs           # Clap Struct Definitions (Args, Subcommands)
+│   ├── commands/        # Command Logic Implementation
+│   │   ├── mod.rs
+│   │   ├── init.rs
+│   │   └── build.rs
+│   └── utils/           # Shared Helpers
+└── tests/               # Integration Tests
+    └── cli_tests.rs     # assert_cmd tests
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. The Derive API (Clap)
+We strictly use the **Derive** pattern (`#[derive(Parser)]`) instead of the Builder pattern.
+- **Why?** It keeps argument definition close to the data structure and leverages Rust's type system.
+- **Structure:** Defined in `src/cli.rs`.
+
+### 2. Binary vs. Logic Separation
+- **`src/main.rs`:** Thin wrapper. It initializes logging, parses args, and calls the router. It is responsible for the final `Exit Code`.
+- **`src/commands/`:** Contains the actual business logic. Functions here should return `Result<()>`, not exit the process.
+
+### 3. Error Handling Strategy
+{% if "Anyhow" in libraries %}
+- **Application Layer:** We use **Anyhow** (`anyhow::Result`) in `main.rs` and command handlers for easy error propagation with context.
+- **Library Layer:** If creating a reusable crate, use `thiserror` for structured errors.
+{% else %}
+- We use standard `Result<T, Box<dyn std::error::Error>>` or custom enums.
+{% endif %}
+
+{% if "Tokio" in libraries %}
+### 4. Async Runtime (Tokio)
+- The application runs within a `#[tokio::main]` runtime.
+- All I/O operations (HTTP, File) are asynchronous.
+{% endif %}
+
+## 📦 Distribution
+- **Compilation:** `cargo build --release`.
+- **Cross-Compilation:** We generally use `cross` or GitHub Actions to generate binaries for Linux, macOS, and Windows.
+- **Optimization:** Cargo profile is tuned for binary size (LTO enabled, symbols stripped).
+
+```toml
+# Cargo.toml optimization example
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
+```

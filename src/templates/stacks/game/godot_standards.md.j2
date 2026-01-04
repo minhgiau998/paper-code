@@ -1,0 +1,97 @@
+# Godot Coding Standards
+
+## 📝 Naming Conventions
+
+- **Nodes (Scene Tree):** PascalCase (e.g., `Player`, `HealthComponent`).
+- **Scripts/Files:** snake_case (e.g., `player_controller.gd`, `level_01.tscn`).
+- **Classes:** PascalCase (e.g., `class_name Weapon`).
+- **Variables/Functions:** snake_case (e.g., `current_health`, `take_damage()`).
+- **Signals:** snake_case, past tense (e.g., `health_changed`, `died`).
+- **Private:** Prefix with `_` (e.g., `_update_ui()`).
+
+## ⚡ Godot 4 / GDScript 2.0 Rules (Critical)
+
+### 1. Strict Typing
+**Rule:** You **MUST** use static typing for all variables and functions.
+- This improves performance and reduces bugs.
+- **Inferred Types:** Use `:=` when the type is obvious.
+
+```gdscript
+# ❌ Bad (Dynamic)
+var health = 100
+func damage(amount):
+    health -= amount
+
+# ✅ Good (Strict)
+var health: int = 100
+# or
+var speed := 250.0
+
+func damage(amount: int) -> void:
+    health -= amount
+```
+
+### 2. Modern Annotations (Godot 4)
+**Rule:** Use `@` annotations. Do not use Godot 3 keywords.
+- **Exports:** Use `@export` instead of `export var`.
+- **OnReady:** Use `@onready`.
+
+```gdscript
+# ❌ Legacy (Godot 3)
+export(int) var speed = 10
+
+# ✅ Modern (Godot 4)
+@export var speed: int = 10
+@export_group("Stats")
+@export var jump_force: float = 500.0
+```
+
+### 3. Await vs Yield
+**Rule:** Use `await` instead of `yield`.
+```gdscript
+# ✅ Good
+await get_tree().create_timer(1.0).timeout
+```
+
+## 🛡️ Node Communication Guidelines
+
+### 1. "Signal Up, Call Down"
+**Rule:**
+- **Down:** A parent can call functions on its children directly (or via Composition).
+- **Up:** A child MUST emit a **Signal** to talk to its parent. Never use `get_parent().do_something()`.
+- **Sideways:** Use the `SignalBus` autoload to talk to unrelated nodes.
+
+### 2. NodePaths over `get_node()`
+**Rule:** Avoid hardcoded string paths like `get_node("UI/Label")`.
+- Use `@export` variables to assign nodes in the Inspector. This prevents breakage if you rename nodes in the Scene tree.
+
+```gdscript
+# ❌ Fragile
+@onready var label = $UI/Label
+
+# ✅ Robust
+@export var label: Label
+```
+
+## 🏗️ Performance Optimizations
+
+### 1. Physics Process
+**Rule:** Put movement/collision logic in `_physics_process(delta)`.
+**Rule:** Put visual/UI updates in `_process(delta)`.
+
+### 2. Object Pooling
+**Rule:** Do not `instantiate()` and `queue_free()` projectiles frequently (e.g., machine gun bullets).
+- Use an **Object Pool** to reuse nodes. Memory allocation is expensive in real-time games.
+
+{% if "C#" in libraries %}
+## 🔷 C# Specific Rules (Godot .NET)
+1. **Naming:** Use PascalCase for everything (Variables, Methods) as per standard C# conventions.
+2. **Generics:** Use `GetNode<Type>("Path")` instead of casting.
+3. **Signals:** Connect to signals using C# events if possible, or `Connect()` method with type safety.
+{% endif %}
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **God Objects:** Do not put all game logic in one `Game.gd`. Split logic into Managers/Controllers.
+2.  **Cyclic Dependencies:** `class_name` A referencing `class_name` B referencing A. This causes parse errors in Godot. Use `Resource` or weak referencing.
+3.  **Using `delta` incorrectly:** Always multiply movement/changes by `delta` in `_process` or `_physics_process` to be framerate independent.

@@ -1,0 +1,85 @@
+# Node.js CLI Coding Standards
+
+## 📝 Naming Conventions
+
+- **Command Names:** `kebab-case` (e.g., `create-user`, `run-test`).
+- **Flags:** Standard single char (`-f`) and verbose (`--force`).
+- **Files:** `kebab-case` (e.g., `user-commands.js`).
+
+## ⚡ Modern Node.js CLI Rules (Critical)
+
+### 1. ES Modules (ESM)
+**Rule:** Use `import` and `export`.
+- Most modern CLI libraries (Chalk 5+, Inquirer 9+, Ora) are **Pure ESM**.
+- Ensure `package.json` has `"type": "module"`.
+
+### 2. Async Actions
+**Rule:** Always make Commander actions `async`.
+- Node.js CLIs are rarely synchronous (File I/O, Network).
+- Commander handles async actions properly; you don't need to manually call process.exit inside the action unless it's an error.
+
+```javascript
+// ✅ Good
+.action(async (options) => {
+  await performTask();
+});
+```
+
+### 3. Error Handling (UX)
+**Rule:** Never let a raw Stack Trace reach the user unless `--verbose` is passed.
+- Wrap the main execution in a `try/catch`.
+- On error: Print a friendly message (in Red) and exit with code 1.
+
+```javascript
+try {
+  await program.parseAsync();
+} catch (err) {
+  console.error(chalk.red('❌ Error:'), err.message);
+  process.exit(1);
+}
+```
+
+### 4. Exit Codes
+**Rule:** Be a good UNIX citizen.
+- Success: Exit Code 0 (Implicit).
+- Failure: Exit Code 1 (Explicit `process.exit(1)`).
+- Invalid Input: Exit Code 2 (handled by Commander).
+
+## 🎨 User Experience (UX) Rules
+
+{% if "Chalk" in libraries %}
+### 1. Color Usage
+- **Green:** Success messages.
+- **Red:** Errors.
+- **Yellow:** Warnings.
+- **Dim/Gray:** Secondary info (paths, IDs).
+- **Rule:** Do not overuse colors. Keep it readable.
+{% endif %}
+
+{% if "Ora" in libraries %}
+### 2. Spinners (Ora)
+- **Rule:** Always stop the spinner (`succeed` or `fail`) before the program exits.
+- **Rule:** If the user is running in a non-interactive TTY (CI/CD), disable the spinner or use a fallback.
+```javascript
+const spinner = ora('Loading...').start();
+try {
+  await doWork();
+  spinner.succeed('Done!');
+} catch (e) {
+  spinner.fail('Failed');
+  throw e;
+}
+```
+{% endif %}
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Console.log Debugging:** Do not leave `console.log(obj)` in the final code. It clutters the output. Use a debug flag or a dedicated logger.
+2.  **Sync File I/O:** Avoid `fs.readFileSync` for large operations. It pauses the Event Loop and freezes spinners/animations.
+3.  **Hardcoded Paths:** Never use `C:\Users\...`. Use `os.homedir()` or `path.join(process.cwd(), ...)` to ensure cross-platform compatibility (Windows/macOS/Linux).
+
+## 🧪 Testing
+
+- **Strategy:** Integration testing is best for CLIs.
+- **Tools:** Use **Vitest** or **Jest**.
+- **Technique:** Spawn the CLI process using `child_process.exec` or `execa` and capture `stdout`/`stderr` to verify the output string.

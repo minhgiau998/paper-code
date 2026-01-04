@@ -1,0 +1,102 @@
+# Go (Cobra) Coding Standards
+
+## 📝 Naming Conventions
+
+- **Commands:** `kebab-case` for the CLI command string (e.g., `use: "create-user"`).
+- **Go Variables:** `camelCase` (e.g., `cmd`, `runE`).
+- **Flags:** `kebab-case` (e.g., `--output-dir`).
+- **Files:** `snake_case.go`.
+
+## ⚡ Cobra Best Practices (Critical)
+
+### 1. Use `RunE` over `Run`
+**Rule:** Always use the `RunE` field, which returns an `error`.
+- **Why?** It allows Cobra to handle the error printing consistent.
+- **Do not** use `os.Exit(1)` inside a command. Return the error and let `main.go` handle the exit.
+
+```go
+// ✅ Good
+RunE: func(cmd *cobra.Command, args []string) error {
+    if err := doSomething(); err != nil {
+        return fmt.Errorf("operation failed: %w", err)
+    }
+    return nil
+},
+```
+
+### 2. Context Propagation
+**Rule:** Always pass `cmd.Context()` to your business logic.
+- Cobra supports signal handling (Ctrl+C). Passing the context ensures that long-running tasks (HTTP requests, DB queries) are cancelled properly.
+
+```go
+// ✅ Good
+func run(cmd *cobra.Command, args []string) error {
+    ctx := cmd.Context()
+    return myApp.Start(ctx)
+}
+```
+
+### 3. Silence Usage on Error
+**Rule:** Set `SilenceUsage: true` on the Root Command.
+- **Why?** By default, if a command fails (runtime error), Cobra prints the entire Help text. This is confusing. Help should only show if the user typed the command *syntax* incorrectly.
+
+```go
+var rootCmd = &cobra.Command{
+    Use:           "app",
+    SilenceUsage:  true,  // Only show help on flag errors
+    SilenceErrors: true,  // Main handles error printing
+    // ...
+}
+```
+
+### 4. Logic in `init()`
+**Rule:** Only use `init()` to register flags (`cmd.Flags().String(...)`).
+- **Forbidden:** Do not put initialization logic (DB connection, API setup) in `init()`. Do it in `PersistentPreRunE` or the `RunE` block.
+- `init()` execution order is hard to debug.
+
+## 💾 Configuration & Flags
+
+{% if "Viper" in libraries %}
+### Viper Binding
+**Rule:** Handle errors when binding flags.
+```go
+rootCmd.PersistentFlags().String("author", "", "Author name")
+viper.BindPFlag("author", rootCmd.PersistentFlags().Lookup("author"))
+```
+{% endif %}
+
+### Stdout vs Stderr
+**Rule:**
+- **Stdout (`cmd.OutOrStdout()`):** Use for machine-readable output (JSON, IDs).
+- **Stderr (`cmd.OutOrStderr()`):** Use for logs, warnings, and spinners.
+- **Why?** Allows users to pipe output: `myapp list | grep foo`.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Global Variables:** Minimize package-level variables for flags. Use a struct to hold the options for a specific command if complexity grows.
+2.  **Hardcoded Configs:** Never hardcode file paths. Use `os.UserHomeDir()` or Viper's config search paths.
+3.  **Ignoring Errors:** Never use `_` to ignore errors in CLI tools. The user needs to know why the command failed.
+
+## 🧪 Testing
+
+### Table-Driven Tests
+**Rule:** Use standard Go table-driven tests for commands.
+- **Strategy:** Use `bytes.Buffer` to capture Output.
+
+```go
+func TestRootCmd(t *testing.T) {
+    buf := new(bytes.Buffer)
+    cmd := NewRootCmd()
+    cmd.SetOut(buf)
+    cmd.SetArgs([]string{"--version"})
+    
+    err := cmd.Execute()
+    
+    if err != nil {
+        t.Fatal(err)
+    }
+    if !strings.Contains(buf.String(), "1.0.0") {
+        t.Errorf("Unexpected output: %s", buf.String())
+    }
+}
+```

@@ -1,0 +1,103 @@
+# Vue.js Coding Standards
+
+## 📝 Naming Conventions
+
+- **Component Files:** PascalCase (e.g., `UserProfile.vue`, `BaseButton.vue`).
+- **Component in Template:** PascalCase is preferred (e.g., `<UserProfile />`).
+- **Composables:** camelCase, prefixed with `use` (e.g., `useWindowResize.ts`).
+- **Views:** PascalCase, suffixed with View (e.g., `HomeView.vue`, `LoginView.vue`).
+- **Event Names:** kebab-case in templates (e.g., `@update-user`), camelCase in props definition.
+
+## ⚡ Component Rules
+
+### 1. Syntax (Script Setup)
+**Strictly** use the `<script setup>` syntax.
+{% if "TypeScript" in libraries or "TypeScript Lib" in libraries %}
+Use TypeScript generic arguments for props and emits.
+```vue
+<!-- ✅ Good -->
+<script setup lang="ts">
+defineProps<{
+  title: string;
+  count?: number;
+}>();
+
+const emit = defineEmits<{
+  (e: 'submit', value: string): void;
+}>();
+</script>
+```
+{% else %}
+```vue
+<!-- ✅ Good -->
+<script setup>
+defineProps({
+  title: String,
+});
+</script>
+```
+{% endif %}
+
+### 2. Multi-Word Component Names
+User components must always be multi-word to avoid conflicts with HTML elements.
+- **Bad:** `Todo.vue`
+- **Good:** `TodoItem.vue`
+
+### 3. Prop Stability
+- **Never mutate props directly.** Props are one-way data flow.
+- If you need to modify a prop, emit an event to the parent or copy it to a local `ref`.
+
+## 💾 State & Reactivity
+
+### 1. Ref vs Reactive
+- Prefer `ref()` for most use cases (primitives, arrays, objects) for consistency (`.value` usage).
+- Use `reactive()` only when grouping highly related state properties together.
+
+### 2. Destructuring
+- Be careful when destructuring `props` or `reactive` objects; you will lose reactivity.
+- Use `toRefs()` if destructuring is necessary.
+
+{% if "Pinia" in libraries %}
+### 3. Pinia Usage
+- Don't destructure state from a Pinia store directly.
+- Use `storeToRefs(store)` for state/getters.
+- Actions can be destructured directly.
+
+```ts
+const authStore = useAuthStore();
+const { user, isLoggedIn } = storeToRefs(authStore); // ✅ Reactive
+const { login } = authStore; // ✅ Actions are functions
+```
+{% endif %}
+
+## 🎨 Styling Guidelines
+
+{% if "TailwindCSS" in libraries %}
+### Tailwind CSS
+- Use utility classes inside the `class` attribute.
+- Use `clsx` or string binding for conditional classes.
+```html
+<div :class="['p-4', isActive ? 'bg-blue-500' : 'bg-gray-200']">
+```
+{% else %}
+### Scoped CSS
+- Always add the `scoped` attribute to `<style>` tags.
+- Use deep selectors (`:deep()`) sparingly and only when styling child components from a parent.
+{% endif %}
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Options API:** Do not use `export default { data(), methods() }`. Use Composition API.
+2. **Mixins:** **Strictly Forbidden**. Use Composables instead.
+3. **Global Event Bus:** Do not use `mitt` or global emitters for state. Use Pinia or Props/Emits.
+4. **v-if with v-for:** Never use `v-if` on the same element as `v-for` due to precedence ambiguity. Move `v-if` to a wrapper container.
+
+## 🧪 Testing
+
+{% if "Vitest" in libraries %}
+- Use **Vitest** for unit testing logic and composables.
+- Use **Vue Test Utils** for component mounting.
+- Naming: `Component.spec.ts` or `Component.test.ts`.
+{% else %}
+- Ensure business logic in composables is unit tested.
+{% endif %}

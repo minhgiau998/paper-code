@@ -1,0 +1,101 @@
+# React Coding Standards
+
+## 📝 Naming Conventions
+
+- **Components:** PascalCase (e.g., `UserProfile.tsx`, `SubmitButton.tsx`).
+- **Hooks:** camelCase, must start with `use` (e.g., `useAuth.ts`).
+- **Functions/Variables:** camelCase (e.g., `handleSubmit`, `isLoading`).
+- **Types/Interfaces:** PascalCase (e.g., `User`, `AuthResponse`).
+- **Constants:** UPPER_SNAKE_CASE (e.g., `MAX_RETRY_COUNT`).
+
+## ⚛️ Component Rules
+
+### 1. Functional Components Only
+We do not use Class Components.
+```tsx
+// ✅ Good
+export const MyComponent = () => { ... }
+```
+
+### 2. Named Exports
+Prefer **Named Exports** over Default Exports. This helps with auto-imports and refactoring.
+```tsx
+// ✅ Good
+export const MyComponent = () => { ... }
+
+// ❌ Avoid
+export default MyComponent;
+```
+
+### 3. Prop Destructuring
+Always destructure props for clarity.
+{% if "TypeScript" in libraries or "TypeScript Lib" in libraries %}
+Always define an Interface/Type for props.
+```tsx
+interface Props {
+  title: string;
+  isActive?: boolean;
+}
+
+export const Header = ({ title, isActive = false }: Props) => { ... }
+```
+{% else %}
+```jsx
+export const Header = ({ title, isActive }) => { ... }
+```
+{% endif %}
+
+## 💾 State & Effect Rules
+
+### 1. `useEffect` Hygiene
+- Avoid huge `useEffect` blocks. Break them down.
+- **Strictly** include all dependencies in the dependency array.
+{% if "TanStack Query" in libraries %}
+- **Avoid** using `useEffect` for data fetching. Use `useQuery` or `useMutation` instead.
+{% endif %}
+
+### 2. Custom Hooks
+Extract complex logic into custom hooks.
+- If a component has more than 3 `useEffect`s or messy state logic -> **Extract to Hook**.
+
+## 🎨 Styling Guidelines
+
+{% if "TailwindCSS" in libraries %}
+### Tailwind CSS (Strict)
+- Use Utility Classes for everything.
+- **Do not** create `.css` or `.module.css` files unless creating a complex animation that Tailwind cannot handle.
+- Use `clsx` or `tailwind-merge` for conditional class names.
+
+```tsx
+// ✅ Good
+<div className="flex flex-col items-center p-4 bg-gray-100">...</div>
+```
+{% else %}
+### CSS Modules / Styled Components
+- Use Scoped CSS (CSS Modules) to avoid global namespace pollution.
+- Filename: `Component.module.css`.
+{% endif %}
+
+## 🧪 Testing
+
+{% if "Jest" in libraries or "Vitest" in libraries %}
+- Place test files alongside components: `MyComponent.test.tsx` (or inside `__tests__`).
+- Test behavior, not implementation details.
+- **RTL (React Testing Library):** Use `screen.getByRole` or `screen.getByText`. Avoid querying by ID or Class.
+{% else %}
+- Ensure critical paths are tested.
+- Keep business logic in pure functions/hooks to make them testable.
+{% endif %}
+
+## 🚫 Anti-Patterns
+
+1. **Prop Drilling:** Don't pass props down more than 3 levels. Use Composition or Context.
+2. **Index as Key:** Avoid using array index as `key` in lists unless the list is static.
+   ```tsx
+   // ❌ Bad
+   {items.map((item, index) => <li key={index}>{item}</li>)}
+   
+   // ✅ Good
+   {items.map((item) => <li key={item.id}>{item}</li>)}
+   ```
+3. **Logic inside JSX:** Keep JSX clean. Extract logic to variables before the return statement.

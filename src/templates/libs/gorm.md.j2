@@ -1,0 +1,1197 @@
+# GORM Documentation
+
+> **Purpose:** The fantastic ORM library for Golang, aims to be developer friendly.
+
+## 📦 Installation
+
+```bash
+go get -u gorm.io/gorm
+go get -u gorm.io/driver/postgres  # PostgreSQL
+go get -u gorm.io/driver/mysql      # MySQL
+go get -u gorm.io/driver/sqlite     # SQLite
+go get -u gorm.io/driver/sqlserver  # SQL Server
+```
+
+## 🛠️ Database Configuration
+
+**Strategy:** Use singleton pattern with proper connection pooling and configuration.
+
+### 1. Database Connection (`pkg/database/database.go`)
+
+```go
+package database
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+)
+
+var DB *gorm.DB
+
+// Config holds database configuration
+type Config struct {
+	Host     string
+	Port     string
+	User     string
+	Password string
+	DBName   string
+	SSLMode  string
+	TimeZone string
+}
+
+// GetConfig returns database configuration from environment variables
+func GetConfig() *Config {
+	return &Config{
+		Host:     getEnv("DB_HOST", "localhost"),
+		Port:     getEnv("DB_PORT", "5432"),
+		User:     getEnv("DB_USER", "postgres"),
+		Password: getEnv("DB_PASSWORD", "password"),
+		DBName:   getEnv("DB_NAME", "myapp"),
+		SSLMode:  getEnv("DB_SSLMODE", "disable"),
+		TimeZone: getEnv("DB_TIMEZONE", "UTC"),
+	}
+}
+
+// InitDatabase initializes the database connection
+func InitDatabase() error {
+	config := GetConfig()
+	dbType := getEnv("DB_TYPE", "postgres")
+
+	var err error
+	var dialector gorm.Dialector
+
+	switch dbType {
+	case "postgres":
+		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s",
+			config.Host, config.User, config.Password, config.DBName, config.Port, config.SSLMode, config.TimeZone)
+		dialector = postgres.Open(dsn)
+	case "mysql":
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+			config.User, config.Password, config.Host, config.Port, config.DBName)
+		dialector = mysql.Open(dsn)
+	case "sqlite":
+		dbPath := getEnv("DB_PATH", "app.db")
+		dialector = sqlite.Open(dbPath)
+	default:
+		return fmt.Errorf("unsupported database type: %s", dbType)
+	}
+
+	// Configure GORM logger
+	newLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		logger.Config{
+			SlowThreshold:             time.Second,
+			LogLevel:                  logger.Info,
+			IgnoreRecordNotFoundError: true,
+			Colorful:                  true,
+		},
+	)
+
+	// Open database connection
+	DB, err = gorm.Open(dialector, &gorm.Config{
+		Logger: newLogger,
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Configure connection pool
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+
+	// Set connection pool settings
+	sqlDB.SetMaxOpenConns(100)           // Maximum number of open connections
+	sqlDB.SetMaxIdleConns(10)            // Maximum number of idle connections
+	sqlDB.SetConnMaxLifetime(time.Hour)   // Maximum time a connection can be reused
+	sqlDB.SetConnMaxIdleTime(time.Minute * 5) // Maximum time a connection can be idle
+
+	log.Println("Database connection established successfully")
+	return nil
+}
+
+// GetDB returns the database instance
+func GetDB() *gorm.DB {
+	return DB
+}
+
+// getEnv gets environment variable with default value
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+```
+
+### 2. Auto Migration (`pkg/database/migration.go`)
+
+```go
+package database
+
+import (
+	"log"
+	"your-project-path/internal/models"
+)
+
+// AutoMigrate runs database auto migration
+func AutoMigrate() error {
+	err := DB.AutoMigrate(
+		&models.User{},
+		&models.Post{},
+		&models.Comment{},
+		&models.Tag{},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to run auto migration: %w", err)
+	}
+
+	log.Println("Database migration completed successfully")
+	return nil
+}
+```
+
+## 📝 Model Definition
+
+**Strategy:** Use GORM structs with proper tags and relationships.
+
+### 1. Base Model (`internal/models/base.go`)
+
+```go
+package models
+
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// BaseModel contains common fields for all models
+type BaseModel struct {
+	ID        uint           `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+// BeforeCreate hook
+func (b *BaseModel) BeforeCreate(tx *gorm.DB) error {
+	// Add any pre-creation logic here
+	return nil
+}
+
+// BeforeUpdate hook
+func (b *BaseModel) BeforeUpdate(tx *gorm.DB) error {
+	// Add any pre-update logic here
+	return nil
+}
+```
+
+### 2. User Model (`internal/models/user.go`)
+
+```go
+package models
+
+import (
+	"golang.org/x/crypto/bcrypt"
+)
+
+// UserRole represents user role
+type UserRole string
+
+const (
+	UserRoleUser      UserRole = "user"
+	UserRoleAdmin     UserRole = "admin"
+	UserRoleModerator UserRole = "moderator"
+)
+
+// User represents a user in the system
+type User struct {
+	BaseModel
+	Name      string    `gorm:"size:100;not null" json:"name"`
+	Email     string    `gorm:"size:255;uniqueIndex;not null" json:"email"`
+	Password  string    `gorm:"size:255;not null" json:"-"`
+	Avatar    *string   `gorm:"size:255" json:"avatar,omitempty"`
+	Bio       *string   `gorm:"type:text" json:"bio,omitempty"`
+	Phone     *string   `gorm:"size:20" json:"phone,omitempty"`
+	Role      UserRole  `gorm:"size:20;default:user" json:"role"`
+	IsActive  bool      `gorm:"default:true" json:"is_active"`
+	IsVerified bool     `gorm:"default:false" json:"is_verified"`
+	LastLogin *time.Time `json:"last_login,omitempty"`
+	
+	// Relationships
+	Posts    []Post    `gorm:"foreignKey:AuthorID;constraint:OnDelete:CASCADE" json:"posts,omitempty"`
+	Comments []Comment `gorm:"foreignKey:AuthorID;constraint:OnDelete:CASCADE" json:"comments,omitempty"`
+}
+
+// TableName returns the table name for User model
+func (User) TableName() string {
+	return "users"
+}
+
+// BeforeCreate hook to hash password
+func (u *User) BeforeCreate(tx *gorm.DB) error {
+	if u.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+		u.Password = string(hashedPassword)
+	}
+	return nil
+}
+
+// BeforeUpdate hook to hash password if changed
+func (u *User) BeforeUpdate(tx *gorm.DB) error {
+	if u.Password != "" {
+		// Check if password has changed by comparing with the stored hash
+		var originalUser User
+		if err := tx.First(&originalUser, u.ID).Error; err == nil {
+			if originalUser.Password != u.Password {
+				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+				if err != nil {
+					return err
+				}
+				u.Password = string(hashedPassword)
+			}
+		}
+	}
+	return nil
+}
+
+// CheckPassword verifies if the provided password matches the stored hash
+func (u *User) CheckPassword(password string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+	return err == nil
+}
+
+// IsAdmin checks if user is an admin
+func (u *User) IsAdmin() bool {
+	return u.Role == UserRoleAdmin
+}
+
+// GetPostCount returns the number of posts created by the user
+func (u *User) GetPostCount() int {
+	return len(u.Posts)
+}
+
+// ToJSON returns user data without sensitive information
+func (u *User) ToJSON() map[string]interface{} {
+	return map[string]interface{}{
+		"id":          u.ID,
+		"name":        u.Name,
+		"email":       u.Email,
+		"avatar":      u.Avatar,
+		"bio":         u.Bio,
+		"phone":       u.Phone,
+		"role":        u.Role,
+		"is_active":   u.IsActive,
+		"is_verified": u.IsVerified,
+		"last_login":  u.LastLogin,
+		"created_at":  u.CreatedAt,
+		"updated_at":  u.UpdatedAt,
+		"post_count":  u.GetPostCount(),
+	}
+}
+```
+
+### 3. Post Model (`internal/models/post.go`)
+
+```go
+package models
+
+import (
+	"strings"
+	"time"
+)
+
+// PostStatus represents post status
+type PostStatus string
+
+const (
+	PostStatusDraft     PostStatus = "draft"
+	PostStatusPublished PostStatus = "published"
+	PostStatusArchived  PostStatus = "archived"
+)
+
+// Post represents a blog post
+type Post struct {
+	BaseModel
+	Title      string     `gorm:"size:200;not null" json:"title"`
+	Slug       *string    `gorm:"size:255;uniqueIndex" json:"slug,omitempty"`
+	Content    string     `gorm:"type:text;not null" json:"content"`
+	Excerpt    *string    `gorm:"type:text" json:"excerpt,omitempty"`
+	Status     PostStatus `gorm:"size:20;default:draft" json:"status"`
+	IsFeatured bool       `gorm:"default:false" json:"is_featured"`
+	ViewCount  int        `gorm:"default:0" json:"view_count"`
+	Tags       []Tag      `gorm:"many2many:post_tags;" json:"tags,omitempty"`
+	Metadata   string     `gorm:"type:jsonb" json:"metadata,omitempty"`
+	
+	// Foreign keys
+	AuthorID uint `gorm:"not null;index" json:"author_id"`
+	
+	// Relationships
+	Author   User      `gorm:"foreignKey:AuthorID;constraint:OnDelete:CASCADE" json:"author,omitempty"`
+	Comments []Comment `gorm:"foreignKey:PostID;constraint:OnDelete:CASCADE" json:"comments,omitempty"`
+	
+	// Timestamps
+	PublishedAt *time.Time `json:"published_at,omitempty"`
+}
+
+// TableName returns the table name for Post model
+func (Post) TableName() string {
+	return "posts"
+}
+
+// BeforeCreate hook to generate slug and excerpt
+func (p *Post) BeforeCreate(tx *gorm.DB) error {
+	if p.Slug == nil || *p.Slug == "" {
+		slug := generateSlug(p.Title)
+		p.Slug = &slug
+	}
+	
+	if p.Excerpt == nil || *p.Excerpt == "" {
+		excerpt := generateExcerpt(p.Content, 150)
+		p.Excerpt = &excerpt
+	}
+	
+	if p.Status == PostStatusPublished && p.PublishedAt == nil {
+		now := time.Now()
+		p.PublishedAt = &now
+	}
+	
+	return nil
+}
+
+// BeforeUpdate hook to update slug and excerpt if needed
+func (p *Post) BeforeUpdate(tx *gorm.DB) error {
+	if p.Slug == nil || *p.Slug == "" {
+		slug := generateSlug(p.Title)
+		p.Slug = &slug
+	}
+	
+	if p.Excerpt == nil || *p.Excerpt == "" {
+		excerpt := generateExcerpt(p.Content, 150)
+		p.Excerpt = &excerpt
+	}
+	
+	if p.Status == PostStatusPublished && p.PublishedAt == nil {
+		now := time.Now()
+		p.PublishedAt = &now
+	}
+	
+	return nil
+}
+
+// IsPublished checks if post is published
+func (p *Post) IsPublished() bool {
+	return p.Status == PostStatusPublished
+}
+
+// GetCommentCount returns the number of comments on the post
+func (p *Post) GetCommentCount() int {
+	return len(p.Comments)
+}
+
+// GetReadingTime estimates reading time in minutes
+func (p *Post) GetReadingTime() int {
+	wordCount := len(strings.Fields(p.Content))
+	readingTime := wordCount / 200 // 200 words per minute
+	if readingTime < 1 {
+		readingTime = 1
+	}
+	return readingTime
+}
+
+// IncrementViewCount increments the view count
+func (p *Post) IncrementViewCount() {
+	p.ViewCount++
+}
+
+// Publish publishes the post
+func (p *Post) Publish() {
+	p.Status = PostStatusPublished
+	now := time.Now()
+	p.PublishedAt = &now
+}
+
+// Archive archives the post
+func (p *Post) Archive() {
+	p.Status = PostStatusArchived
+}
+
+// ToJSON returns post data
+func (p *Post) ToJSON() map[string]interface{} {
+	return map[string]interface{}{
+		"id":           p.ID,
+		"title":        p.Title,
+		"slug":         p.Slug,
+		"content":      p.Content,
+		"excerpt":      p.Excerpt,
+		"status":       p.Status,
+		"is_featured":  p.IsFeatured,
+		"view_count":   p.ViewCount,
+		"author_id":    p.AuthorID,
+		"published_at": p.PublishedAt,
+		"created_at":   p.CreatedAt,
+		"updated_at":   p.UpdatedAt,
+		"comment_count": p.GetCommentCount(),
+		"reading_time": p.GetReadingTime(),
+	}
+}
+
+// generateSlug generates URL-friendly slug from title
+func generateSlug(title string) string {
+	slug := strings.ToLower(title)
+	slug = strings.ReplaceAll(slug, " ", "-")
+	
+	// Remove special characters
+	var result strings.Builder
+	for _, r := range slug {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			result.WriteRune(r)
+		}
+	}
+	
+	return result.String()
+}
+
+// generateExcerpt generates excerpt from content
+func generateExcerpt(content string, maxLength int) string {
+	words := strings.Fields(content)
+	if len(words) <= maxLength {
+		return content
+	}
+	
+	excerpt := strings.Join(words[:maxLength], " ")
+	if len(content) > len(excerpt) {
+		excerpt += "..."
+	}
+	
+	return excerpt
+}
+```
+
+### 4. Comment Model (`internal/models/comment.go`)
+
+```go
+package models
+
+// Comment represents a comment on a post
+type Comment struct {
+	BaseModel
+	Content    string `gorm:"type:text;not null" json:"content"`
+	IsApproved bool   `gorm:"default:true" json:"is_approved"`
+	IsDeleted  bool   `gorm:"default:false" json:"is_deleted"`
+	
+	// Foreign keys
+	AuthorID uint  `gorm:"not null;index" json:"author_id"`
+	PostID   uint  `gorm:"not null;index" json:"post_id"`
+	ParentID *uint `gorm:"index" json:"parent_id,omitempty"`
+	
+	// Relationships
+	Author User     `gorm:"foreignKey:AuthorID;constraint:OnDelete:CASCADE" json:"author,omitempty"`
+	Post   Post     `gorm:"foreignKey:PostID;constraint:OnDelete:CASCADE" json:"post,omitempty"`
+	Parent *Comment `gorm:"foreignKey:ParentID;constraint:OnDelete:CASCADE" json:"parent,omitempty"`
+	Replies []Comment `gorm:"foreignKey:ParentID;constraint:OnDelete:CASCADE" json:"replies,omitempty"`
+}
+
+// TableName returns the table name for Comment model
+func (Comment) TableName() string {
+	return "comments"
+}
+
+// GetReplyCount returns the number of replies to this comment
+func (c *Comment) GetReplyCount() int {
+	return len(c.Replies)
+}
+
+// Approve approves the comment
+func (c *Comment) Approve() {
+	c.IsApproved = true
+}
+
+// SoftDelete soft deletes the comment
+func (c *Comment) SoftDelete() {
+	c.IsDeleted = true
+}
+
+// ToJSON returns comment data
+func (c *Comment) ToJSON() map[string]interface{} {
+	return map[string]interface{}{
+		"id":           c.ID,
+		"content":      c.Content,
+		"is_approved":  c.IsApproved,
+		"author_id":    c.AuthorID,
+		"post_id":      c.PostID,
+		"parent_id":    c.ParentID,
+		"created_at":   c.CreatedAt,
+		"updated_at":   c.UpdatedAt,
+		"reply_count":  c.GetReplyCount(),
+	}
+}
+```
+
+### 5. Tag Model (`internal/models/tag.go`)
+
+```go
+package models
+
+// Tag represents a tag for posts
+type Tag struct {
+	BaseModel
+	Name string `gorm:"size:50;uniqueIndex;not null" json:"name"`
+	
+	// Relationships
+	Posts []Post `gorm:"many2many:post_tags;" json:"posts,omitempty"`
+}
+
+// TableName returns the table name for Tag model
+func (Tag) TableName() string {
+	return "tags"
+}
+
+// ToJSON returns tag data
+func (t *Tag) ToJSON() map[string]interface{} {
+	return map[string]interface{}{
+		"id":         t.ID,
+		"name":       t.Name,
+		"created_at": t.CreatedAt,
+		"updated_at": t.UpdatedAt,
+	}
+}
+```
+
+## 🔍 Repository Pattern
+
+### 1. Base Repository (`internal/repositories/base.go`)
+
+```go
+package repositories
+
+import (
+	"your-project-path/internal/models"
+	"your-project-path/pkg/database"
+
+	"gorm.io/gorm"
+)
+
+// BaseRepository provides common CRUD operations
+type BaseRepository[T models.BaseModel] struct {
+	db *gorm.DB
+}
+
+// NewBaseRepository creates a new base repository
+func NewBaseRepository[T models.BaseModel]() *BaseRepository[T] {
+	return &BaseRepository[T]{
+		db: database.GetDB(),
+	}
+}
+
+// Create creates a new record
+func (r *BaseRepository[T]) Create(entity *T) error {
+	return r.db.Create(entity).Error
+}
+
+// GetByID retrieves a record by ID
+func (r *BaseRepository[T]) GetByID(id uint) (*T, error) {
+	var entity T
+	err := r.db.First(&entity, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &entity, nil
+}
+
+// GetAll retrieves all records with optional filtering
+func (r *BaseRepository[T]) GetAll(limit, offset int, filters map[string]interface{}) ([]T, error) {
+	var entities []T
+	query := r.db.Model(new(T))
+	
+	// Apply filters
+	for key, value := range filters {
+		query = query.Where(key, value)
+	}
+	
+	err := query.Limit(limit).Offset(offset).Find(&entities).Error
+	return entities, err
+}
+
+// Update updates a record
+func (r *BaseRepository[T]) Update(entity *T) error {
+	return r.db.Save(entity).Error
+}
+
+// Delete soft deletes a record
+func (r *BaseRepository[T]) Delete(id uint) error {
+	return r.db.Delete(new(T), id).Error
+}
+
+// HardDelete permanently deletes a record
+func (r *BaseRepository[T]) HardDelete(id uint) error {
+	return r.db.Unscoped().Delete(new(T), id).Error
+}
+
+// Count returns the total count of records
+func (r *BaseRepository[T]) Count(filters map[string]interface{}) (int64, error) {
+	var count int64
+	query := r.db.Model(new(T))
+	
+	// Apply filters
+	for key, value := range filters {
+		query = query.Where(key, value)
+	}
+	
+	err := query.Count(&count).Error
+	return count, err
+}
+
+// Exists checks if a record exists
+func (r *BaseRepository[T]) Exists(id uint) (bool, error) {
+	var count int64
+	err := r.db.Model(new(T)).Where("id = ?", id).Count(&count).Error
+	return count > 0, err
+}
+```
+
+### 2. User Repository (`internal/repositories/user.go`)
+
+```go
+package repositories
+
+import (
+	"your-project-path/internal/models"
+	"your-project-path/pkg/database"
+
+	"gorm.io/gorm"
+)
+
+// UserRepository provides user-specific operations
+type UserRepository struct {
+	*BaseRepository[models.User]
+}
+
+// NewUserRepository creates a new user repository
+func NewUserRepository() *UserRepository {
+	return &UserRepository{
+		BaseRepository: NewBaseRepository[models.User](),
+	}
+}
+
+// GetByEmail retrieves a user by email
+func (r *UserRepository) GetByEmail(email string) (*models.User, error) {
+	var user models.User
+	err := database.GetDB().Where("email = ?", email).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// GetActiveUsers retrieves active users with pagination
+func (r *UserRepository) GetActiveUsers(limit, offset int) ([]models.User, error) {
+	var users []models.User
+	err := database.GetDB().Where("is_active = ?", true).
+		Limit(limit).Offset(offset).
+		Order("created_at DESC").
+		Find(&users).Error
+	return users, err
+}
+
+// GetUsersByRole retrieves users by role
+func (r *UserRepository) GetUsersByRole(role models.UserRole, limit, offset int) ([]models.User, error) {
+	var users []models.User
+	err := database.GetDB().Where("role = ? AND is_active = ?", role, true).
+		Limit(limit).Offset(offset).
+		Order("name ASC").
+		Find(&users).Error
+	return users, err
+}
+
+// SearchUsers searches users by name or email
+func (r *UserRepository) SearchUsers(query string, limit, offset int) ([]models.User, error) {
+	var users []models.User
+	searchPattern := "%" + query + "%"
+	err := database.GetDB().Where("name ILIKE ? OR email ILIKE ?", searchPattern, searchPattern).
+		Where("is_active = ?", true).
+		Limit(limit).Offset(offset).
+		Order("name ASC").
+		Find(&users).Error
+	return users, err
+}
+
+// GetUserStats returns user statistics
+func (r *UserRepository) GetUserStats() (map[string]int64, error) {
+	stats := make(map[string]int64)
+	
+	// Total users
+	total, err := r.Count(map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+	stats["total_users"] = total
+	
+	// Active users
+	active, err := r.Count(map[string]interface{}{"is_active": true})
+	if err != nil {
+		return nil, err
+	}
+	stats["active_users"] = active
+	
+	// Admin users
+	admin, err := r.Count(map[string]interface{}{"role": models.UserRoleAdmin, "is_active": true})
+	if err != nil {
+		return nil, err
+	}
+	stats["admin_users"] = admin
+	
+	// Verified users
+	verified, err := r.Count(map[string]interface{}{"is_verified": true, "is_active": true})
+	if err != nil {
+		return nil, err
+	}
+	stats["verified_users"] = verified
+	
+	return stats, nil
+}
+
+// UpdateLastLogin updates the last login time for a user
+func (r *UserRepository) UpdateLastLogin(userID uint) error {
+	return database.GetDB().Model(&models.User{}).
+		Where("id = ?", userID).
+		Update("last_login", gorm.Expr("CURRENT_TIMESTAMP")).Error
+}
+
+// SoftDeleteUser soft deletes a user
+func (r *UserRepository) SoftDeleteUser(userID uint) error {
+	return database.GetDB().Model(&models.User{}).
+		Where("id = ?", userID).
+		Update("is_active", false).Error
+}
+
+// CreateUser creates a new user with validation
+func (r *UserRepository) CreateUser(user *models.User) error {
+	// Check if email already exists
+	var existingUser models.User
+	err := database.GetDB().Where("email = ?", user.Email).First(&existingUser).Error
+	if err == nil {
+		return gorm.ErrDuplicatedKey
+	}
+	if err != gorm.ErrRecordNotFound {
+		return err
+	}
+	
+	return r.Create(user)
+}
+```
+
+### 3. Post Repository (`internal/repositories/post.go`)
+
+```go
+package repositories
+
+import (
+	"your-project-path/internal/models"
+	"your-project-path/pkg/database"
+
+	"gorm.io/gorm"
+)
+
+// PostRepository provides post-specific operations
+type PostRepository struct {
+	*BaseRepository[models.Post]
+}
+
+// NewPostRepository creates a new post repository
+func NewPostRepository() *PostRepository {
+	return &PostRepository{
+		BaseRepository: NewBaseRepository[models.Post](),
+	}
+}
+
+// GetPublishedPosts retrieves published posts with pagination
+func (r *PostRepository) GetPublishedPosts(limit, offset int) ([]models.Post, error) {
+	var posts []models.Post
+	err := database.GetDB().Where("status = ?", models.PostStatusPublished).
+		Preload("Author").
+		Limit(limit).Offset(offset).
+		Order("created_at DESC").
+		Find(&posts).Error
+	return posts, err
+}
+
+// GetPostsByAuthor retrieves posts by author with pagination
+func (r *PostRepository) GetPostsByAuthor(authorID uint, limit, offset int) ([]models.Post, error) {
+	var posts []models.Post
+	err := database.GetDB().Where("author_id = ? AND status = ?", authorID, models.PostStatusPublished).
+		Preload("Author").
+		Limit(limit).Offset(offset).
+		Order("created_at DESC").
+		Find(&posts).Error
+	return posts, err
+}
+
+// GetFeaturedPosts retrieves featured posts
+func (r *PostRepository) GetFeaturedPosts(limit int) ([]models.Post, error) {
+	var posts []models.Post
+	err := database.GetDB().Where("is_featured = ? AND status = ?", true, models.PostStatusPublished).
+		Preload("Author").
+		Limit(limit).
+		Order("created_at DESC").
+		Find(&posts).Error
+	return posts, err
+}
+
+// SearchPosts searches posts by title or content
+func (r *PostRepository) SearchPosts(query string, limit, offset int) ([]models.Post, error) {
+	var posts []models.Post
+	searchPattern := "%" + query + "%"
+	err := database.GetDB().Where("(title ILIKE ? OR content ILIKE ?) AND status = ?", searchPattern, searchPattern, models.PostStatusPublished).
+		Preload("Author").
+		Limit(limit).Offset(offset).
+		Order("created_at DESC").
+		Find(&posts).Error
+	return posts, err
+}
+
+// GetPostsByTag retrieves posts by tag
+func (r *PostRepository) GetPostsByTag(tagName string, limit, offset int) ([]models.Post, error) {
+	var posts []models.Post
+	err := database.GetDB().Joins("JOIN post_tags ON posts.id = post_tags.post_id").
+		Joins("JOIN tags ON post_tags.tag_id = tags.id").
+		Where("tags.name = ? AND posts.status = ?", tagName, models.PostStatusPublished).
+		Preload("Author").
+		Limit(limit).Offset(offset).
+		Order("posts.created_at DESC").
+		Find(&posts).Error
+	return posts, err
+}
+
+// GetPopularPosts retrieves posts ordered by view count
+func (r *PostRepository) GetPopularPosts(limit int) ([]models.Post, error) {
+	var posts []models.Post
+	err := database.GetDB().Where("status = ?", models.PostStatusPublished).
+		Preload("Author").
+		Limit(limit).
+		Order("view_count DESC").
+		Find(&posts).Error
+	return posts, err
+}
+
+// IncrementViewCount increments the view count for a post
+func (r *PostRepository) IncrementViewCount(postID uint) error {
+	return database.GetDB().Model(&models.Post{}).
+		Where("id = ?", postID).
+		UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
+}
+
+// PublishPost publishes a post
+func (r *PostRepository) PublishPost(postID uint) error {
+	return database.GetDB().Model(&models.Post{}).
+		Where("id = ?", postID).
+		Updates(map[string]interface{}{
+			"status":       models.PostStatusPublished,
+			"published_at": gorm.Expr("CURRENT_TIMESTAMP"),
+		}).Error
+}
+
+// ArchivePost archives a post
+func (r *PostRepository) ArchivePost(postID uint) error {
+	return database.GetDB().Model(&models.Post{}).
+		Where("id = ?", postID).
+		Update("status", models.PostStatusArchived).Error
+}
+
+// GetPostStats returns post statistics
+func (r *PostRepository) GetPostStats() (map[string]int64, error) {
+	stats := make(map[string]int64)
+	
+	// Total posts
+	total, err := r.Count(map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+	stats["total_posts"] = total
+	
+	// Published posts
+	published, err := r.Count(map[string]interface{}{"status": models.PostStatusPublished})
+	if err != nil {
+		return nil, err
+	}
+	stats["published_posts"] = published
+	
+	// Draft posts
+	draft, err := r.Count(map[string]interface{}{"status": models.PostStatusDraft})
+	if err != nil {
+		return nil, err
+	}
+	stats["draft_posts"] = draft
+	
+	// Archived posts
+	archived, err := r.Count(map[string]interface{}{"status": models.PostStatusArchived})
+	if err != nil {
+		return nil, err
+	}
+	stats["archived_posts"] = archived
+	
+	// Featured posts
+	featured, err := r.Count(map[string]interface{}{"is_featured": true, "status": models.PostStatusPublished})
+	if err != nil {
+		return nil, err
+	}
+	stats["featured_posts"] = featured
+	
+	return stats, nil
+}
+```
+
+## 🔄 Service Layer
+
+### 1. User Service (`internal/services/user_service.go`)
+
+```go
+package services
+
+import (
+	"errors"
+	"your-project-path/internal/models"
+	"your-project-path/internal/repositories"
+	"your-project-path/pkg/database"
+)
+
+// UserService provides user business logic
+type UserService struct {
+	userRepo *repositories.UserRepository
+}
+
+// NewUserService creates a new user service
+func NewUserService() *UserService {
+	return &UserService{
+		userRepo: repositories.NewUserRepository(),
+	}
+}
+
+// CreateUser creates a new user
+func (s *UserService) CreateUser(user *models.User) error {
+	// Validate user data
+	if user.Name == "" {
+		return errors.New("name is required")
+	}
+	if user.Email == "" {
+		return errors.New("email is required")
+	}
+	if user.Password == "" {
+		return errors.New("password is required")
+	}
+	
+	// Set default role if not specified
+	if user.Role == "" {
+		user.Role = models.UserRoleUser
+	}
+	
+	return s.userRepo.CreateUser(user)
+}
+
+// AuthenticateUser authenticates a user
+func (s *UserService) AuthenticateUser(email, password string) (*models.User, error) {
+	user, err := s.userRepo.GetByEmail(email)
+	if err != nil {
+		return nil, errors.New("invalid credentials")
+	}
+	
+	if !user.IsActive {
+		return nil, errors.New("user account is deactivated")
+	}
+	
+	if !user.CheckPassword(password) {
+		return nil, errors.New("invalid credentials")
+	}
+	
+	// Update last login
+	err = s.userRepo.UpdateLastLogin(user.ID)
+	if err != nil {
+		// Log error but don't fail authentication
+		// log.Printf("Failed to update last login: %v", err)
+	}
+	
+	return user, nil
+}
+
+// GetUserByID retrieves a user by ID
+func (s *UserService) GetUserByID(id uint) (*models.User, error) {
+	return s.userRepo.GetByID(id)
+}
+
+// UpdateUser updates user information
+func (s *UserService) UpdateUser(user *models.User) error {
+	// Don't allow password update through this method
+	user.Password = ""
+	return s.userRepo.Update(user)
+}
+
+// ChangePassword changes user password
+func (s *UserService) ChangePassword(userID uint, newPassword string) error {
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return err
+	}
+	
+	user.Password = newPassword
+	return s.userRepo.Update(user)
+}
+
+// DeactivateUser deactivates a user
+func (s *UserService) DeactivateUser(userID uint) error {
+	return s.userRepo.SoftDeleteUser(userID)
+}
+
+// GetActiveUsers retrieves active users with pagination
+func (s *UserService) GetActiveUsers(page, limit int) ([]models.User, int64, error) {
+	offset := (page - 1) * limit
+	users, err := s.userRepo.GetActiveUsers(limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	total, err := s.userRepo.Count(map[string]interface{}{"is_active": true})
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	return users, total, nil
+}
+
+// SearchUsers searches users
+func (s *UserService) SearchUsers(query string, page, limit int) ([]models.User, error) {
+	offset := (page - 1) * limit
+	return s.userRepo.SearchUsers(query, limit, offset)
+}
+
+// GetUserStats returns user statistics
+func (s *UserService) GetUserStats() (map[string]int64, error) {
+	return s.userRepo.GetUserStats()
+}
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Missing Relationships:**
+   - **Bad:** Not defining proper relationships between models.
+   - **Good:** Always define relationships with proper constraints.
+
+2. **N+1 Query Problem:**
+   - **Bad:** Loading related objects in loops.
+   - **Good:** Use `Preload` for eager loading.
+
+3. **Ignoring Transactions:**
+   - **Bad:** Performing multiple operations without transactions.
+   - **Good:** Use `DB.Transaction()` for complex operations.
+
+4. **Missing Indexes:**
+   - **Bad:** Not creating indexes for frequently queried fields.
+   - **Good:** Use `index` and `uniqueIndex` tags.
+
+5. **Hardcoding Queries:**
+   - **Bad:** Writing raw SQL queries everywhere.
+   - **Good:** Use GORM's query builder and repository pattern.
+
+## 🧪 Testing Strategy
+
+```go
+// tests/repositories/user_repository_test.go
+package repositories_test
+
+import (
+	"testing"
+	"your-project-path/internal/models"
+	"your-project-path/internal/repositories"
+	"your-project-path/pkg/database"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
+)
+
+type UserRepositoryTestSuite struct {
+	suite.Suite
+	repo *repositories.UserRepository
+}
+
+func (suite *UserRepositoryTestSuite) SetupSuite() {
+	// Initialize test database
+	database.InitDatabase()
+	database.AutoMigrate()
+	suite.repo = repositories.NewUserRepository()
+}
+
+func (suite *UserRepositoryTestSuite) SetupTest() {
+	// Clean up before each test
+	database.GetDB().Exec("DELETE FROM users")
+}
+
+func (suite *UserRepositoryTestSuite) TestCreateUser() {
+	user := &models.User{
+		Name:     "Test User",
+		Email:    "test@example.com",
+		Password: "password123",
+		Role:     models.UserRoleUser,
+	}
+
+	err := suite.repo.Create(user)
+	assert.NoError(suite.T(), err)
+	assert.NotZero(suite.T(), user.ID)
+	assert.Equal(suite.T(), "test@example.com", user.Email)
+}
+
+func (suite *UserRepositoryTestSuite) TestGetByEmail() {
+	user := &models.User{
+		Name:     "Test User",
+		Email:    "test@example.com",
+		Password: "password123",
+	}
+	suite.repo.Create(user)
+
+	foundUser, err := suite.repo.GetByEmail("test@example.com")
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), user.ID, foundUser.ID)
+	assert.Equal(suite.T(), user.Email, foundUser.Email)
+}
+
+func TestUserRepositoryTestSuite(t *testing.T) {
+	suite.Run(t, new(UserRepositoryTestSuite))
+}
+```
+
+## 📦 Environment Variables
+
+```env
+# Database Configuration
+DB_TYPE=postgres
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=password
+DB_NAME=myapp
+DB_SSLMODE=disable
+DB_TIMEZONE=UTC
+
+# SQLite Configuration
+# DB_TYPE=sqlite
+# DB_PATH=app.db
+
+# GORM Configuration
+GORM_DEBUG=true
+```

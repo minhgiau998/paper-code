@@ -1,0 +1,201 @@
+# Pinia Documentation
+
+> **Purpose:** The intuitive, type-safe, and modular Store for Vue. It is the official successor to Vuex.
+
+## 📦 Installation
+
+```bash
+npm install pinia
+# Optional but recommended: Persistence
+npm install pinia-plugin-persistedstate
+```
+
+## 🛠️ Configuration
+
+{% if "Nuxt" in tech_stack %}
+### Nuxt.js Setup
+
+We use the official Nuxt module for zero-boilerplate setup.
+
+**File:** `nuxt.config.ts`
+
+```typescript
+export default defineNuxtConfig({
+  modules: [
+    '@pinia/nuxt',
+    'pinia-plugin-persistedstate/nuxt',
+  ],
+  pinia: {
+    storesDirs: ['./stores/**'], // Auto-import stores
+  },
+});
+```
+
+{% else %}
+### Vue 3 Setup (Vite)
+
+**File:** `src/main.ts`
+
+```typescript
+import { createApp } from 'vue';
+import { createPinia } from 'pinia';
+import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
+import App from './App.vue';
+
+const app = createApp(App);
+const pinia = createPinia();
+
+// 💾 Enable Persistence
+pinia.use(piniaPluginPersistedstate);
+
+app.use(pinia);
+app.mount('#app');
+```
+{% endif %}
+
+## 💻 Usage Patterns
+
+### 1. Defining a Store (Setup Syntax)
+
+**Strategy:** We strictly use **Setup Stores** (function syntax) over Option Stores.
+**Why?** It matches the `<script setup>` mental model and allows using standard Composables inside stores.
+
+**File:** `src/stores/user.ts`
+
+```typescript
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+
+interface User {
+  id: string;
+  name: string;
+}
+
+export const useUserStore = defineStore('user', () => {
+  // 1. State (Refs)
+  const user = ref<User | null>(null);
+  const token = ref<string | null>(null);
+
+  // 2. Getters (Computed)
+  const isLoggedIn = computed(() => !!token.value);
+  const greeting = computed(() => user.value ? `Hello, ${user.value.name}` : 'Guest');
+
+  // 3. Actions (Functions)
+  function login(userData: User, authToken: string) {
+    user.value = userData;
+    token.value = authToken;
+  }
+
+  function logout() {
+    user.value = null;
+    token.value = null;
+  }
+
+  // 4. Return Public API
+  return {
+    user,
+    token,
+    isLoggedIn,
+    greeting,
+    login,
+    logout,
+  };
+}, {
+  persist: true, // 💾 Auto-save to localStorage
+});
+```
+
+### 2. Using the Store in Components
+
+**Critical Rule:** Maintain Reactivity.
+
+{% raw %}
+```vue
+<script setup lang="ts">
+import { storeToRefs } from 'pinia';
+import { useUserStore } from '@/stores/user';
+
+const userStore = useUserStore();
+
+// ❌ BAD: Destructuring state/getters directly breaks reactivity
+// const { user, isLoggedIn } = userStore;
+
+// ✅ GOOD: Use storeToRefs for State and Getters
+const { user, isLoggedIn } = storeToRefs(userStore);
+
+// ✅ GOOD: Destructure Actions directly (they are just functions)
+const { login, logout } = userStore;
+</script>
+
+<template>
+  <div v-if="isLoggedIn">
+    {{ user?.name }}
+  </div>
+  <button @click="logout">Logout</button>
+</template>
+```
+{% endraw %}
+
+## 🛡️ Best Practices & Strategies
+
+### 1. Store Organization
+**Strategy:** Keep stores small and domain-focused.
+- Don't create a massive `globalStore`.
+- Create `cart.ts`, `auth.ts`, `settings.ts`.
+- Pinia stores are lazy-loaded; they don't impact bundle size until used.
+
+### 2. Composing Stores
+One store can use another. This replaces the complex "Modules" system of Vuex.
+
+```typescript
+// src/stores/cart.ts
+import { useUserStore } from './user';
+
+export const useCartStore = defineStore('cart', () => {
+  const userStore = useUserStore(); // 🔗 Use another store
+  
+  function checkout() {
+    if (!userStore.isLoggedIn) {
+      throw new Error("Must be logged in");
+    }
+    // ...
+  }
+});
+```
+
+### 3. Resetting State
+Setup Stores do not have a built-in `$reset()` method like Option Stores.
+**Pattern:** Export a `reset` function manually or use a composition utility.
+
+```typescript
+function reset() {
+  user.value = null;
+  token.value = null;
+}
+return { ..., reset };
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Destructuring Trap:**
+    *   Again, `const { state } = store` is the most common bug. Always check if you need `storeToRefs`.
+
+2.  **Mutating State Outside Store:**
+    *   While Pinia allows `store.count++` in components, it makes debugging harder.
+    *   **Rule:** Prefer using **Actions** for state mutations to keep logic centralized.
+
+3.  **Using `this`:**
+    *   In Setup Stores, `this` does not exist. Use the variable names directly (`user.value`).
+
+## 📝 TypeScript Tips
+
+Pinia infers types automatically. You rarely need explicit return types for the defineStore function.
+However, always type your **State Refs**.
+
+```typescript
+// ❌ Implicit 'any' if initialized with null
+const user = ref(null); 
+
+// ✅ Explicit Type
+const user = ref<User | null>(null);
+```

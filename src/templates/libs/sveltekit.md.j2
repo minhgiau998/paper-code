@@ -1,0 +1,195 @@
+# SvelteKit Documentation
+
+> **Purpose:** The official meta-framework for Svelte. It handles Routing, SSR (Server-Side Rendering), and builds.
+
+## 📦 Installation
+
+SvelteKit is usually initialized via the scaffold tool, but ensure you have the core dependencies updated.
+
+```bash
+npm install @sveltejs/kit @sveltejs/adapter-auto svelte@next
+```
+
+## 🛠️ Configuration (Adapters)
+
+**Strategy:** SvelteKit requires an "Adapter" to deploy. The default is `adapter-auto`, but for production, you should choose a specific one.
+
+**File:** `svelte.config.js`
+
+```javascript
+// Change this based on your deployment target
+import adapter from '@sveltejs/adapter-auto'; 
+// import adapter from '@sveltejs/adapter-node';   // For VPS/Docker
+// import adapter from '@sveltejs/adapter-vercel'; // For Vercel
+
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+
+/** @type {import('@sveltejs/kit').Config} */
+const config = {
+  // ✅ Svelte 5 Support
+  preprocess: vitePreprocess(),
+
+  kit: {
+    adapter: adapter(),
+    alias: {
+      $components: 'src/lib/components',
+      $utils: 'src/lib/utils',
+    }
+  }
+};
+
+export default config;
+```
+
+## 💻 Usage Patterns
+
+### 1. Data Loading (`load` functions)
+
+**Rule:** Do not fetch data inside the component (`onMount`). Use `+page.server.ts` to fetch data on the server before rendering.
+
+**File:** `src/routes/dashboard/+page.server.ts`
+
+```typescript
+import type { PageServerLoad } from './$types'; // 🪄 Auto-generated types
+import { db } from '$lib/server/db';
+
+export const load: PageServerLoad = async ({ locals }) => {
+  // This runs ONLY on the server. Safe for DB calls.
+  const user = locals.user;
+  
+  if (!user) {
+    // SvelteKit built-in redirects
+    throw redirect(302, '/login');
+  }
+
+  const posts = await db.post.findMany({ where: { authorId: user.id } });
+
+  return {
+    user,
+    posts
+  };
+};
+```
+
+**File:** `src/routes/dashboard/+page.svelte` (View)
+
+```svelte
+<script lang="ts">
+  // ⚡ Svelte 5 Runes Syntax
+  let { data } = $props(); 
+  // 'data' is strictly typed based on the return of load()
+</script>
+
+<h1>Welcome, {data.user.name}</h1>
+<ul>
+  {#each data.posts as post}
+    <li>{post.title}</li>
+  {/each}
+</ul>
+```
+
+### 2. Mutations (Form Actions)
+
+**Strategy:** Use **Form Actions** instead of creating JSON API endpoints.
+This works even without JavaScript enables Progressive Enhancement.
+
+**File:** `src/routes/login/+page.server.ts`
+
+```typescript
+import type { Actions } from './$types';
+import { fail, redirect } from '@sveltejs/kit';
+
+export const actions: Actions = {
+  default: async ({ request, cookies }) => {
+    const formData = await request.formData();
+    const email = formData.get('email');
+    const password = formData.get('password');
+
+    if (!email || !password) {
+      // Return validation errors to the UI
+      return fail(400, { email, missing: true });
+    }
+
+    // ... Login Logic ...
+    
+    throw redirect(303, '/dashboard');
+  }
+};
+```
+
+**File:** `src/routes/login/+page.svelte`
+
+```svelte
+<script>
+  import { enhance } from '$app/forms';
+  let { form } = $props(); // 'form' contains the return value of fail()
+</script>
+
+<!-- use:enhance enables SPA-like behavior (no full reload) -->
+<form method="POST" use:enhance>
+  <input name="email" value={form?.email ?? ''} />
+  <input type="password" name="password" />
+  
+  {#if form?.missing}
+    <p class="error">All fields are required</p>
+  {/if}
+  
+  <button>Login</button>
+</form>
+```
+
+## 🛡️ Best Practices & Strategies
+
+### 1. Environment Variables (Security)
+SvelteKit splits env vars into **Private** (Server-only) and **Public** (Exposed to Browser).
+
+**Rule:** NEVER import from `$env/static/private` in a `.svelte` or `+page.ts` file.
+
+```typescript
+// ✅ Good: Server-side only
+import { API_KEY } from '$env/static/private'; 
+
+// ✅ Good: Public config
+import { PUBLIC_BASE_URL } from '$env/static/public';
+```
+
+### 2. Universal Load vs Server Load
+- **`+page.server.ts`:** Has access to DB, Secrets. Runs on Server (or during build).
+- **`+page.ts`:** Runs on Client & Server. Good for public API calls.
+- **Strategy:** Default to `+page.server.ts` unless you strictly need to fetch data directly from the browser (e.g., using user's localized timezone or private cookies).
+
+### 3. Progressive Enhancement (`use:enhance`)
+**Rule:** Always add `use:enhance` to your `<form>` elements.
+It upgrades the native HTML form submission to a client-side fetch, updating the page without a full reload, while keeping the standard Request/Response model.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Fetching in `onMount`:**
+    *   **Bad:** Using `fetch()` inside `onMount`. This causes a "Waterfall" (Page loads -> JS loads -> Fetch starts -> Spinner).
+    *   **Good:** Use the `load()` function. The data is fetched in parallel with the HTML request.
+
+2.  **Creating unnecessary API Routes:**
+    *   **Bad:** Creating `src/routes/api/login/+server.ts` just to handle a login form.
+    *   **Good:** Use `actions` in `src/routes/login/+page.server.ts`. It keeps logic co-located with the UI.
+
+3.  **Manual Prop Typing:**
+    *   **Bad:** `export let data: UserData;`
+    *   **Good:** `import type { PageData } from './$types'`. Let SvelteKit infer the type from the backend code automatically.
+
+## 📝 TypeScript Tips
+
+When using `locals` (for Auth), make sure to type it globally.
+
+**File:** `src/app.d.ts`
+```typescript
+declare global {
+  namespace App {
+    interface Locals {
+      user?: { id: string; role: string };
+    }
+    // interface PageData {}
+    // interface Platform {}
+  }
+}
+export {};
+```

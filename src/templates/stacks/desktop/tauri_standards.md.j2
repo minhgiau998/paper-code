@@ -1,0 +1,80 @@
+# Tauri Coding Standards
+
+## 📝 Naming Conventions
+
+- **Rust Files:** `snake_case.rs` (e.g., `db_connection.rs`).
+- **Rust Commands:** `snake_case` (e.g., `get_user_profile`).
+- **Frontend Invocation:** CamelCase string matches the Rust function name.
+  ```typescript
+  invoke('get_user_profile', { userId: 1 })
+  ```
+
+## ⚡ Rust & Tauri Rules (Critical)
+
+### 1. Async Commands
+**Rule:** Any command that performs I/O (Database, File System, HTTP) **MUST** be `async`.
+- If you use a synchronous function for I/O, it blocks the entire Tauri Event Loop, freezing the UI.
+
+```rust
+// ❌ Bad (Blocks UI)
+#[tauri::command]
+fn read_big_file() -> String {
+    std::fs::read_to_string("gigantic.txt").unwrap()
+}
+
+// ✅ Good (Non-blocking)
+#[tauri::command]
+async fn read_big_file() -> Result<String, String> {
+    // handled by tokio fs
+    Ok(tokio::fs::read_to_string("gigantic.txt").await.map_err(|e| e.to_string())?)
+}
+```
+
+### 2. Error Handling (Result)
+**Rule:** Commands should return `Result<T, E>`.
+- Never use `unwrap()` or `panic!()` inside a command. It will crash the entire application.
+- Map Rust errors to serializable Strings or Structs so the Frontend can catch them.
+
+### 3. State Injection
+**Rule:** Use `tauri::State` to access global objects. Do not use `static mut` or `lazy_static`.
+
+```rust
+// src-tauri/src/commands/user.rs
+#[tauri::command]
+pub fn login(
+    state: tauri::State<AppState>, // <-- Injected safely
+    username: String
+) -> bool {
+    // ...
+}
+```
+
+## 🛡️ Frontend Guidelines
+
+### 1. Type Safety
+**Rule:** Define TypeScript interfaces that match the Rust Structs.
+- Don't use `any` for `invoke` results.
+- Ideally, use tools like `tauri-specta` or `ts-rs` to auto-generate TS types from Rust code.
+
+### 2. Security Boundaries
+**Rule:** Never trust the Client.
+- Even though the "Client" is your own frontend, treat it as hostile input.
+- Validate all arguments inside the Rust Command (using specific types or validation logic) before processing.
+
+### 3. Window Management
+**Rule:** Use the `WebviewWindow` API carefully.
+- Avoid spawning too many windows as they consume significant RAM (each is a browser instance).
+- Use a Single Page Application (SPA) routing approach inside one window whenever possible.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Fat Frontend:** Do not use Node.js libraries (like `fs`, `path`) in the Frontend code. They won't work. Logic requiring these must be moved to Rust.
+2.  **Long Polling:** Avoid polling logic in JS. Use **Tauri Events** (`emit`) from Rust to push data to the Frontend when it changes.
+3.  **Hardcoded Paths:** Never use absolute strings like `C:/Users/`. Use `tauri::api::path` to resolve system paths dynamically (`AppConfig`, `Home`, etc.).
+
+## 🧪 Testing
+
+- **Rust (Backend):** Use standard `cargo test`.
+  - Unit test your business logic functions (keep them separate from the `#[tauri::command]` wrapper).
+- **Frontend:** Standard `Vitest`/`Jest` for UI logic.
+- **E2E:** use **WebDriver** (Tauri driver) to test the actual application interactions.

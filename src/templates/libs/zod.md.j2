@@ -1,0 +1,167 @@
+# Zod Documentation
+
+> **Purpose:** TypeScript-first schema declaration and validation library. It is the standard for bridging Runtime data with Static types.
+
+## 📦 Installation
+
+```bash
+npm install zod
+```
+
+{% if "React" in tech_stack or "Next.js" in tech_stack %}
+# For Form Integration (Recommended)
+npm install react-hook-form @hookform/resolvers
+{% endif %}
+
+## 🛠️ Usage Patterns
+
+### 1. The Single Source of Truth (`z.infer`)
+
+**Rule:** Never duplicate your type definitions. Define the Schema first, then infer the Type.
+
+```typescript
+import { z } from 'zod';
+
+// 1. Define Schema
+export const UserSchema = z.object({
+  id: z.string().uuid(),
+  username: z.string().min(3, "Username must be at least 3 chars"),
+  email: z.string().email(),
+  role: z.enum(["admin", "user", "guest"]),
+  age: z.number().min(18).optional(),
+});
+
+// 2. Infer Type (Automatic)
+// ❌ Bad: export interface User { id: string; ... } // Manual duplication
+// ✅ Good:
+export type User = z.infer<typeof UserSchema>;
+```
+
+### 2. Validating API Responses
+
+Don't trust the backend blindly. Validate data at the boundary.
+
+```typescript
+async function fetchUser(id: string): Promise<User> {
+  const res = await fetch(`/api/users/${id}`);
+  const data = await res.json();
+  
+  // 🛡️ Runtime Check: Throws error if data doesn't match
+  return UserSchema.parse(data); 
+}
+```
+
+{% if "React" in tech_stack or "Next.js" in tech_stack %}
+### 3. React Hook Form Integration
+
+Zod is the standard validation engine for React Hook Form.
+
+```tsx
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const LoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+type LoginFormData = z.infer<typeof LoginSchema>;
+
+export const LoginForm = () => {
+  const { 
+    register, 
+    handleSubmit, 
+    formState: { errors } 
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(LoginSchema), // 👈 Hook up Zod here
+  });
+
+  const onSubmit = (data: LoginFormData) => {
+    console.log("Valid Data:", data);
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <input {...register("email")} />
+      {errors.email && <span>{errors.email.message}</span>}
+      
+      <button type="submit">Login</button>
+    </form>
+  );
+};
+```
+{% endif %}
+
+{% if "Node.js" in tech_stack or "Express" in tech_stack or "NestJS" in tech_stack %}
+### 3. Backend Request Validation
+
+Validate incoming JSON bodies before processing logic.
+
+```typescript
+import { z } from 'zod';
+
+const CreatePostSchema = z.object({
+  title: z.string().max(100),
+  content: z.string(),
+  tags: z.array(z.string()).optional(),
+});
+
+// Example Express Middleware
+const validatePost = (req, res, next) => {
+  const result = CreatePostSchema.safeParse(req.body);
+  
+  if (!result.success) {
+    // Return formatted errors
+    return res.status(400).json({ errors: result.error.format() });
+  }
+  
+  // Attach typed data
+  req.validatedBody = result.data;
+  next();
+};
+```
+{% endif %}
+
+## 🛡️ Best Practices & Strategies
+
+### 1. Environment Variable Validation
+**Strategy:** Fail fast at startup if env vars are missing.
+
+```typescript
+// src/env.ts
+const EnvSchema = z.object({
+  DATABASE_URL: z.string().url(),
+  API_KEY: z.string().min(1),
+  PORT: z.coerce.number().default(3000), // Coerce string "3000" to number
+});
+
+// Throws immediately if .env is invalid
+export const env = EnvSchema.parse(process.env);
+```
+
+### 2. `parse` vs `safeParse`
+- **`.parse(data)`**: Use when you expect the data to be valid, or you want the app to crash/throw (e.g., startup config).
+- **`.safeParse(data)`**: Use for user input or external APIs. It returns `{ success: true, data }` or `{ success: false, error }` without throwing.
+
+### 3. Coercion (`z.coerce`)
+Use coercion when handling data from sources that are always strings (like URL Query Params or Form Data).
+
+```typescript
+const QuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1), // "12" -> 12
+  isActive: z.coerce.boolean(),              // "true" -> true
+});
+```
+
+## 🚫 Anti-Patterns
+
+1.  **Duplicate Interfaces:**
+    *   Do not define a TS `interface` and a Zod `schema` separately for the same data. It violates DRY (Don't Repeat Yourself). Use `z.infer`.
+
+2.  **Ignoring `.transform()`:**
+    *   Use `.transform()` to sanitize data during parsing (e.g., trimming strings).
+    *   `email: z.string().email().trim().toLowerCase()`
+
+3.  **Validation in Components (React):**
+    *   Don't manually check `if (text.length > 5)` inside components. Move logic to a Zod schema. This keeps UI code clean.

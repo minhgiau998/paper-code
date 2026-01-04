@@ -1,0 +1,189 @@
+# Prisma ORM Documentation
+
+> **Purpose:** Next-generation Node.js and TypeScript ORM. It serves as the data layer for the application.
+
+## 📦 Installation
+
+```bash
+npm install @prisma/client
+npm install -D prisma
+```
+
+**Initialize:**
+```bash
+npx prisma init
+```
+
+## 🛠️ Configuration (The Singleton Pattern)
+
+**Critical Strategy:** PrismaClient must be instantiated as a **Singleton**.
+Creating multiple instances (e.g., importing `new PrismaClient()` in every file) will exhaust the database connection pool, especially in Serverless (Next.js) or during Hot Module Replacement.
+
+{% if "NestJS" in tech_stack %}
+### NestJS Setup (`PrismaService`)
+
+In NestJS, we wrap the client in an Injectable Service.
+
+**File:** `src/prisma/prisma.service.ts`
+
+```typescript
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
+
+@Injectable()
+export class PrismaService extends PrismaClient implements OnModuleInit {
+  async onModuleInit() {
+    await this.$connect();
+  }
+}
+```
+
+**Usage:** Inject `PrismaService` into your Modules/Services via constructor.
+
+{% elif "Next.js" in tech_stack %}
+### Next.js / Serverless Setup
+
+We use a global variable to preserve the connection across hot-reloads.
+
+**File:** `src/lib/db.ts`
+
+```typescript
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+
+export const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    log: ['query', 'error', 'warn'], // Useful logs in Dev
+  });
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+```
+
+{% else %}
+### Standard Node.js Setup
+
+**File:** `src/lib/db.ts`
+
+```typescript
+import { PrismaClient } from '@prisma/client';
+
+export const prisma = new PrismaClient();
+```
+{% endif %}
+
+## 📝 Schema Best Practices (`schema.prisma`)
+
+**Rule:** Use `map` to decouple Model names (PascalCase) from Table names (snake_case).
+
+```prisma
+// ✅ Good
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  posts     Post[]
+
+  @@map("users") // Table name in DB is 'users'
+}
+```
+
+## 💻 Usage Standards
+
+### 1. No "Select *" (Over-fetching)
+**Rule:** Always explicitly select fields when returning data to the frontend, OR transform the result in a DTO.
+**Critical:** NEVER return a password hash or internal flags.
+
+```typescript
+// ❌ Bad (Returns everything, including password)
+const user = await prisma.user.findUnique({ where: { id } });
+
+// ✅ Good (Explicit Select)
+const user = await prisma.user.findUnique({
+  where: { id },
+  select: {
+    id: true,
+    email: true,
+    name: true,
+    // password: false (Implicit)
+  },
+});
+```
+
+### 2. Type Safety
+Use the auto-generated types from Prisma instead of writing manual interfaces.
+
+```typescript
+import { Prisma } from '@prisma/client';
+
+// Type for a User Create Input
+const createUser = (data: Prisma.UserCreateInput) => {
+  return prisma.user.create({ data });
+};
+```
+
+### 3. Migrations
+**Rule:**
+- **Dev:** Use `npx prisma migrate dev` to create migration files and apply them locally.
+- **Prod:** Use `npx prisma migrate deploy` in your CI/CD pipeline. **Do not** run `migrate dev` in production.
+
+## 🛡️ Common Patterns
+
+### 1. Soft Deletes
+Prisma doesn't support soft deletes natively yet. We use a Middleware or explicit `where` clause.
+
+**Strategy:** Add `deletedAt DateTime?` to models.
+
+```typescript
+// Query
+const activeUsers = await prisma.user.findMany({
+  where: {
+    deletedAt: null
+  }
+});
+
+// "Delete"
+await prisma.user.update({
+  where: { id },
+  data: { deletedAt: new Date() }
+});
+```
+
+### 2. Interactive Transactions
+Use `$transaction` when multiple operations must succeed or fail together.
+
+```typescript
+await prisma.$transaction(async (tx) => {
+  const user = await tx.user.create({ ... });
+  await tx.profile.create({ data: { userId: user.id } });
+});
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Committing `.env`:**
+    *   The `.env` file contains your Database Connection String. Never commit it.
+
+2.  **Hardcoding Connection String:**
+    *   Always use `env("DATABASE_URL")` in schema.prisma.
+
+3.  **Logic inside Controllers:**
+    *   Do not write complex Prisma queries inside Route Handlers or Controllers. Move them to a **Service** or **Repository** layer.
+
+## 🧪 Testing
+
+Use `jest-mock-extended` to mock the Prisma Client. Do not hit the real database in Unit Tests.
+
+```typescript
+import { prismaMock } from './singleton';
+
+test('should create new user', async () => {
+  const user = { id: 1, name: 'Rich' };
+  prismaMock.user.create.mockResolvedValue(user);
+
+  await expect(createUser(user)).resolves.toEqual(user);
+});
+```

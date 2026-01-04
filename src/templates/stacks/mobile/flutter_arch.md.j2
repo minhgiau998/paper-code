@@ -1,0 +1,81 @@
+# Flutter Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built using **Flutter (v3.22+)** and **Dart 3**.
+It follows a **Clean Architecture** approach organized by **Features** (Feature-First) to ensure scalability and maintainability.
+
+## 📂 Directory Structure
+
+We use the `src/` convention to encapsulate implementation details.
+
+```text
+lib/
+├── main.dart            # Entry Point
+├── main_staging.dart    # Staging Entry Point
+├── src/
+│   ├── app.dart         # Root Widget (MaterialApp)
+│   ├── config/          # Router, Theme, Env vars
+│   │   ├── router.dart  # GoRouter configuration
+│   │   └── theme.dart
+│   ├── core/            # Shared logic across features
+│   │   ├── api/         # Dio Client / Interceptors
+│   │   ├── errors/      # Failure classes
+│   │   ├── utils/       # Helpers (Validators, Formatters)
+│   │   └── widgets/     # Shared UI (Buttons, Inputs)
+│   └── features/        # Feature Modules
+│       ├── auth/
+│       │   ├── data/    # Repositories & Data Sources
+│       │   ├── domain/  # Entities & UseCases (Optional)
+│       │   └── presentation/
+│       │       ├── controllers/ # State Management (Bloc/Riverpod)
+│       │       └── screens/     # UI Widgets
+│       └── home/
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Feature-First Organization
+Code is grouped by **what it does** (Auth, Profile, Feed), not **what it is** (Controllers, Views).
+- **Rule:** A feature should be self-contained. `features/auth` contains its own data, domain, and presentation layers.
+
+### 2. State Management
+{% if "Bloc" in libraries %}
+**BLoC Pattern:**
+- We use `flutter_bloc`.
+- **Events:** Defined as `sealed` classes (Dart 3) for exhaustive pattern matching.
+- **States:** Immutable classes (using Equatable or Freezed).
+- **Injection:** Provided via `MultiBlocProvider` or scoped `BlocProvider`.
+{% elif "Riverpod" in libraries %}
+**Riverpod (v2+):**
+- We use `flutter_riverpod` with `riverpod_generator`.
+- **Notifier:** Use `class MyNotifier extends _$MyNotifier` instead of `StateNotifier`.
+- **Providers:** All providers are global but their state is scoped and auto-disposed.
+{% elif "GetX" in libraries %}
+**GetX:**
+- **Controllers:** Extend `GetxController`.
+- **Bindings:** Use Bindings to inject dependencies lazily.
+- **Note:** Avoid using GetX for Routing if possible; prefer `GoRouter` for deep linking support.
+{% else %}
+**Provider/ChangeNotifier:**
+- Use for simple state. Avoid for complex dependency chains.
+{% endif %}
+
+### 3. Navigation
+{% if "GetX" in libraries %}
+- We use **GetX Navigation** (`Get.toNamed`).
+{% else %}
+- We use **GoRouter** (`go_router`) for declarative routing.
+- It supports deep linking, nested navigation (ShellRoute), and redirection logic (Guards).
+{% endif %}
+
+### 4. Data Layer
+- **Repository Pattern:** The Presentation layer never talks to the API directly. It talks to a Repository Interface.
+- **DTOs:** Data Transfer Objects (in `data/models`) parse JSON. Entities (in `domain/entities`) are used in the UI.
+{% if "Freezed" in libraries %}
+- **Immutability:** Use **Freezed** for generating `copyWith`, `toString`, and equality operators for Models/States.
+{% endif %}
+
+## 🎨 Styling & Assets
+- **Theme:** Defined in `src/config/theme.dart`. Use `Theme.of(context)` to access colors.
+- **Assets:** Managed via `pubspec.yaml`. Prefer generating asset constants (using `flutter_gen` or similar) to avoid string typos.

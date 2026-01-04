@@ -1,0 +1,86 @@
+# React Native Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built using **React Native**{% if "Expo" in libraries %} (via **Expo SDK**){% endif %}.
+It follows a **Feature-based Architecture** to ensure scalability and separation of concerns.
+
+{% if "Expo" in libraries %}
+**Workflow:** Managed Workflow (CNG - Continuous Native Generation).
+**Updates:** EAS Update compatible.
+{% else %}
+**Workflow:** Bare React Native CLI.
+{% endif %}
+
+## 📂 Directory Structure
+
+```text
+src/ (or app/)
+├── assets/              # Images, Fonts, Splash screens
+├── components/          # Shared UI Components (Atomic design)
+│   ├── atoms/           # Buttons, Text, Inputs
+│   ├── molecules/       # Form fields, Cards
+│   └── organisms/       # Complex widgets
+├── config/              # Env vars, Theme config
+├── constants/           # Global constants (Colors, Layout)
+├── features/            # Feature Modules (The core)
+│   ├── auth/
+│   │   ├── api/         # Auth API services
+│   │   ├── components/  # Auth-specific UI
+│   │   ├── screens/     # Screen components
+│   │   └── hooks/       # Logic hooks
+│   └── home/
+├── hooks/               # Global custom hooks
+├── navigation/          # Navigation Configuration
+│   ├── AppNavigator.tsx
+│   ├── AuthNavigator.tsx
+│   └── types.ts         # Navigation Type Definitions
+├── services/            # Global API services / Native Modules
+├── store/               # State Management (Zustand/Redux)
+├── theme/               # Styling Theme (Colors, Spacing)
+├── utils/               # Helper functions
+└── App.tsx              # Entry Point
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Navigation Strategy
+{% if "Expo Router" in libraries %}
+- **File-system Routing:** We use **Expo Router**.
+- **Location:** Routes are defined in the `app/` directory.
+- **Layouts:** Use `_layout.tsx` for defining stacks/tabs.
+{% else %}
+- **Component-based Routing:** We use **React Navigation**.
+- **Stacks:** Defined in `src/navigation/`.
+- **Typing:** strictly typed routes using `NativeStackScreenProps`.
+{% endif %}
+
+### 2. Styling System
+{% if "NativeWind" in libraries or "TailwindCSS" in libraries %}
+- **NativeWind:** We use Tailwind CSS classes via NativeWind.
+- **Rule:** Use `className` property. Avoid `StyleSheet.create` unless you need dynamic values that NativeWind cannot handle.
+{% elif "Tamagui" in libraries %}
+- **Tamagui:** Use the Tamagui compiler for performance. Use `Stack`, `Text`, `YStack` primitives.
+{% else %}
+- **StyleSheet:** We use the standard `StyleSheet.create`.
+- **Theming:** All colors/spacing must come from `src/theme/`. No hardcoded hex values in components.
+{% endif %}
+
+### 3. State Management
+{% if "Redux Toolkit" in libraries %}
+- **Global:** Redux Toolkit.
+- **Async:** RTK Query for data fetching.
+{% elif "Zustand" in libraries %}
+- **Global:** Zustand stores (split by feature).
+{% else %}
+- **Local:** `useState` / `useReducer`.
+- **Global:** React Context (use sparingly to avoid re-renders).
+{% endif %}
+
+### 4. Data Persistence
+{% if "MMKV" in libraries %}
+- **Storage:** Use **react-native-mmkv** for synchronous, high-performance storage.
+- **AsyncStorage:** Deprecated/Avoid (too slow).
+{% else %}
+- **Storage:** Async Storage (only for non-critical data).
+{% endif %}

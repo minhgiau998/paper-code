@@ -1,0 +1,66 @@
+# PyTorch Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built using **PyTorch 2.0+**.
+It follows a **Research-to-Production** workflow:
+1.  **Exploration:** Done in `notebooks/`.
+2.  **Core Logic:** Defined in `src/` (Models, Datasets, Training Loops).
+3.  **Configuration:** Hyperparameters are decoupled from code.
+
+## 📂 Directory Structure
+
+```text
+root/
+├── configs/             # Configuration files (YAML/JSON)
+│   ├── model/           # Model-specific configs
+│   ├── train/           # Training hyperparameters
+│   └── config.yaml      # Main entry config
+├── data/                # Data storage (gitignored)
+│   ├── raw/             # Original immutable data
+│   ├── processed/       # Cleaned/Tokenized data
+│   └── external/        # Data from third-party sources
+├── notebooks/           # Jupyter Notebooks for EDA & Prototyping
+│   ├── 01_eda.ipynb
+│   └── 02_model_test.ipynb
+├── src/                 # Source Code
+│   ├── data/            # Data Loading Logic
+│   │   ├── __init__.py
+│   │   ├── dataset.py   # Custom Dataset classes
+│   │   └── make_dataset.py
+│   ├── models/          # Model Architectures
+│   │   ├── __init__.py
+│   │   ├── base.py      # Abstract Base Model
+│   │   └── unet.py      # Specific Implementations
+│   ├── training/        # Training & Evaluation Loops
+│   │   ├── trainer.py   # Trainer Class
+│   │   └── metrics.py   # Custom Metrics
+│   └── utils/           # Helper functions (Seeding, Logging)
+├── train.py             # Training Entry Point
+├── inference.py         # Inference Entry Point
+└── requirements.txt
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Model vs. Trainer Separation
+- **Model (`src/models/`):** Pure `nn.Module` classes. They only handle the forward pass.
+- **Trainer (`src/training/`):** Handles the training loop, validation loop, checkpointing, and logging.
+- **Benefit:** Allows you to swap model architectures without rewriting the training logic.
+
+### 2. Data Pipeline
+- **Dataset:** Inherit from `torch.utils.data.Dataset`. strictly implement `__len__` and `__getitem__`.
+- **DataLoader:** Wraps the dataset for batching and shuffling.
+- **Transforms:** Use `torchvision.transforms` (or Albumentations) defined in the configuration, not hardcoded in the Dataset.
+
+### 3. Configuration Management
+- We avoid hardcoding hyperparameters (LR, Batch Size) in Python files.
+- All parameters are loaded from `configs/` or CLI arguments at runtime.
+
+### 4. PyTorch 2.0 Compilation
+- The architecture supports `torch.compile()`.
+- Models are designed to be "Graph Friendly" (avoiding dynamic control flow where possible) to leverage inductor optimization.
+
+## 📊 Experiment Tracking
+- Checkpoints are saved to `models/checkpoints/` with a timestamp or experiment ID.
+- Metrics (Loss, Accuracy) are logged to `logs/` (compatible with TensorBoard or MLFlow).

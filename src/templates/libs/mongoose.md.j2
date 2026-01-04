@@ -1,0 +1,665 @@
+# Mongoose Documentation
+
+> **Purpose:** Elegant MongoDB object modeling for Node.js.
+
+## 📦 Installation
+
+```bash
+npm install mongoose
+npm install -D @types/mongoose
+```
+
+## 🛠️ Database Connection
+
+**Strategy:** Use a singleton pattern for database connection and proper error handling.
+
+### 1. Database Connection (`src/config/database.ts`)
+
+```typescript
+import mongoose from 'mongoose';
+
+export const connectDB = async (): Promise<void> => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/myapp', {
+      // Connection options
+      maxPoolSize: 10, // Maintain up to 10 socket connections
+      serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+      family: 4, // Use IPv4, skip trying IPv6
+    });
+
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+  } catch (error) {
+    console.error('Database connection error:', error);
+    process.exit(1);
+  }
+};
+
+// Handle connection events
+mongoose.connection.on('connected', () => {
+  console.log('Mongoose connected to MongoDB');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('Mongoose connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('Mongoose disconnected from MongoDB');
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  await mongoose.connection.close();
+  console.log('MongoDB connection closed through app termination');
+  process.exit(0);
+});
+```
+
+### 2. Database Usage in Server
+
+```typescript
+// src/server.ts (Express.js example)
+import express from 'express';
+import { connectDB } from './config/database';
+
+const app = express();
+
+// Connect to database
+connectDB();
+
+// Rest of your server setup...
+```
+
+## 📝 Schema Definition
+
+**Strategy:** Define schemas with proper validation, indexes, and virtual properties.
+
+### 1. User Schema (`src/models/User.ts`)
+
+```typescript
+import mongoose, { Document, Schema } from 'mongoose';
+import bcrypt from 'bcryptjs';
+
+export interface IUser extends Document {
+  name: string;
+  email: string;
+  password: string;
+  avatar?: string;
+  role: 'user' | 'admin';
+  isActive: boolean;
+  lastLogin?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  comparePassword(candidatePassword: string): Promise<boolean>;
+}
+
+const userSchema = new Schema<IUser>({
+  name: {
+    type: String,
+    required: [true, 'Name is required'],
+    trim: true,
+    maxlength: [50, 'Name cannot exceed 50 characters'],
+  },
+  email: {
+    type: String,
+    required: [true, 'Email is required'],
+    unique: true,
+    lowercase: true,
+    trim: true,
+    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email'],
+  },
+  password: {
+    type: String,
+    required: [true, 'Password is required'],
+    minlength: [6, 'Password must be at least 6 characters long'],
+    select: false, // Don't include password in queries by default
+  },
+  avatar: {
+    type: String,
+    default: null,
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user',
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+  lastLogin: {
+    type: Date,
+    default: null,
+  },
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
+});
+
+// Indexes for performance
+userSchema.index({ email: 1 });
+userSchema.index({ createdAt: -1 });
+
+// Virtual for user's full profile URL
+userSchema.virtual('profileUrl').get(function() {
+  return `/users/${this._id}`;
+});
+
+// Pre-save middleware to hash password
+userSchema.pre('save', async function(next) {
+  // Only hash the password if it has been modified (or is new)
+  if (!this.isModified('password')) return next();
+
+  try {
+    // Hash password with cost of 12
+    const salt = await bcrypt.genSalt(12);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
+});
+
+// Instance method to compare passwords
+userSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Static method to find active users
+userSchema.statics.findActiveUsers = function() {
+  return this.find({ isActive: true });
+};
+
+export const User = mongoose.model<IUser>('User', userSchema);
+```
+
+### 2. Post Schema (`src/models/Post.ts`)
+
+```typescript
+import mongoose, { Document, Schema } from 'mongoose';
+
+export interface IPost extends Document {
+  title: string;
+  content: string;
+  author: mongoose.Types.ObjectId;
+  tags: string[];
+  likes: mongoose.Types.ObjectId[];
+  isPublished: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const postSchema = new Schema<IPost>({
+  title: {
+    type: String,
+    required: [true, 'Title is required'],
+    trim: true,
+    maxlength: [100, 'Title cannot exceed 100 characters'],
+  },
+  content: {
+    type: String,
+    required: [true, 'Content is required'],
+    minlength: [10, 'Content must be at least 10 characters long'],
+  },
+  author: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'Author is required'],
+  },
+  tags: [{
+    type: String,
+    trim: true,
+    lowercase: true,
+  }],
+  likes: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+  }],
+  isPublished: {
+    type: Boolean,
+    default: false,
+  },
+}, {
+  timestamps: true,
+});
+
+// Indexes for performance
+postSchema.index({ author: 1, createdAt: -1 });
+postSchema.index({ tags: 1 });
+postSchema.index({ title: 'text', content: 'text' }); // Text search index
+
+// Pre-find middleware to populate author
+postSchema.pre(/^find/, function(next) {
+  this.populate({
+    path: 'author',
+    select: 'name email avatar',
+  });
+  next();
+});
+
+export const Post = mongoose.model<IPost>('Post', postSchema);
+```
+
+## 🔍 Query Patterns
+
+### 1. Basic CRUD Operations (`src/services/userService.ts`)
+
+```typescript
+import { User, IUser } from '../models/User';
+import mongoose from 'mongoose';
+
+export class UserService {
+  // Create user
+  static async createUser(userData: Partial<IUser>): Promise<IUser> {
+    const user = new User(userData);
+    return await user.save();
+  }
+
+  // Find user by ID
+  static async findUserById(id: string): Promise<IUser | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new Error('Invalid user ID');
+    }
+    return await User.findById(id);
+  }
+
+  // Find user by email
+  static async findUserByEmail(email: string): Promise<IUser | null> {
+    return await User.findOne({ email }).select('+password');
+  }
+
+  // Update user
+  static async updateUser(id: string, updateData: Partial<IUser>): Promise<IUser | null> {
+    return await User.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+  }
+
+  // Delete user (soft delete)
+  static async deleteUser(id: string): Promise<IUser | null> {
+    return await User.findByIdAndUpdate(
+      id,
+      { isActive: false },
+      { new: true }
+    );
+  }
+
+  // Get users with pagination
+  static async getUsers(page: number = 1, limit: number = 10): Promise<{
+    users: IUser[];
+    total: number;
+    pages: number;
+  }> {
+    const skip = (page - 1) * limit;
+    
+    const [users, total] = await Promise.all([
+      User.find({ isActive: true })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      User.countDocuments({ isActive: true })
+    ]);
+
+    return {
+      users,
+      total,
+      pages: Math.ceil(total / limit),
+    };
+  }
+
+  // Search users
+  static async searchUsers(query: string): Promise<IUser[]> {
+    return await User.find({
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { email: { $regex: query, $options: 'i' } },
+      ],
+      isActive: true,
+    });
+  }
+}
+```
+
+### 2. Advanced Queries (`src/services/postService.ts`)
+
+```typescript
+import { Post, IPost } from '../models/Post';
+import mongoose from 'mongoose';
+
+export class PostService {
+  // Get posts with filters and pagination
+  static async getPosts(filters: {
+    author?: string;
+    tags?: string[];
+    isPublished?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    posts: IPost[];
+    total: number;
+    pages: number;
+  }> {
+    const {
+      author,
+      tags,
+      isPublished = true,
+      page = 1,
+      limit = 10,
+    } = filters;
+
+    // Build query
+    const query: any = { isPublished };
+
+    if (author) {
+      query.author = author;
+    }
+
+    if (tags && tags.length > 0) {
+      query.tags = { $in: tags };
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [posts, total] = await Promise.all([
+      Post.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('likes', 'name avatar'),
+      Post.countDocuments(query),
+    ]);
+
+    return {
+      posts,
+      total,
+      pages: Math.ceil(total / limit),
+    };
+  }
+
+  // Search posts using text index
+  static async searchPosts(searchTerm: string, page: number = 1, limit: number = 10): Promise<{
+    posts: IPost[];
+    total: number;
+    pages: number;
+  }> {
+    const skip = (page - 1) * limit;
+
+    const [posts, total] = await Promise.all([
+      Post.find(
+        { $text: { $search: searchTerm } },
+        { score: { $meta: 'textScore' } }
+      )
+        .sort({ score: { $meta: 'textScore' } })
+        .skip(skip)
+        .limit(limit),
+      Post.countDocuments({ $text: { $search: searchTerm } }),
+    ]);
+
+    return {
+      posts,
+      total,
+      pages: Math.ceil(total / limit),
+    };
+  }
+
+  // Get popular posts based on likes
+  static async getPopularPosts(limit: number = 5): Promise<IPost[]> {
+    return await Post.aggregate([
+      { $match: { isPublished: true } },
+      { $addFields: { likesCount: { $size: '$likes' } } },
+      { $sort: { likesCount: -1 } },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'author',
+          foreignField: '_id',
+          as: 'author',
+        },
+      },
+      { $unwind: '$author' },
+      {
+        $project: {
+          title: 1,
+          content: 1,
+          tags: 1,
+          likesCount: 1,
+          createdAt: 1,
+          'author.name': 1,
+          'author.avatar': 1,
+        },
+      },
+    ]);
+  }
+
+  // Like/unlike post
+  static async toggleLike(postId: string, userId: string): Promise<IPost | null> {
+    const post = await Post.findById(postId);
+    if (!post) {
+      throw new Error('Post not found');
+    }
+
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const likeIndex = post.likes.indexOf(userObjectId);
+
+    if (likeIndex > -1) {
+      // Unlike
+      post.likes.splice(likeIndex, 1);
+    } else {
+      // Like
+      post.likes.push(userObjectId);
+    }
+
+    return await post.save();
+  }
+}
+```
+
+## 🔄 Transactions
+
+### 1. Transaction Service (`src/services/transactionService.ts`)
+
+```typescript
+import mongoose from 'mongoose';
+import { User } from '../models/User';
+import { Post } from '../models/Post';
+
+export class TransactionService {
+  // Create post and update user's post count in a transaction
+  static async createPostWithTransaction(
+    postData: any,
+    authorId: string
+  ): Promise<any> {
+    const session = await mongoose.startSession();
+    
+    try {
+      await session.withTransaction(async () => {
+        // Create post
+        const post = new Post({
+          ...postData,
+          author: authorId,
+        });
+        await post.save({ session });
+
+        // Update user's last activity
+        await User.findByIdAndUpdate(
+          authorId,
+          { lastLogin: new Date() },
+          { session }
+        );
+
+        return post;
+      });
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  // Transfer operation between users
+  static async transferCredits(
+    fromUserId: string,
+    toUserId: string,
+    amount: number
+  ): Promise<void> {
+    const session = await mongoose.startSession();
+    
+    try {
+      await session.withTransaction(async () => {
+        // Find and lock both users
+        const [fromUser, toUser] = await Promise.all([
+          User.findById(fromUserId).session(session),
+          User.findById(toUserId).session(session),
+        ]);
+
+        if (!fromUser || !toUser) {
+          throw new Error('User not found');
+        }
+
+        if (fromUser.credits < amount) {
+          throw new Error('Insufficient credits');
+        }
+
+        // Update credits
+        fromUser.credits -= amount;
+        toUser.credits += amount;
+
+        await Promise.all([
+          fromUser.save({ session }),
+          toUser.save({ session }),
+        ]);
+      });
+    } finally {
+      await session.endSession();
+    }
+  }
+}
+```
+
+## 🛡️ Validation & Middleware
+
+### 1. Custom Validators (`src/validators/mongooseValidators.ts`)
+
+```typescript
+import mongoose from 'mongoose';
+
+// Validate MongoDB ObjectId
+export const isValidObjectId = (value: string): boolean => {
+  return mongoose.Types.ObjectId.isValid(value);
+};
+
+// Custom validator for unique fields
+export const uniqueFieldValidator = async (
+  Model: any,
+  field: string,
+  value: string,
+  excludeId?: string
+): Promise<boolean> => {
+  const query: any = { [field]: value };
+  if (excludeId) {
+    query._id = { $ne: excludeId };
+  }
+  
+  const existing = await Model.findOne(query);
+  return !existing;
+};
+
+// Validate email format
+export const emailValidator = (email: string): boolean => {
+  const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
+  return emailRegex.test(email);
+};
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Missing Indexes:**
+   - **Bad:** Not creating indexes for frequently queried fields.
+   - **Good:** Always add indexes for fields used in queries, sorts, and population.
+
+2. **N+1 Query Problem:**
+   - **Bad:** Using loops to populate related data.
+   - **Good:** Use `populate()` or aggregation pipelines.
+
+3. **Large Documents:**
+   - **Bad:** Storing large arrays or embedded documents that grow indefinitely.
+   - **Good:** Use references for large datasets and consider pagination.
+
+4. **Ignoring Transactions:**
+   - **Bad:** Performing multiple related operations without transactions.
+   - **Good:** Use transactions for operations that need atomicity.
+
+5. **Blocking Operations:**
+   - **Bad:** Using synchronous database operations.
+   - **Good:** Always use async/await with Mongoose operations.
+
+## 🧪 Testing Strategy
+
+{% if "Jest" in libraries %}
+Testing Mongoose models and services:
+
+```typescript
+// tests/models/User.test.ts
+import mongoose from 'mongoose';
+import { User } from '../../src/models/User';
+
+describe('User Model', () => {
+  beforeAll(async () => {
+    await mongoose.connect(process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/test');
+  });
+
+  afterAll(async () => {
+    await mongoose.connection.close();
+  });
+
+  beforeEach(async () => {
+    await User.deleteMany({});
+  });
+
+  test('Should create a user with valid data', async () => {
+    const userData = {
+      name: 'Test User',
+      email: 'test@example.com',
+      password: 'password123',
+    };
+
+    const user = await User.create(userData);
+    expect(user.email).toBe(userData.email);
+    expect(user.name).toBe(userData.name);
+  });
+
+  test('Should hash password before saving', async () => {
+    const userData = {
+      name: 'Test User',
+      email: 'test@example.com',
+      password: 'password123',
+    };
+
+    const user = await User.create(userData);
+    expect(user.password).not.toBe(userData.password);
+  });
+
+  test('Should compare passwords correctly', async () => {
+    const userData = {
+      name: 'Test User',
+      email: 'test@example.com',
+      password: 'password123',
+    };
+
+    const user = await User.create(userData);
+    const isMatch = await user.comparePassword('password123');
+    expect(isMatch).toBe(true);
+  });
+});
+```
+{% endif %}
+
+## 📦 Environment Variables
+
+```env
+MONGODB_URI=mongodb://localhost:27017/myapp
+MONGODB_TEST_URI=mongodb://localhost:27017/myapp_test
+```

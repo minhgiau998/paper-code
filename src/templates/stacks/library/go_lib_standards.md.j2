@@ -1,0 +1,85 @@
+# Go Library Coding Standards
+
+## 📝 Naming Conventions
+
+- **Package:** Short, lower-case, single word (e.g., `json`, `http`). Avoid `util` or `common`.
+- **Interfaces:** Method name + `er` (e.g., `Reader`, `Writer`, `Fetcher`).
+- **Getters:** No `Get` prefix.
+  - **Bad:** `func (c *Config) GetTimeout() ...`
+  - **Good:** `func (c *Config) Timeout() ...`
+- **Errors:** `Err` prefix (e.g., `ErrInvalidInput`).
+
+## ⚡ Modern Go Library Rules (Critical)
+
+### 1. Accept Interfaces, Return Structs
+**Rule:** Design functions to accept the smallest interface possible, but return concrete types.
+- **Input:** Accepting interfaces (`io.Reader`) makes functions easy to mock and reuse.
+- **Output:** Returning structs allows you to add methods later without breaking changes.
+
+### 2. Zero Dependencies
+**Rule:** Minimize external dependencies in `go.mod`.
+- A library should ideally rely only on the Go Standard Library.
+- Every dependency you add is a potential conflict for the consumer.
+{% if "Testify" in libraries %}
+- **Exception:** Test-only dependencies (like `stretchr/testify`) are acceptable.
+{% endif %}
+
+### 3. Functional Options Implementation
+**Rule:** Use this specific pattern for constructors with optional params.
+
+```go
+type Option func(*Client)
+
+func WithTimeout(t time.Duration) Option {
+    return func(c *Client) {
+        c.timeout = t
+    }
+}
+
+func New(opts ...Option) *Client {
+    c := &Client{timeout: defaultTimeout} // Default values
+    for _, opt := range opts {
+        opt(c)
+    }
+    return c
+}
+```
+
+### 4. Documentation (Godoc)
+**Rule:** Every exported (Capitalized) type, function, and constant **MUST** have a doc comment.
+- **Examples:** Use `func ExampleFunction() { ... }` in `_test.go` files. These appear as runnable code in Godoc.
+
+## 🛡️ Stability & Safety
+
+### 1. Panic is Forbidden
+**Rule:** Libraries should **NEVER** panic.
+- Return `error` instead.
+- Panic is only allowed during initialization (`MustNew...`) if explicitly documented, but preferred to avoid.
+
+### 2. The Zero Value
+**Rule:** Make your structs useful with their zero value (`var c Client`).
+- If that's not possible, provide a `New()` constructor that returns a usable state.
+- Avoid forcing users to call `Init()`.
+
+### 3. Context Propagation
+**Rule:** Don't store `context.Context` in a struct. Pass it explicitly to methods.
+
+```go
+// ❌ Bad
+type Service struct { ctx context.Context }
+
+// ✅ Good
+func (s *Service) DoThing(ctx context.Context) error { ... }
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Global State:** Never use `var` at the package level for state. It prevents the library from being used safely in concurrent apps.
+2.  **`interface{}` abuse:** Do not use `any` just to be lazy. Use Generics if types vary.
+3.  **Goroutine leaks:** Do not spawn background goroutines that never exit. If you do, provide a `Close()` method to clean them up.
+
+## 🧪 Testing
+
+- **Internal Tests:** `package mylib` in `mylib_test.go` for testing private logic.
+- **External Tests:** `package mylib_test` (separate package) to test the public API as a consumer would see it.
+- **Race Detector:** CI must run tests with `go test -race`.

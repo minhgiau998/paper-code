@@ -1,0 +1,190 @@
+# RxJS Documentation
+
+> **Purpose:** Reactive Extensions for JavaScript. A library for composing asynchronous and event-based programs by using observable sequences.
+
+## 📦 Installation
+
+```bash
+npm install rxjs
+```
+
+## ⚡ Core Philosophy & Strategies
+
+### 1. Finnish Notation
+**Rule:** Variables that hold Observables **MUST** end with a `$` sign.
+- **Bad:** `const users = getUsers();`
+- **Good:** `const users$ = getUsers();`
+- **Why?** It visually distinguishes a stream (values over time) from a static value.
+
+### 2. Declarative over Imperative
+**Rule:** Avoid calling `.subscribe()` manually in your logic layer (Components/Services).
+- **Bad (Imperative):** Subscribing, setting a local variable, and managing the subscription.
+- **Good (Declarative):** Create a stream pipeline and consume it in the UI (via AsyncPipe or Hooks).
+
+### 3. Flattening Strategy (The Maps)
+Nested subscriptions (`subscribe` inside `subscribe`) are **Strictly Forbidden**. Use Higher-Order Mapping operators:
+
+- **`switchMap`:** Cancels the previous request. (Use for: Search, GET requests).
+- **`mergeMap`:** Parallel execution. (Use for: Delete items, "Fire and forget").
+- **`concatMap`:** Sequential execution. (Use for: Updates where order matters).
+- **`exhaustMap`:** Ignores new requests while one is pending. (Use for: Login button, Submit forms).
+
+## 💻 Usage Patterns
+
+{% if "Angular" in tech_stack %}
+### Angular Specific Patterns
+
+Angular is the primary home of RxJS. We follow the **Reactive Context** pattern.
+
+#### 1. Data Fetching (Async Pipe)
+
+**Rule:** Do not subscribe in the component. Pass the Observable to the template.
+
+```typescript
+// user.component.ts
+@Component({...})
+export class UserComponent {
+  private http = inject(HttpClient);
+  
+  // ✅ Declarative Stream
+  users$ = this.http.get<User[]>('/api/users').pipe(
+    catchError(err => {
+      console.error(err);
+      return of([]); // Return empty array on error
+    })
+  );
+}
+```
+
+{% raw %}
+```html
+<!-- user.component.html -->
+<ul>
+  <!-- ✅ Async Pipe handles subscription & unsubscription -->
+  @for (user of users$ | async; track user.id) {
+    <li>{{ user.name }}</li>
+  }
+</ul>
+```
+{% endraw %}
+
+#### 2. Action Streams (Subject)
+
+Use `Subject` or `BehaviorSubject` to trigger actions from the UI.
+
+```typescript
+export class SearchComponent {
+  // 1. Create a "Source" stream
+  private searchSubject = new Subject<string>();
+  
+  // 2. Transform into "Result" stream
+  results$ = this.searchSubject.pipe(
+    debounceTime(300),
+    distinctUntilChanged(),
+    switchMap(term => this.api.search(term))
+  );
+
+  // 3. UI triggers this
+  onSearch(term: string) {
+    this.searchSubject.next(term);
+  }
+}
+```
+
+#### 3. Cleanup (takeUntilDestroyed)
+**Rule:** If you MUST subscribe manually (e.g., for a side effect like logging), use `takeUntilDestroyed` (Angular 16+).
+
+```typescript
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
+constructor() {
+  this.router.events.pipe(
+    takeUntilDestroyed() // 🚀 Auto-unsubscribe when component destroys
+  ).subscribe(event => {
+    // ...
+  });
+}
+```
+
+{% else %}
+### React / General Usage
+
+In React, RxJS is often used for complex event handling or websocket streams.
+
+#### 1. Custom Hook (`useObservable`)
+
+Create a generic hook to consume observables safely.
+
+```typescript
+import { useState, useEffect } from 'react';
+import { Observable } from 'rxjs';
+
+export function useObservable<T>(observable$: Observable<T>, initialValue: T): T {
+  const [value, setValue] = useState<T>(initialValue);
+
+  useEffect(() => {
+    const subscription = observable$.subscribe(setValue);
+    // 🧹 Cleanup on unmount
+    return () => subscription.unsubscribe();
+  }, [observable$]);
+
+  return value;
+}
+```
+
+#### 2. Usage
+
+```tsx
+import { timer, map } from 'rxjs';
+
+// Create stream outside component (static)
+const timer$ = timer(0, 1000).pipe(map(i => `Seconds: ${i}`));
+
+export const Timer = () => {
+  const time = useObservable(timer$, "Seconds: 0");
+  return <div>{time}</div>;
+};
+```
+{% endif %}
+
+## 🛡️ Error Handling Strategies
+
+**Rule:** Errors kill streams. If an error occurs in the pipe, the Observable completes and dies.
+**Strategy:** Catch errors *inside* the flattening operator (e.g., inside `switchMap`) if you want the stream to stay alive (like for a search bar).
+
+```typescript
+// ❌ Bad: Error kills the click listener
+clicks$.pipe(
+  switchMap(() => this.api.get()),
+  catchError(err => of(null)) // Stream is dead here
+);
+
+// ✅ Good: Error is caught inside, outer stream lives
+clicks$.pipe(
+  switchMap(() => this.api.get().pipe(
+    catchError(err => of(null)) // Only this inner request fails
+  ))
+);
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Nested Subscriptions (The Pyramid of Doom):**
+    ```typescript
+    // ❌ Bad
+    user$.subscribe(user => {
+      posts$.subscribe(posts => { ... })
+    })
+
+    // ✅ Good (use combineLatest or switchMap)
+    combineLatest([user$, posts$]).subscribe(...)
+    ```
+
+2.  **Tap Abuse:**
+    *   Do not use `tap` to manipulate state that drives the UI. Use `map` to transform data and let the UI consume the final result. `tap` is for side effects (logging, void actions).
+
+3.  **Leaking Subscriptions:**
+    *   Failing to `unsubscribe()` is the #1 cause of performance degradation in SPA. Always use `AsyncPipe` (Angular) or `useEffect` cleanup (React).
+
+4.  **Promise Mixing:**
+    *   Avoid mixing `async/await` with Observables unnecessarily. If you are in an RxJS context, use `from(promise)` and stick to operators.

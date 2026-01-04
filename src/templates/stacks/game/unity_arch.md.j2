@@ -1,0 +1,69 @@
+# Unity Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built using **Unity 2023 LTS+ (Unity 6)**.
+It follows a **Modular Monolith** approach using **Assembly Definitions (.asmdef)** to enforce separation of concerns and reduce compilation time.
+
+**Core Philosophy:**
+- **Data over Logic:** Game configuration lives in **ScriptableObjects**, not hardcoded in scripts.
+- **Events over Coupling:** Systems communicate via **C# Events** or **ScriptableObject Channels**, minimizing direct dependencies.
+
+## 📂 Directory Structure
+
+We use the underscore `_` prefix for root directories that we modify frequently, keeping them at the top of the Project view.
+
+```text
+Assets/
+├── _Game/               # Core Game Logic
+│   ├── Scripts/
+│   │   ├── Core/        # Managers (GameManager, AudioService)
+│   │   ├── Gameplay/    # Mechanics (Player, Weapons)
+│   │   ├── UI/          # UI Logic
+│   │   └── Utils/       # Helpers
+│   ├── Scenes/          # Scene Files
+│   └── Settings/        # ScriptableObject Instances (GameConfig)
+├── _Art/                # Art Assets (Models, Textures, Animations)
+├── _Audio/              # Sound Clips
+├── Plugins/             # 3rd Party SDKs
+├── Resources/           # (Avoid using unless strictly necessary)
+└── Settings/            # Input System & Render Pipeline Settings
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. ScriptableObject Architecture
+We heavily utilize **ScriptableObjects** (SO) for:
+- **Game Configuration:** Player stats, Enemy definitions.
+- **Event Channels:** Observer pattern where a sender raises an SO event, and listeners respond.
+- **Runtime Sets:** Tracking active objects (e.g., "All Active Enemies") without `FindObjectsOfType`.
+
+### 2. Assembly Definitions (.asmdef)
+Code is split into Assemblies to enforce dependencies:
+- `Core.asmdef`: No dependencies.
+- `Gameplay.asmdef`: Depends on `Core`.
+- `UI.asmdef`: Depends on `Core` and `Gameplay`.
+- **Benefit:** Changing UI code doesn't recompile the Physics engine logic.
+
+### 3. Manager Pattern (Service Locator)
+- We use a central `ServiceLocator` or `GameManager` (Singleton) for global systems (Audio, SaveSystem).
+- **Rule:** Singletons should strictly be for "Systems", not for Gameplay logic (e.g., Player should not be a Singleton).
+
+{% if "Input System" in libraries %}
+### 4. Input System
+- We use the **New Input System** package.
+- Input is handled via **Input Actions** assets, not direct polling.
+- Use `PlayerInput` component or generated C# class for type-safe events.
+{% endif %}
+
+{% if "Addressables" in libraries %}
+### 5. Asset Management (Addressables)
+- We strictly avoid `Resources.Load`.
+- Assets are marked as **Addressable** and loaded asynchronously.
+- Memory management is manual: call `Release()` on handles when done.
+{% endif %}
+
+## 💾 Data Persistence
+- **JsonUtility / Newtonsoft:** For serialization.
+- **Save Path:** `Application.persistentDataPath`.
+- **Strategy:** Separation between *Runtime Data* (C# Classes) and *Serialized Data* (JSON). The SaveSystem mediates between them.

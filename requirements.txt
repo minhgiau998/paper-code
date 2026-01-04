@@ -1,0 +1,22 @@
+# Core dependencies for PAPER-CODE project
+setuptools>=80.0.0           # Required for Python 3.12+ (distutils compatibility)
+jinja2>=3.1.0                # Template rendering engine
+pytest==7.4.3                # Testing framework
+pytest-cov==4.1.0            # Test coverage reporting
+pathlib2==2.3.7              # Path manipulation (for Python < 3.4 compatibility)
+
+# Optional dependencies for enhanced UI and CLI features
+# The script runs without these but provides better experience with them
+
+inquirer==3.1.4              # Interactive prompts with better UX
+typer==0.9.0                 # Modern CLI library based on type hints
+click==8.1.7                 # Underlying dependency for Typer
+rich==13.7.0                 # Rich text and colors for terminal output
+pyfiglet==1.0.4              # ASCII art for the CLI banner
+
+
+# Development dependencies
+black==23.11.0               # Code formatting
+flake8==6.1.0                # Code linting
+mypy==1.7.1                  # Type checking
+pre-commit==3.5.0            # Git hooks for code quality

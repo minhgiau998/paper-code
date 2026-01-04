@@ -1,0 +1,511 @@
+# NestJS Documentation
+
+> **Purpose:** A progressive Node.js framework for building efficient, reliable and scalable server-side applications.
+
+## 📦 Installation
+
+```bash
+npm install @nestjs/core @nestjs/common @nestjs/platform-express
+npm install -D @nestjs/cli @nestjs/testing @nestjs/schematics
+```
+
+## 🛠️ Project Setup
+
+**Strategy:** Use the NestJS CLI for project generation and follow the module-based architecture.
+
+### 1. Create New Project
+
+```bash
+nest new project-name
+cd project-name
+```
+
+### 2. Generate Resources
+
+```bash
+# Generate module
+nest generate module users
+
+# Generate controller
+nest generate controller users
+
+# Generate service
+nest generate service users
+
+# Generate DTO
+nest generate class users/dto/create-user.dto
+```
+
+## 🏗️ Core Architecture
+
+### 1. Main Application (`src/main.ts`)
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // 🔒 Global Validation Pipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // Strip properties that don't have decorators
+      forbidNonWhitelisted: true, // Throw error if non-whitelisted values are provided
+      transform: true, // Automatically transform payloads to be objects typed according to their DTO classes
+    }),
+  );
+
+  // 🌐 CORS Configuration
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+  });
+
+  // 📚 Swagger Documentation
+  const config = new DocumentBuilder()
+    .setTitle('API Documentation')
+    .setDescription('API description')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
+
+  const PORT = process.env.PORT || 3000;
+  await app.listen(PORT);
+  console.log(`Application is running on: http://localhost:${PORT}`);
+}
+bootstrap();
+```
+
+### 2. App Module (`src/app.module.ts`)
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
+{% if "TypeORM" in libraries %}
+import { TypeOrmModule } from '@nestjs/typeorm';
+{% endif %}
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    {% if "Mongoose" in libraries %}
+    MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/nest'),
+    {% endif %}
+    {% if "TypeORM" in libraries %}
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT) || 5432,
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      autoLoadEntities: true,
+      synchronize: process.env.NODE_ENV === 'development',
+    }),
+    {% endif %}
+    UsersModule,
+    AuthModule,
+  ],
+  controllers: [],
+  providers: [],
+})
+export class AppModule {}
+```
+
+## 🛡️ Authentication Module
+
+### 1. Auth Module (`src/auth/auth.module.ts`)
+
+```typescript
+import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { UsersModule } from '../users/users.module';
+import { JwtStrategy } from './strategies/jwt.strategy';
+
+@Module({
+  imports: [
+    UsersModule,
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.register({
+      secret: process.env.JWT_SECRET,
+      signOptions: { expiresIn: '1d' },
+    }),
+  ],
+  controllers: [AuthController],
+  providers: [AuthService, JwtStrategy],
+  exports: [AuthService],
+})
+export class AuthModule {}
+```
+
+### 2. Auth Service (`src/auth/auth.service.ts`)
+
+```typescript
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User } from '../users/schemas/user.schema';
+import { JwtService } from '@nestjs/jwt';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import * as bcrypt from 'bcrypt';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    @InjectModel(User.name)
+    private userModel: Model<User>,
+    private jwtService: JwtService,
+  ) {}
+
+  async register(registerDto: RegisterDto): Promise<{ token: string }> {
+    const { name, email, password } = registerDto;
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create user
+    const user = await this.userModel.create({
+      name,
+      email,
+      password: hashedPassword,
+    });
+
+    // Generate token
+    const token = this.jwtService.sign({ id: user._id });
+
+    return { token };
+  }
+
+  async login(loginDto: LoginDto): Promise<{ token: string }> {
+    const { email, password } = loginDto;
+
+    // Find user
+    const user = await this.userModel.findOne({ email }).select('+password');
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Generate token
+    const token = this.jwtService.sign({ id: user._id });
+
+    return { token };
+  }
+}
+```
+
+### 3. Auth Controller (`src/auth/auth.controller.ts`)
+
+```typescript
+import { Controller, Post, Body, Get, UseGuards, Request } from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+
+@ApiTags('auth')
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Post('register')
+  @ApiOperation({ summary: 'Register a new user' })
+  async register(@Body() registerDto: RegisterDto) {
+    return this.authService.register(registerDto);
+  }
+
+  @Post('login')
+  @ApiOperation({ summary: 'Login user' })
+  async login(@Body() loginDto: LoginDto) {
+    return this.authService.login(loginDto);
+  }
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user profile' })
+  async getProfile(@Request() req) {
+    return req.user;
+  }
+}
+```
+
+## 📝 Data Transfer Objects (DTOs)
+
+### 1. Register DTO (`src/auth/dto/register.dto.ts`)
+
+```typescript
+import { IsEmail, IsString, MinLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class RegisterDto {
+  @ApiProperty({ example: 'John Doe' })
+  @IsString()
+  name: string;
+
+  @ApiProperty({ example: 'john@example.com' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ example: 'password123', minLength: 6 })
+  @IsString()
+  @MinLength(6)
+  password: string;
+}
+```
+
+### 2. Login DTO (`src/auth/dto/login.dto.ts`)
+
+```typescript
+import { IsEmail, IsString, MinLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class LoginDto {
+  @ApiProperty({ example: 'john@example.com' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ example: 'password123' })
+  @IsString()
+  @MinLength(6)
+  password: string;
+}
+```
+
+## 🛡️ Guards
+
+### 1. JWT Auth Guard (`src/auth/guards/jwt-auth.guard.ts`)
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class JwtAuthGuard extends AuthGuard('jwt') {}
+```
+
+### 2. JWT Strategy (`src/auth/strategies/jwt.strategy.ts`)
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User } from '../../users/schemas/user.schema';
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) {
+  constructor(@InjectModel(User.name) private userModel: Model<User>) {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: process.env.JWT_SECRET,
+    });
+  }
+
+  async validate(payload: { id: string }): Promise<User> {
+    const user = await this.userModel.findById(payload.id);
+    return user;
+  }
+}
+```
+
+## 📊 Users Module
+
+### 1. User Schema (`src/users/schemas/user.schema.ts`)
+
+```typescript
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
+
+export type UserDocument = User & Document;
+
+@Schema({ timestamps: true })
+export class User {
+  @Prop({ required: true })
+  name: string;
+
+  @Prop({ required: true, unique: true })
+  email: string;
+
+  @Prop({ required: true, select: false }) // Don't return password by default
+  password: string;
+
+  @Prop({ default: 'user' })
+  role: string;
+}
+
+export const UserSchema = SchemaFactory.createForClass(User);
+```
+
+### 2. Users Module (`src/users/users.module.ts`)
+
+```typescript
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { UsersController } from './users.controller';
+import { UsersService } from './users.service';
+import { User, UserSchema } from './schemas/user.schema';
+
+@Module({
+  imports: [
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+  ],
+  controllers: [UsersController],
+  providers: [UsersService],
+  exports: [UsersService],
+})
+export class UsersModule {}
+```
+
+### 3. Users Service (`src/users/users.service.ts`)
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User, UserDocument } from './schemas/user.schema';
+
+@Injectable()
+export class UsersService {
+  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+
+  async findAll(): Promise<User[]> {
+    return this.userModel.find().exec();
+  }
+
+  async findById(id: string): Promise<User> {
+    return this.userModel.findById(id).exec();
+  }
+
+  async findByEmail(email: string): Promise<User> {
+    return this.userModel.findOne({ email }).exec();
+  }
+
+  async create(createUserDto: any): Promise<User> {
+    const user = new this.userModel(createUserDto);
+    return user.save();
+  }
+
+  async update(id: string, updateUserDto: any): Promise<User> {
+    return this.userModel
+      .findByIdAndUpdate(id, updateUserDto, { new: true })
+      .exec();
+  }
+
+  async remove(id: string): Promise<User> {
+    return this.userModel.findByIdAndDelete(id).exec();
+  }
+}
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Direct Database Access in Controllers:**
+   - **Bad:** Accessing database directly in controllers.
+   - **Good:** Use services to encapsulate business logic.
+
+2. **Missing DTOs:**
+   - **Bad:** Using raw request bodies without validation.
+   - **Good:** Always use DTOs with validation decorators.
+
+3. **Hardcoded Configuration:**
+   - **Bad:** Hardcoding database URLs or secrets.
+   - **Good:** Use environment variables with ConfigModule.
+
+4. **Circular Dependencies:**
+   - **Bad:** Creating circular imports between modules.
+   - **Good:** Use forwardRef() or restructure modules.
+
+5. **Ignoring Validation:**
+   - **Bad:** Not validating incoming data.
+   - **Good:** Always use ValidationPipe with DTOs.
+
+## 🧪 Testing Strategy
+
+{% if "Jest" in libraries %}
+NestJS comes with Jest testing utilities:
+
+```typescript
+// src/auth/auth.service.spec.ts
+import { Test, TestingModule } from '@nestjs/testing';
+import { AuthService } from './auth.service';
+import { getModelToken } from '@nestjs/mongoose';
+import { User } from '../users/schemas/user.schema';
+import { JwtService } from '@nestjs/jwt';
+
+describe('AuthService', () => {
+  let service: AuthService;
+  let userModel: Model<User>;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        JwtService,
+        {
+          provide: getModelToken(User.name),
+          useValue: {
+            create: jest.fn(),
+            findOne: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get<AuthService>(AuthService);
+    userModel = module.get<Model<User>>(getModelToken(User.name));
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+});
+```
+{% endif %}
+
+## 📦 Package.json Scripts
+
+```json
+{
+  "scripts": {
+    "build": "nest build",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:e2e": "jest --config ./test/jest-e2e.json"
+  }
+}
+```

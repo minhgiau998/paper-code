@@ -1,0 +1,75 @@
+# Next.js Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project uses the **Next.js App Router** architecture to leverage React Server Components (RSC).
+The core design principle is **"Server by Default"**, pushing as much logic as possible to the server to reduce client-side bundle size.
+
+## 📂 Directory Structure
+
+```text
+.
+├── app/                 # App Router (Routes & Layouts)
+│   ├── (auth)/          # Route Group: Authentication (Login/Register)
+│   ├── (dashboard)/     # Route Group: Protected Dashboard
+│   ├── api/             # Route Handlers (API Endpoints)
+│   ├── globals.css      # Global styles
+│   ├── layout.tsx       # Root layout
+│   └── page.tsx         # Home page
+├── components/          # Shared UI Components
+│   ├── ui/              # Primitive components (Buttons, Inputs)
+│   └── icons/           # Icon components
+├── lib/                 # Shared libraries and configurations
+│   ├── utils.ts         # CN/Clsx helpers
+{% if "Prisma" in libraries %}
+│   └── db.ts            # Prisma Client singleton
+{% endif %}
+{% if "NextAuth.js" in libraries %}
+│   └── auth.ts          # Auth configuration
+{% endif %}
+├── types/               # TypeScript definitions
+{% if "Prisma" in libraries %}
+├── prisma/              # Database schema and migrations
+│   └── schema.prisma
+{% endif %}
+├── public/              # Static assets
+└── ...config files
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Server vs. Client Components
+- **Server Components (Default):** Used for data fetching, accessing backend resources, and keeping sensitive logic on the server.
+- **Client Components (`"use client"`):** Used *only* for interactivity (onClick, onChange, useState, useEffect).
+- **Pattern:** Push the `"use client"` directive down the tree to the leaf nodes (buttons, form inputs) rather than wrapping entire pages.
+
+### 2. Data Fetching Strategy
+- **Reads:** Fetch data directly inside Server Components using `async/await`.
+- **Writes:** Use **Server Actions** (`"use server"`) for form submissions and mutations instead of creating API routes manually, unless an external API is required.
+
+{% if "Prisma" in libraries %}
+### 3. Database Access (Prisma)
+- Database connections are instantiated in `lib/db.ts` to prevent connection exhaustion during hot-reloads.
+- All database operations should happen in Server Components or Server Actions.
+{% endif %}
+
+{% if "NextAuth.js" in libraries %}
+### 4. Authentication
+- Session management is handled via **NextAuth.js** (or Auth.js).
+- Middleware (`middleware.ts`) is used to protect private routes at the edge.
+{% endif %}
+
+### 5. Layouts & Templates
+- Use `layout.tsx` for UI that persists across navigation (Sidebars, Headers).
+- Use `template.tsx` only if you need to reset state on navigation.
+
+## 🎨 Styling Architecture
+{% if "TailwindCSS" in libraries %}
+We use **Tailwind CSS** with a utility-first approach.
+- **Global Styles:** Defined in `app/globals.css`.
+- **Component Styles:** Applied directly via classes.
+- **Conditional Styles:** Managed using `clsx` or `tailwind-merge`.
+{% else %}
+- CSS Modules are used for component-level scoping.
+- Global styles are imported in the root layout.
+{% endif %}

@@ -1,0 +1,58 @@
+# TensorFlow / Keras Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built using **TensorFlow 2.x** and **Keras 3**.
+It follows a modular architecture designed for scalability and seamless deployment to **TF Serving** or **TFLite**.
+
+## 📂 Directory Structure
+
+```text
+root/
+├── configs/             # Hyperparameter configurations (YAML)
+├── data/                # Data directory
+│   ├── raw/
+│   ├── tfrecords/       # Serialized high-performance data
+│   └── external/
+├── notebooks/           # Prototyping (Exploration only)
+├── saved_models/        # Exported models (.keras, SavedModel)
+├── logs/                # TensorBoard logs
+├── src/
+│   ├── data/            # ETL Pipelines
+│   │   ├── pipeline.py  # tf.data.Dataset builders
+│   │   └── preprocessing.py # Keras Preprocessing Layers
+│   ├── models/          # Model Definitions
+│   │   ├── layers/      # Custom Keras Layers
+│   │   └── networks.py  # Functional API definitions
+│   ├── training/        # Training Loops / Callbacks
+│   │   ├── callbacks.py # Custom Checkpoints/Logging
+│   │   └── losses.py    # Custom Loss Functions
+│   └── serving/         # Export logic for production
+├── train.py             # Training Entry Point
+└── requirements.txt
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Data Pipeline (`tf.data`)
+We strictly use **`tf.data`** for the input pipeline.
+- **Extract:** Read from disk (Images, Text, TFRecords).
+- **Transform:** Apply augmentations using `tf.image` or Keras Preprocessing Layers mapped over the dataset.
+- **Load:** Prefetch to GPU memory.
+
+### 2. Model Definition (Keras 3)
+We prefer the **Functional API** for model definition.
+- **Functional API:** Best for static graphs, ease of visualization, and serialization.
+- **Subclassing:** Use only when dynamic control flow (loops/conditionals inside `call`) is strictly necessary.
+
+### 3. Preprocessing inside Model
+- Include preprocessing logic (Resizing, Normalization, Tokenization) **inside the model graph** using Keras Preprocessing Layers.
+- **Benefit:** The exported model accepts raw data (strings/bytes), eliminating training-serving skew.
+
+### 4. XLA Compilation
+- We leverage XLA (Accelerated Linear Algebra) to optimize graph execution.
+- Models are compiled with `jit_compile=True` where supported.
+
+## 📊 Deployment Strategy
+- **Format:** Models are saved in the modern Keras v3 format (`model.keras`).
+- **Serving:** For high-throughput production, models are exported to the TensorFlow **SavedModel** format for Docker/TF Serving.

@@ -1,0 +1,62 @@
+# Scikit-learn Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built using **Scikit-learn** for classical machine learning tasks.
+It focuses on **Reproducibility** and **Deployment-Readiness** by strictly encapsulating logic into Pipelines.
+
+## 📂 Directory Structure
+
+We move away from single-script workflows to a structured package.
+
+```text
+root/
+├── configs/             # YAML configurations for models/grids
+│   ├── grid_search.yaml
+│   └── model_params.yaml
+├── data/
+│   ├── raw/             # Immutable raw data
+│   └── processed/       # Training-ready data (optional)
+├── models/              # Serialized models (.joblib)
+├── notebooks/           # EDA and Prototyping
+├── src/
+│   ├── features/        # Custom Transformers
+│   │   ├── __init__.py
+│   │   └── transformers.py # Custom classes inheriting BaseEstimator
+│   ├── pipeline/        # Pipeline Construction
+│   │   └── build.py     # Factory to assemble ColumnTransformers
+│   ├── training/        # Training Logic
+│   │   ├── train.py     # Main training loop
+│   │   └── evaluate.py  # CV and Metric reporting
+│   └── visualization/   # Plotting utilities
+├── train.py             # CLI Entry point
+└── requirements.txt
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. The Pipeline First Approach
+**Rule:** Never manually preprocess data (scale, encode, impute) outside of a Pipeline.
+- **Why?** It prevents **Data Leakage** (calculating mean on the whole dataset instead of just train set) and ensures the exact same transformations are applied during inference.
+- **Component:** Use `sklearn.pipeline.Pipeline` and `compose.ColumnTransformer`.
+
+### 2. Custom Transformers
+- Domain-specific logic (e.g., "Extract text length", "Date decomposition") should be encapsulated in classes inheriting from `BaseEstimator` and `TransformerMixin`.
+- These transformers are then plugged into the main Pipeline.
+
+### 3. Hyperparameter Configuration
+- Model parameters (Random Forest depth, XGBoost learning rate) are defined in `configs/`, decoupled from the code.
+- This allows running experiments without changing source code.
+
+### 4. Model Persistence
+- The final artifact is the **Entire Pipeline** (Preprocessing + Model).
+- We use **Joblib** for efficient serialization of large numpy arrays inside the model.
+
+## 📊 Experiment Tracking
+{% if "MLflow" in libraries %}
+- **MLflow** is used to track runs, parameters, and metrics.
+- Artifacts (plots, models) are logged to the MLflow server.
+{% else %}
+- Metrics are logged to `logs/metrics.json`.
+- Confusion matrices and ROC curves are saved to `reports/figures/`.
+{% endif %}

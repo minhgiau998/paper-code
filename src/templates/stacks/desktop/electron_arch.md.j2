@@ -1,0 +1,62 @@
+# Electron Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project uses **Electron** to wrap a web-based frontend into a native desktop application.
+It follows the **Multi-Process Architecture** enforced by modern Electron security standards.
+
+**Core Philosophy:** The Renderer (UI) is untrusted. The Main Process is the privileged backend. They communicate *only* via a secure Preload Bridge.
+
+## 📂 Directory Structure
+
+We generally follow the **Electron-Vite** or monorepo-style structure:
+
+```text
+root/
+├── electron.vite.config.ts  # Build configuration
+├── src/
+│   ├── main/                # 🔴 Main Process (Node.js environment)
+│   │   ├── index.ts         # App entry point (Window creation)
+│   │   ├── ipc/             # IPC Handlers (API definitions)
+│   │   └── services/        # System logic (File System, OS integration)
+│   ├── preload/             # 🟡 Preload Scripts (The Bridge)
+│   │   ├── index.ts         # contextBridge exposure
+│   │   └── index.d.ts       # Type definitions for window.api
+│   └── renderer/            # 🟢 Renderer Process (Frontend)
+│       ├── src/
+│       │   ├── App.tsx
+│       │   └── ... (Follows {{ tech_stack }} architecture)
+│       └── index.html
+├── resources/               # Static binaries / icons
+└── package.json
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. The Three Layers
+1.  **Main Process (`src/main`):** The "Server". It has full OS access. It manages application lifecycle, windows, and native menus.
+2.  **Preload Script (`src/preload`):** The "Gatekeeper". It runs before the web page loads. It has access to Node.js *and* the DOM, but with restrictions. It exposes a specific API to the world via `contextBridge`.
+3.  **Renderer Process (`src/renderer`):** The "Client". It is a standard **{{ tech_stack }}** web app. It **cannot** access `require`, `process`, or `fs` directly.
+
+### 2. Inter-Process Communication (IPC)
+We strictly use the **Two-Way Asynchronous** pattern for most operations.
+
+- **Renderer:** Calls `window.api.invoke('channel', data)`.
+- **Main:** Listens via `ipcMain.handle('channel', handler)`.
+- **Why?** This returns a Promise to the renderer, making the code cleaner (async/await) compared to the old `send`/`on` event soup.
+
+### 3. Security (Context Isolation)
+- **`contextIsolation: true`** is MANDATORY.
+- **`nodeIntegration: false`** is MANDATORY.
+- **`sandbox: true`** is RECOMMENDED.
+
+### 4. Native Modules
+- If native Node modules (C++) are needed, they must be loaded in the **Main Process** only.
+- The Renderer requests the result of the native operation via IPC.
+
+{% if "Electron Builder" in libraries %}
+### 5. Packaging
+- We use **electron-builder** for distribution.
+- Configuration is located in `electron-builder.yml` or `package.json`.
+- Supports Auto-Updates via `electron-updater`.
+{% endif %}

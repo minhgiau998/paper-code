@@ -1,0 +1,165 @@
+# TanStack Query (v5) Documentation
+
+> **Purpose:** Powerful asynchronous state management for server-state (data fetching, caching, synchronizing).
+
+## 📦 Installation
+
+```bash
+npm install @tanstack/react-query
+npm install -D @tanstack/react-query-devtools
+```
+
+## 🛠️ Configuration
+
+**Global Setup:**
+You need to wrap your application with the `QueryClientProvider`.
+
+**File:** `src/main.tsx` (or `src/App.tsx`)
+
+```tsx
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
+// 1. Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // 🚀 Performance: Data is fresh for 1 minute.
+      // Avoids refetching immediately if the user switches tabs/pages quickly.
+      staleTime: 60 * 1000, 
+      
+      // 🔄 Retries: Retry failed requests 1 time before throwing error
+      retry: 1,
+      
+      // 🚫 Window Focus: Optional, disable refetch on window focus for development
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+export const AppProvider = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      {/* DevTools only show in development */}
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
+  );
+};
+```
+
+## 💻 Usage Patterns
+
+### 1. Fetching Data (`useQuery`)
+
+**Rule:** Always use the **Object Syntax** (v5 Standard). Do not use positional arguments.
+
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import apiClient from '@/lib/axios'; // Integrated with our Axios singleton
+
+interface User {
+  id: number;
+  name: string;
+}
+
+export const useUser = (userId: number) => {
+  return useQuery({
+    // 🔑 Key: Must be an array. Dependencies go here.
+    queryKey: ['users', userId],
+    
+    // 📡 Fetcher: Must return a Promise.
+    // Note: We unwrap .data because Axios returns the whole response object.
+    queryFn: async () => {
+      const { data } = await apiClient.get<User>(`/users/${userId}`);
+      return data;
+    },
+    
+    // 🛑 Enable: Only run if userId is valid
+    enabled: !!userId,
+  });
+};
+```
+
+### 2. Modifying Data (`useMutation`)
+
+**Rule:** Use `useMutation` for POST/PUT/DELETE. Always invalidate queries on success to keep UI in sync.
+
+```tsx
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import apiClient from '@/lib/axios';
+
+export const useCreateUser = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (newUser: { name: string }) => {
+      return await apiClient.post('/users', newUser);
+    },
+    // ✅ Optimistic UI / Cache Invalidation
+    onSuccess: () => {
+      // Mark 'users' list as stale so it refetches automatically
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (error) => {
+      console.error("Failed to create user:", error);
+    }
+  });
+};
+```
+
+## 🛡️ Best Practices & Rules
+
+### 1. Query Keys Factory
+**Strategy:** Avoid hardcoding strings in multiple places. Use a centralized "Query Key Factory".
+
+```tsx
+// src/lib/queryKeys.ts
+export const userKeys = {
+  all: ['users'] as const,
+  lists: () => [...userKeys.all, 'list'] as const,
+  list: (filters: string) => [...userKeys.lists(), { filters }] as const,
+  details: () => [...userKeys.all, 'detail'] as const,
+  detail: (id: number) => [...userKeys.details(), id] as const,
+};
+
+// Usage
+useQuery({ queryKey: userKeys.detail(1), ... })
+```
+
+### 2. Separation of Concerns
+**Rule:** Do not write `useQuery` directly inside UI components for complex logic.
+- **Pattern:** Create Custom Hooks (e.g., `useTodos`, `useUpdateTodo`).
+- This makes the component code clean and the logic reusable.
+
+### 3. Error Handling
+- TanStack Query does not throw errors by default in the render phase.
+- Use the `isError` and `error` properties returned from the hook to render error states.
+- Or use `ErrorBoundary` components by setting `throwOnError: true`.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **`useEffect` for Data Fetching:**
+    *   **Strictly Forbidden.** If you are using TanStack Query, you should almost never need `useEffect` to fetch data.
+    *   **Bad:** `useEffect(() => { fetch(...) }, [])`
+    *   **Good:** `useQuery(...)`
+
+2.  **Ignoring `isLoading`:**
+    *   Always handle the loading state. If data is `undefined`, accessing `data.id` will crash the app.
+
+3.  **Destructuring `mutate` directly:**
+    *   In `useMutation`, `mutate` is synchronous (fire and forget).
+    *   Use `mutateAsync` if you need to `await` the result in the component (e.g., to close a modal).
+
+## 📝 TypeScript Tips
+
+Always type the Error if your backend returns specific error structures.
+
+```tsx
+import { AxiosError } from 'axios';
+
+// <Data, Error, Variables>
+useMutation<User, AxiosError<{ message: string }>, { name: string }>({
+  // ...
+})
+```

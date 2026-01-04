@@ -1,0 +1,180 @@
+# Jest Documentation
+
+> **Purpose:** A delightful JavaScript Testing Framework with a focus on simplicity.
+
+## 📦 Installation
+
+We strictly use **ts-jest** for seamless TypeScript integration.
+
+```bash
+npm install -D jest ts-jest @types/jest
+```
+
+{% if "React" in tech_stack or "Next.js" in tech_stack or "Vue" in tech_stack %}
+### Frontend Specifics
+You need a DOM environment and testing utilities.
+
+```bash
+npm install -D jest-environment-jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
+```
+{% endif %}
+
+## 🛠️ Configuration (`jest.config.ts`)
+
+Create a `jest.config.ts` in the root directory.
+
+```typescript
+import type { Config } from 'jest';
+
+const config: Config = {
+  // ⚡ Preset: Use ts-jest to handle TypeScript files
+  preset: 'ts-jest',
+  
+  // 🌍 Environment: Auto-detected based on stack
+  {% if "React" in tech_stack or "Next.js" in tech_stack or "Vue" in tech_stack %}
+  testEnvironment: 'jsdom',
+  setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
+  {% else %}
+  testEnvironment: 'node',
+  {% endif %}
+
+  // 📂 Path Aliases (Must match tsconfig.json)
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+    {% if "React" in tech_stack %}
+    '\\.(css|less|scss|sass)$': 'identity-obj-proxy', // Mock styles
+    {% endif %}
+  },
+
+  // 🚫 Ignore patterns
+  testPathIgnorePatterns: ['/node_modules/', '/dist/'],
+};
+
+export default config;
+```
+
+{% if "React" in tech_stack or "Next.js" in tech_stack %}
+### Setup File (`src/test/setup.ts`)
+
+```typescript
+import '@testing-library/jest-dom';
+// Add global mocks here (e.g., ResizeObserver)
+```
+{% endif %}
+
+## 💻 Usage Patterns
+
+### 1. The AAA Pattern (Standard)
+
+**Rule:** Structure all tests using **Arrange-Act-Assert**.
+
+```typescript
+import { sum } from './math';
+
+describe('Math Utils', () => {
+  it('should add two numbers correctly', () => {
+    // 1. Arrange (Prepare data)
+    const a = 5;
+    const b = 10;
+
+    // 2. Act (Execute function)
+    const result = sum(a, b);
+
+    // 3. Assert (Verify result)
+    expect(result).toBe(15);
+  });
+});
+```
+
+{% if "React" in tech_stack or "Next.js" in tech_stack %}
+### 2. Component Testing (React Testing Library)
+
+**Rule:** Test how the user interacts with the app, not the implementation details (e.g., state).
+
+```tsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Button } from './Button';
+
+describe('Button Component', () => {
+  it('should call onClick handler when clicked', () => {
+    // Arrange
+    const handleClick = jest.fn(); // Mock function
+    render(<Button onClick={handleClick}>Click Me</Button>);
+
+    // Act
+    const button = screen.getByRole('button', { name: /click me/i });
+    fireEvent.click(button);
+
+    // Assert
+    expect(handleClick).toHaveBeenCalledTimes(1);
+  });
+});
+```
+{% endif %}
+
+### 3. Mocking Dependencies
+
+**Rule:** Use `jest.spyOn` over `jest.mock` when you need to restore the original implementation or track calls on existing objects.
+
+```typescript
+import * as api from './api';
+
+test('should handle API errors', async () => {
+  // Arrange: Mock the fetchUser function to throw
+  const spy = jest.spyOn(api, 'fetchUser').mockRejectedValue(new Error('Network Error'));
+
+  // Act & Assert
+  await expect(api.getUserData('123')).rejects.toThrow('Network Error');
+
+  // Cleanup
+  spy.mockRestore();
+});
+```
+
+## 🛡️ Best Practices & Strategies
+
+### 1. Test Isolation
+**Strategy:** Tests should never depend on each other.
+- Use `beforeEach` to reset state.
+- Use `afterEach(() => jest.clearAllMocks())` to ensure clean spies.
+
+### 2. Descriptive Naming
+**Rule:** The test name should describe the business requirement.
+- **Bad:** `it('should work', ...)`
+- **Good:** `it('should disable the submit button when the form is invalid', ...)`
+
+### 3. Integration over Unit (Frontend)
+- For UI, focus on **Integration Tests** (rendering the component and interacting with it) rather than testing individual internal functions.
+- Confidence comes from simulating user behavior.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Snapshot Overuse:**
+    *   **Bad:** taking snapshots of entire large components. They are fragile and developers tend to blindly update them (`-u`).
+    *   **Good:** Use specific assertions (`toBeInTheDocument`, `toHaveTextContent`). Only use snapshots for very small, static UI parts (like Icons).
+
+2.  **Testing Implementation Details:**
+    *   **Bad:** Checking `component.state.count` (Enzyme style).
+    *   **Good:** Checking if the "Count: 1" text appears on screen (RTL style).
+
+3.  **Global Side Effects:**
+    *   Ensure tests don't pollute the global scope (e.g., modifying `window` without restoring it). Use `jest.replaceProperty` or spies.
+
+## 📝 TypeScript Tips
+
+When mocking modules, use `jest.Mocked` to keep type safety.
+
+```typescript
+import { fetchData } from './api';
+
+// 1. Mock the module
+jest.mock('./api');
+
+// 2. Cast the imported function to a Mock type
+const mockedFetchData = fetchData as jest.MockedFunction<typeof fetchData>;
+
+test('typed mock', () => {
+  mockedFetchData.mockResolvedValue({ id: 1, name: 'Test' });
+  // Now TypeScript knows about .mockResolvedValue
+});
+```

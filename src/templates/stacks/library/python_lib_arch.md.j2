@@ -1,0 +1,58 @@
+# Python Library Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a reusable **Python Library** designed for distribution on PyPI.
+It follows the modern **PEP 621** packaging standard using `pyproject.toml` and adopts the **src-layout** structure for robustness.
+
+## 📂 Directory Structure
+
+```text
+root/
+├── pyproject.toml       # Build system & Metadata (Replaces setup.py)
+├── src/
+│   └── {{ project_name | lower | replace("-", "_") }}/
+│       ├── __init__.py  # Public API Export
+│       ├── py.typed     # Marker for Type Hinting support
+│       ├── core/        # Core business logic
+│       ├── utils/       # Internal helpers
+│       └── exceptions.py
+├── tests/               # Pytest suite
+│   ├── conftest.py      # Fixtures
+│   └── test_core.py
+├── docs/                # Documentation (Sphinx/MkDocs)
+├── LICENSE
+└── README.md
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. The `src` Layout
+We strictly place the package code inside a `src/` directory.
+- **Why?** It prevents the "import parity" problem where `import mypkg` imports the local folder instead of the installed package.
+- **Benefit:** Ensures that tests run against the actual built package, catching missing files in the distribution.
+
+### 2. Public API (`__init__.py`)
+- The `__init__.py` file acts as the Facade.
+- **Rule:** Only export symbols that are meant to be public. Keep internal logic (like helper functions) hidden.
+- **Example:**
+  ```python
+  from .core import MainClass
+  from .exceptions import MyLibError
+
+  __all__ = ["MainClass", "MyLibError"]
+  ```
+
+### 3. Type Information (`py.typed`)
+- The library includes a zero-byte file named `py.typed`.
+- **Purpose:** This tells tools like Mypy and Pylance (VS Code) that this library provides type hints. Without this, users will see "Library is untyped" errors.
+
+### 4. Dependency Management
+- **Abstract Dependencies:** Defined in `pyproject.toml` (`dependencies = [...]`). These are broad ranges (e.g., `requests>=2.28`) to maximize compatibility.
+- **Dev Dependencies:** Defined in `[project.optional-dependencies]` or handled by tools like Poetry/Hatch.
+
+## 📦 Publishing Workflow
+
+1.  **Build:** Use `build` frontend (`python -m build`) to generate `.tar.gz` (Source) and `.whl` (Wheel).
+2.  **Test:** Run `tox` or `nox` to test across multiple Python versions (3.8, 3.9, 3.10, 3.11+).
+3.  **Publish:** Upload to PyPI using `twine` or GitHub Actions (Trusted Publishing).

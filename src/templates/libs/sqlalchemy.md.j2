@@ -1,0 +1,992 @@
+# SQLAlchemy Documentation
+
+> **Purpose:** The Python SQL Toolkit and Object Relational Mapper.
+
+## 📦 Installation
+
+```bash
+pip install sqlalchemy
+# Database drivers (choose one)
+pip install psycopg2-binary    # PostgreSQL
+pip install PyMySQL           # MySQL
+pip install sqlite3           # SQLite (built-in)
+pip install cx-Oracle         # Oracle
+```
+
+## 🛠️ Database Configuration
+
+**Strategy:** Use engine factory pattern with environment-based configuration.
+
+### 1. Database Configuration (`src/config/database.py`)
+
+```python
+import os
+from sqlalchemy import create_engine, MetaData
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import StaticPool
+
+# Database URL configuration
+def get_database_url() -> str:
+    """Get database URL from environment variables."""
+    db_type = os.getenv('DB_TYPE', 'postgresql')
+    
+    if db_type == 'postgresql':
+        return (
+            f"postgresql://{os.getenv('DB_USER', 'postgres')}:"
+            f"{os.getenv('DB_PASSWORD', 'password')}@"
+            f"{os.getenv('DB_HOST', 'localhost')}:"
+            f"{os.getenv('DB_PORT', '5432')}/"
+            f"{os.getenv('DB_NAME', 'myapp')}"
+        )
+    elif db_type == 'mysql':
+        return (
+            f"mysql+pymysql://{os.getenv('DB_USER', 'root')}:"
+            f"{os.getenv('DB_PASSWORD', 'password')}@"
+            f"{os.getenv('DB_HOST', 'localhost')}:"
+            f"{os.getenv('DB_PORT', '3306')}/"
+            f"{os.getenv('DB_NAME', 'myapp')}"
+        )
+    elif db_type == 'sqlite':
+        return f"sqlite:///{os.getenv('DB_PATH', 'app.db')}"
+    else:
+        raise ValueError(f"Unsupported database type: {db_type}")
+
+# Engine configuration
+def create_db_engine():
+    """Create database engine with proper configuration."""
+    database_url = get_database_url()
+    
+    engine_kwargs = {
+        'echo': os.getenv('SQL_DEBUG', 'false').lower() == 'true',
+        'future': True,  # Use SQLAlchemy 2.0 style
+    }
+    
+    # SQLite specific configuration
+    if database_url.startswith('sqlite'):
+        engine_kwargs.update({
+            'poolclass': StaticPool,
+            'connect_args': {
+                'check_same_thread': False,
+                'timeout': 20,
+            },
+        })
+    else:
+        # PostgreSQL/MySQL configuration
+        engine_kwargs.update({
+            'pool_size': int(os.getenv('DB_POOL_SIZE', '10')),
+            'max_overflow': int(os.getenv('DB_MAX_OVERFLOW', '20')),
+            'pool_timeout': int(os.getenv('DB_POOL_TIMEOUT', '30')),
+            'pool_recycle': int(os.getenv('DB_POOL_RECYCLE', '3600')),
+        })
+    
+    return create_engine(database_url, **engine_kwargs)
+
+# Create engine and session factory
+engine = create_db_engine()
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Base class for models
+Base = declarative_base()
+metadata = MetaData()
+
+# Database session dependency
+def get_db() -> Session:
+    """Get database session."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# Initialize database
+def init_db():
+    """Initialize database tables."""
+    Base.metadata.create_all(bind=engine)
+
+# Drop all tables (for testing)
+def drop_db():
+    """Drop all database tables."""
+    Base.metadata.drop_all(bind=engine)
+```
+
+### 2. Database Usage in FastAPI (`src/main.py`)
+
+```python
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session
+from src.config.database import get_db, init_db
+
+app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on startup."""
+    init_db()
+
+@app.get("/")
+async def root(db: Session = Depends(get_db)):
+    """Root endpoint with database dependency."""
+    return {"message": "Hello World"}
+
+# Rest of your FastAPI application...
+```
+
+## 📝 Model Definition
+
+**Strategy:** Use declarative base with proper relationships and constraints.
+
+### 1. User Model (`src/models/user.py`)
+
+```python
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, Text
+from sqlalchemy.orm import relationship, validates
+from sqlalchemy.sql import func
+from datetime import datetime
+import enum
+
+from src.config.database import Base
+
+class UserRole(enum.Enum):
+    USER = "user"
+    ADMIN = "admin"
+
+class User(Base):
+    __tablename__ = "users"
+    
+    # Primary key
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Basic information
+    name = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    password = Column(String(255), nullable=False)  # Hashed password
+    avatar = Column(String(255), nullable=True)
+    
+    # User status
+    role = Column(Enum(UserRole), default=UserRole.USER, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_verified = Column(Boolean, default=False, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    
+    # Profile information
+    bio = Column(Text, nullable=True)
+    phone = Column(String(20), nullable=True)
+    
+    # Relationships
+    posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
+    comments = relationship("Comment", back_populates="author", cascade="all, delete-orphan")
+    
+    # Validators
+    @validates('email')
+    def validate_email(self, key, email):
+        if '@' not in email:
+            raise ValueError('Invalid email format')
+        return email.lower()
+    
+    @validates('name')
+    def validate_name(self, key, name):
+        if len(name.strip()) < 2:
+            raise ValueError('Name must be at least 2 characters long')
+        return name.strip()
+    
+    # Properties
+    @property
+    def full_name(self) -> str:
+        return self.name
+    
+    @property
+    def post_count(self) -> int:
+        return len(self.posts) if self.posts else 0
+    
+    # Methods
+    def is_admin(self) -> bool:
+        return self.role == UserRole.ADMIN
+    
+    def update_last_login(self):
+        """Update last login timestamp."""
+        self.last_login = datetime.utcnow()
+    
+    def to_dict(self, exclude_password: bool = True) -> dict:
+        """Convert user to dictionary."""
+        data = {
+            'id': self.id,
+            'name': self.name,
+            'email': self.email,
+            'role': self.role.value,
+            'is_active': self.is_active,
+            'is_verified': self.is_verified,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_login': self.last_login.isoformat() if self.last_login else None,
+            'bio': self.bio,
+            'phone': self.phone,
+            'post_count': self.post_count,
+        }
+        
+        if not exclude_password:
+            data['password'] = self.password
+            
+        return data
+    
+    def __repr__(self):
+        return f"<User(id={self.id}, email='{self.email}', role='{self.role.value}')>"
+```
+
+### 2. Post Model (`src/models/post.py`)
+
+```python
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Enum, ForeignKey, JSON
+from sqlalchemy.orm import relationship, validates
+from sqlalchemy.sql import func
+from datetime import datetime
+import enum
+
+from src.config.database import Base
+
+class PostStatus(enum.Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
+class Post(Base):
+    __tablename__ = "posts"
+    
+    # Primary key
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Content
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    slug = Column(String(255), unique=True, index=True, nullable=True)
+    excerpt = Column(Text, nullable=True)
+    
+    # Status and metadata
+    status = Column(Enum(PostStatus), default=PostStatus.DRAFT, nullable=False)
+    is_featured = Column(Boolean, default=False, nullable=False)
+    view_count = Column(Integer, default=0, nullable=False)
+    
+    # Tags and metadata
+    tags = Column(JSON, nullable=True)  # Store as JSON array
+    metadata = Column(JSON, nullable=True)  # Additional metadata
+    
+    # Foreign keys
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    author = relationship("User", back_populates="posts")
+    comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
+    
+    # Validators
+    @validates('title')
+    def validate_title(self, key, title):
+        if len(title.strip()) < 5:
+            raise ValueError('Title must be at least 5 characters long')
+        return title.strip()
+    
+    @validates('content')
+    def validate_content(self, key, content):
+        if len(content.strip()) < 10:
+            raise ValueError('Content must be at least 10 characters long')
+        return content.strip()
+    
+    # Properties
+    @property
+    def is_published(self) -> bool:
+        return self.status == PostStatus.PUBLISHED
+    
+    @property
+    def comment_count(self) -> int:
+        return len(self.comments) if self.comments else 0
+    
+    @property
+    def reading_time(self) -> int:
+        """Estimate reading time in minutes."""
+        word_count = len(self.content.split())
+        return max(1, round(word_count / 200))  # 200 words per minute
+    
+    # Methods
+    def publish(self):
+        """Publish the post."""
+        self.status = PostStatus.PUBLISHED
+        self.published_at = datetime.utcnow()
+    
+    def archive(self):
+        """Archive the post."""
+        self.status = PostStatus.ARCHIVED
+    
+    def increment_view_count(self):
+        """Increment view count."""
+        self.view_count += 1
+    
+    def generate_slug(self) -> str:
+        """Generate URL-friendly slug from title."""
+        import re
+        slug = re.sub(r'[^\w\s-]', '', self.title.lower())
+        slug = re.sub(r'[-\s]+', '-', slug)
+        return slug.strip('-')
+    
+    def to_dict(self, include_content: bool = True) -> dict:
+        """Convert post to dictionary."""
+        data = {
+            'id': self.id,
+            'title': self.title,
+            'slug': self.slug,
+            'excerpt': self.excerpt,
+            'status': self.status.value,
+            'is_featured': self.is_featured,
+            'view_count': self.view_count,
+            'tags': self.tags,
+            'author_id': self.author_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'published_at': self.published_at.isoformat() if self.published_at else None,
+            'comment_count': self.comment_count,
+            'reading_time': self.reading_time,
+        }
+        
+        if include_content:
+            data['content'] = self.content
+            
+        return data
+    
+    def __repr__(self):
+        return f"<Post(id={self.id}, title='{self.title}', status='{self.status.value}')>"
+```
+
+### 3. Comment Model (`src/models/comment.py`)
+
+```python
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from datetime import datetime
+
+from src.config.database import Base
+
+class Comment(Base):
+    __tablename__ = "comments"
+    
+    # Primary key
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Content
+    content = Column(Text, nullable=False)
+    
+    # Status
+    is_approved = Column(Boolean, default=True, nullable=False)
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    
+    # Foreign keys
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    post_id = Column(Integer, ForeignKey("posts.id"), nullable=False)
+    parent_id = Column(Integer, ForeignKey("comments.id"), nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    author = relationship("User", back_populates="comments")
+    post = relationship("Post", back_populates="comments")
+    parent = relationship("Comment", remote_side=[id])
+    replies = relationship("Comment", cascade="all, delete-orphan")
+    
+    # Properties
+    @property
+    def reply_count(self) -> int:
+        return len(self.replies) if self.replies else 0
+    
+    # Methods
+    def approve(self):
+        """Approve the comment."""
+        self.is_approved = True
+    
+    def soft_delete(self):
+        """Soft delete the comment."""
+        self.is_deleted = True
+    
+    def to_dict(self, include_replies: bool = False) -> dict:
+        """Convert comment to dictionary."""
+        data = {
+            'id': self.id,
+            'content': self.content,
+            'is_approved': self.is_approved,
+            'author_id': self.author_id,
+            'post_id': self.post_id,
+            'parent_id': self.parent_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'reply_count': self.reply_count,
+        }
+        
+        if include_replies and self.replies:
+            data['replies'] = [reply.to_dict() for reply in self.replies]
+            
+        return data
+    
+    def __repr__(self):
+        return f"<Comment(id={self.id}, post_id={self.post_id}, approved={self.is_approved})>"
+```
+
+## 🔍 Repository Pattern
+
+### 1. Base Repository (`src/repositories/base.py`)
+
+```python
+from typing import Generic, TypeVar, Type, List, Optional, Dict, Any
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, desc, asc
+from src.config.database import Base
+
+ModelType = TypeVar("ModelType", bound=Base)
+
+class BaseRepository(Generic[ModelType]):
+    def __init__(self, model: Type[ModelType], db: Session):
+        self.model = model
+        self.db = db
+    
+    def create(self, obj_in: Dict[str, Any]) -> ModelType:
+        """Create a new record."""
+        db_obj = self.model(**obj_in)
+        self.db.add(db_obj)
+        self.db.commit()
+        self.db.refresh(db_obj)
+        return db_obj
+    
+    def get(self, id: int) -> Optional[ModelType]:
+        """Get a record by ID."""
+        return self.db.query(self.model).filter(self.model.id == id).first()
+    
+    def get_multi(
+        self, 
+        skip: int = 0, 
+        limit: int = 100,
+        filters: Dict[str, Any] = None,
+        order_by: str = None
+    ) -> List[ModelType]:
+        """Get multiple records with pagination and filtering."""
+        query = self.db.query(self.model)
+        
+        # Apply filters
+        if filters:
+            for key, value in filters.items():
+                if hasattr(self.model, key):
+                    query = query.filter(getattr(self.model, key) == value)
+        
+        # Apply ordering
+        if order_by:
+            if order_by.startswith('-'):
+                query = query.order_by(desc(getattr(self.model, order_by[1:])))
+            else:
+                query = query.order_by(asc(getattr(self.model, order_by)))
+        
+        return query.offset(skip).limit(limit).all()
+    
+    def update(self, id: int, obj_in: Dict[str, Any]) -> Optional[ModelType]:
+        """Update a record."""
+        db_obj = self.get(id)
+        if db_obj:
+            for field, value in obj_in.items():
+                if hasattr(db_obj, field):
+                    setattr(db_obj, field, value)
+            
+            self.db.commit()
+            self.db.refresh(db_obj)
+        return db_obj
+    
+    def delete(self, id: int) -> bool:
+        """Delete a record."""
+        db_obj = self.get(id)
+        if db_obj:
+            self.db.delete(db_obj)
+            self.db.commit()
+            return True
+        return False
+    
+    def count(self, filters: Dict[str, Any] = None) -> int:
+        """Count records with optional filters."""
+        query = self.db.query(self.model)
+        
+        if filters:
+            for key, value in filters.items():
+                if hasattr(self.model, key):
+                    query = query.filter(getattr(self.model, key) == value)
+        
+        return query.count()
+    
+    def exists(self, id: int) -> bool:
+        """Check if a record exists."""
+        return self.db.query(self.model).filter(self.model.id == id).first() is not None
+    
+    def search(
+        self, 
+        search_term: str, 
+        search_fields: List[str],
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[ModelType]:
+        """Search records by text in specified fields."""
+        query = self.db.query(self.model)
+        
+        search_conditions = []
+        for field in search_fields:
+            if hasattr(self.model, field):
+                field_attr = getattr(self.model, field)
+                search_conditions.append(field_attr.ilike(f"%{search_term}%"))
+        
+        if search_conditions:
+            query = query.filter(or_(*search_conditions))
+        
+        return query.offset(skip).limit(limit).all()
+```
+
+### 2. User Repository (`src/repositories/user.py`)
+
+```python
+from typing import List, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_
+
+from src.models.user import User, UserRole
+from src.repositories.base import BaseRepository
+
+class UserRepository(BaseRepository[User]):
+    def __init__(self, db: Session):
+        super().__init__(User, db)
+    
+    def get_by_email(self, email: str) -> Optional[User]:
+        """Get user by email."""
+        return self.db.query(User).filter(User.email == email.lower()).first()
+    
+    def get_active_users(self, skip: int = 0, limit: int = 100) -> List[User]:
+        """Get active users."""
+        return self.get_multi(
+            skip=skip, 
+            limit=limit, 
+            filters={"is_active": True},
+            order_by="-created_at"
+        )
+    
+    def get_users_by_role(self, role: UserRole, skip: int = 0, limit: int = 100) -> List[User]:
+        """Get users by role."""
+        return self.get_multi(
+            skip=skip, 
+            limit=limit, 
+            filters={"role": role, "is_active": True},
+            order_by="name"
+        )
+    
+    def search_users(self, query: str, skip: int = 0, limit: int = 100) -> List[User]:
+        """Search users by name or email."""
+        return self.search(
+            search_term=query,
+            search_fields=["name", "email"],
+            skip=skip,
+            limit=limit
+        )
+    
+    def get_user_stats(self) -> dict:
+        """Get user statistics."""
+        total_users = self.count()
+        active_users = self.count({"is_active": True})
+        admin_users = self.count({"role": UserRole.ADMIN, "is_active": True})
+        verified_users = self.count({"is_verified": True, "is_active": True})
+        
+        return {
+            "total_users": total_users,
+            "active_users": active_users,
+            "admin_users": admin_users,
+            "verified_users": verified_users,
+        }
+    
+    def create_user(self, user_data: dict) -> User:
+        """Create a new user with validation."""
+        # Check if email already exists
+        existing_user = self.get_by_email(user_data["email"])
+        if existing_user:
+            raise ValueError("User with this email already exists")
+        
+        return self.create(user_data)
+    
+    def authenticate_user(self, email: str, password: str) -> Optional[User]:
+        """Authenticate user with email and password."""
+        user = self.get_by_email(email)
+        
+        if not user or not user.is_active:
+            return None
+        
+        # Password verification should be done with bcrypt
+        from bcrypt import checkpw
+        if checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
+            return user
+        
+        return None
+    
+    def update_last_login(self, user_id: int) -> bool:
+        """Update user's last login timestamp."""
+        from datetime import datetime
+        
+        return self.update(user_id, {"last_login": datetime.utcnow()}) is not None
+    
+    def soft_delete_user(self, user_id: int) -> bool:
+        """Soft delete user (deactivate)."""
+        return self.update(user_id, {"is_active": False}) is not None
+```
+
+### 3. Post Repository (`src/repositories/post.py`)
+
+```python
+from typing import List, Optional, Dict, Any
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, desc
+
+from src.models.post import Post, PostStatus
+from src.repositories.base import BaseRepository
+
+class PostRepository(BaseRepository[Post]):
+    def __init__(self, db: Session):
+        super().__init__(Post, db)
+    
+    def get_published_posts(self, skip: int = 0, limit: int = 100) -> List[Post]:
+        """Get published posts."""
+        return self.get_multi(
+            skip=skip,
+            limit=limit,
+            filters={"status": PostStatus.PUBLISHED},
+            order_by="-created_at"
+        )
+    
+    def get_posts_by_author(self, author_id: int, skip: int = 0, limit: int = 100) -> List[Post]:
+        """Get posts by author."""
+        return self.get_multi(
+            skip=skip,
+            limit=limit,
+            filters={"author_id": author_id, "status": PostStatus.PUBLISHED},
+            order_by="-created_at"
+        )
+    
+    def get_featured_posts(self, limit: int = 5) -> List[Post]:
+        """Get featured posts."""
+        return self.get_multi(
+            skip=0,
+            limit=limit,
+            filters={"is_featured": True, "status": PostStatus.PUBLISHED},
+            order_by="-created_at"
+        )
+    
+    def search_posts(self, query: str, skip: int = 0, limit: int = 100) -> List[Post]:
+        """Search posts by title or content."""
+        return self.search(
+            search_term=query,
+            search_fields=["title", "content"],
+            skip=skip,
+            limit=limit
+        )
+    
+    def get_posts_by_tag(self, tag: str, skip: int = 0, limit: int = 100) -> List[Post]:
+        """Get posts by tag."""
+        # For JSON fields, we need to use raw SQL
+        posts = self.db.query(Post).filter(
+            and_(
+                Post.status == PostStatus.PUBLISHED,
+                Post.tags.contains([tag])
+            )
+        ).order_by(desc(Post.created_at)).offset(skip).limit(limit).all()
+        
+        return posts
+    
+    def get_popular_posts(self, limit: int = 10) -> List[Post]:
+        """Get popular posts by view count."""
+        return self.get_multi(
+            skip=0,
+            limit=limit,
+            filters={"status": PostStatus.PUBLISHED},
+            order_by="-view_count"
+        )
+    
+    def get_post_stats(self) -> dict:
+        """Get post statistics."""
+        total_posts = self.count()
+        published_posts = self.count({"status": PostStatus.PUBLISHED})
+        draft_posts = self.count({"status": PostStatus.DRAFT})
+        archived_posts = self.count({"status": PostStatus.ARCHIVED})
+        featured_posts = self.count({"is_featured": True, "status": PostStatus.PUBLISHED})
+        
+        return {
+            "total_posts": total_posts,
+            "published_posts": published_posts,
+            "draft_posts": draft_posts,
+            "archived_posts": archived_posts,
+            "featured_posts": featured_posts,
+        }
+    
+    def increment_view_count(self, post_id: int) -> bool:
+        """Increment post view count."""
+        post = self.get(post_id)
+        if post:
+            post.increment_view_count()
+            self.db.commit()
+            return True
+        return False
+    
+    def publish_post(self, post_id: int) -> bool:
+        """Publish a post."""
+        post = self.get(post_id)
+        if post:
+            post.publish()
+            self.db.commit()
+            return True
+        return False
+    
+    def archive_post(self, post_id: int) -> bool:
+        """Archive a post."""
+        post = self.get(post_id)
+        if post:
+            post.archive()
+            self.db.commit()
+            return True
+        return False
+```
+
+## 🔄 Service Layer
+
+### 1. User Service (`src/services/user_service.py`)
+
+```python
+from typing import List, Optional, Dict, Any
+from sqlalchemy.orm import Session
+from bcrypt import hashpw, gensalt
+from datetime import datetime
+
+from src.models.user import User, UserRole
+from src.repositories.user import UserRepository
+
+class UserService:
+    def __init__(self, db: Session):
+        self.user_repo = UserRepository(db)
+    
+    def create_user(self, user_data: Dict[str, Any]) -> User:
+        """Create a new user."""
+        # Hash password
+        if 'password' in user_data:
+            password = user_data['password'].encode('utf-8')
+            hashed_password = hashpw(password, gensalt()).decode('utf-8')
+            user_data['password'] = hashed_password
+        
+        # Set default role
+        if 'role' not in user_data:
+            user_data['role'] = UserRole.USER
+        
+        return self.user_repo.create_user(user_data)
+    
+    def authenticate_user(self, email: str, password: str) -> Optional[User]:
+        """Authenticate user."""
+        user = self.user_repo.authenticate_user(email, password)
+        
+        if user:
+            # Update last login
+            self.user_repo.update_last_login(user.id)
+        
+        return user
+    
+    def get_user_by_id(self, user_id: int) -> Optional[User]:
+        """Get user by ID."""
+        return self.user_repo.get(user_id)
+    
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        """Get user by email."""
+        return self.user_repo.get_by_email(email)
+    
+    def update_user(self, user_id: int, update_data: Dict[str, Any]) -> Optional[User]:
+        """Update user."""
+        # Don't allow password update through this method
+        if 'password' in update_data:
+            del update_data['password']
+        
+        return self.user_repo.update(user_id, update_data)
+    
+    def change_password(self, user_id: int, new_password: str) -> bool:
+        """Change user password."""
+        password = new_password.encode('utf-8')
+        hashed_password = hashpw(password, gensalt()).decode('utf-8')
+        
+        return self.user_repo.update(user_id, {'password': hashed_password}) is not None
+    
+    def deactivate_user(self, user_id: int) -> bool:
+        """Deactivate user."""
+        return self.user_repo.soft_delete_user(user_id) is not None
+    
+    def get_active_users(self, page: int = 1, limit: int = 10) -> Dict[str, Any]:
+        """Get active users with pagination."""
+        skip = (page - 1) * limit
+        users = self.user_repo.get_active_users(skip=skip, limit=limit)
+        total = self.user_repo.count({"is_active": True})
+        
+        return {
+            "users": [user.to_dict(exclude_password=True) for user in users],
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "pages": (total + limit - 1) // limit,
+        }
+    
+    def search_users(self, query: str, page: int = 1, limit: int = 10) -> Dict[str, Any]:
+        """Search users."""
+        skip = (page - 1) * limit
+        users = self.user_repo.search_users(query, skip=skip, limit=limit)
+        
+        return {
+            "users": [user.to_dict(exclude_password=True) for user in users],
+            "query": query,
+            "page": page,
+            "limit": limit,
+        }
+    
+    def get_user_stats(self) -> Dict[str, int]:
+        """Get user statistics."""
+        return self.user_repo.get_user_stats()
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Missing Relationships:**
+   - **Bad:** Not defining proper relationships between models.
+   - **Good:** Always define relationships with proper cascade options.
+
+2. **N+1 Query Problem:**
+   - **Bad:** Loading related objects in loops.
+   - **Good:** Use eager loading (`joinedload`, `selectinload`).
+
+3. **Ignoring Transactions:**
+   - **Bad:** Performing multiple operations without transactions.
+   - **Good:** Use `db.begin()` for complex operations.
+
+4. **Large Transactions:**
+   - **Bad:** Keeping transactions open for too long.
+   - **Good:** Keep transactions short and focused.
+
+5. **Missing Indexes:**
+   - **Bad:** Not creating indexes for frequently queried fields.
+   - **Good:** Use `index=True` in column definitions.
+
+## 🧪 Testing Strategy
+
+{% if "Pytest" in libraries %}
+Testing SQLAlchemy models and repositories:
+
+```python
+# tests/test_user_repository.py
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from src.config.database import Base
+from src.models.user import User, UserRole
+from src.repositories.user import UserRepository
+
+@pytest.fixture
+def db_session():
+    """Create test database session."""
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    
+    SessionLocal = sessionmaker(bind=engine)
+    session = SessionLocal()
+    
+    yield session
+    
+    session.close()
+
+@pytest.fixture
+def user_repo(db_session):
+    """Create user repository."""
+    return UserRepository(db_session)
+
+def test_create_user(user_repo):
+    """Test creating a user."""
+    user_data = {
+        "name": "Test User",
+        "email": "test@example.com",
+        "password": "password123",
+        "role": UserRole.USER,
+    }
+    
+    user = user_repo.create(user_data)
+    
+    assert user.id is not None
+    assert user.email == user_data["email"]
+    assert user.name == user_data["name"]
+    assert user.role == UserRole.USER
+
+def test_get_user_by_email(user_repo):
+    """Test getting user by email."""
+    user_data = {
+        "name": "Test User",
+        "email": "test@example.com",
+        "password": "password123",
+    }
+    
+    created_user = user_repo.create(user_data)
+    found_user = user_repo.get_by_email("test@example.com")
+    
+    assert found_user is not None
+    assert found_user.id == created_user.id
+    assert found_user.email == created_user.email
+
+def test_search_users(user_repo):
+    """Test searching users."""
+    # Create test users
+    user1 = user_repo.create({
+        "name": "John Doe",
+        "email": "john@example.com",
+        "password": "password123",
+    })
+    
+    user2 = user_repo.create({
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "password": "password123",
+    })
+    
+    # Search by name
+    results = user_repo.search_users("John")
+    assert len(results) == 1
+    assert results[0].name == "John Doe"
+    
+    # Search by email
+    results = user_repo.search_users("jane")
+    assert len(results) == 1
+    assert results[0].email == "jane@example.com"
+```
+{% endif %}
+
+## 📦 Environment Variables
+
+```env
+# Database Configuration
+DB_TYPE=postgresql
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=password
+DB_NAME=myapp
+
+# SQLite Configuration
+# DB_TYPE=sqlite
+# DB_PATH=app.db
+
+# SQLAlchemy Configuration
+SQL_DEBUG=false
+DB_POOL_SIZE=10
+DB_MAX_OVERFLOW=20
+DB_POOL_TIMEOUT=30
+DB_POOL_RECYCLE=3600
+```

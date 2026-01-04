@@ -1,0 +1,78 @@
+# React Native Coding Standards
+
+## 📝 Naming Conventions
+
+- **Components:** PascalCase (e.g., `PrimaryButton.tsx`).
+- **Screens:** PascalCase, suffixed with Screen (e.g., `LoginScreen.tsx`).
+- **Navigators:** PascalCase, suffixed with Navigator (e.g., `MainTabNavigator.tsx`).
+- **Hooks:** camelCase, prefixed with `use`.
+
+## ⚡ Performance Rules (Critical)
+
+### 1. List Rendering
+**Rule:** NEVER use `ScrollView` for long lists.
+- **Standard:** Use `FlatList` or `SectionList`.
+- **Optimized:** Use **FlashList** (Shopify) if installed.
+- **Props:** Always provide `keyExtractor`, `getItemLayout` (if fixed height), and `initialNumToRender`.
+
+### 2. Image Optimization
+**Rule:** Avoid using the default `<Image>` for remote images if caching is required.
+{% if "Expo" in libraries %}
+- Use **expo-image** for high-performance caching and blurhash support.
+{% else %}
+- Use **react-native-fast-image** (if available).
+{% endif %}
+
+### 3. Inline Styles & Functions
+**Rule:** Avoid inline objects/functions in props to prevent unnecessary re-renders.
+```tsx
+// ❌ Bad (New object created on every render)
+<View style={{ margin: 10 }} />
+
+// ✅ Good (StyleSheet or Memoized)
+<View style={styles.container} />
+```
+
+### 4. Reanimated 3+
+{% if "Reanimated" in libraries %}
+**Rule:** Use `react-native-reanimated` for all animations.
+- Avoid `Animated` API from React Native core for complex animations (it runs on the JS thread).
+- Use `useSharedValue` and `useAnimatedStyle` to offload work to the UI Thread.
+{% endif %}
+
+## 📱 Platform Specifics
+
+### 1. Safe Area
+**Rule:** Always handle the notch and home indicator.
+- Use `SafeAreaView` from `react-native-safe-area-context` (not the one from 'react-native').
+- Or use `useSafeAreaInsets()` hook for padding/margin.
+
+### 2. OS Differences
+- Use `Platform.select()` or file extensions (`.ios.tsx`, `.android.tsx`) for major platform differences.
+- Do not clutter component code with `if (Platform.OS === 'ios')` logic for complex UI changes.
+
+## 🛡️ Coding Best Practices
+
+### 1. React Navigation Types
+**Rule:** Navigation must be strictly typed. Never use `any` for `navigation` or `route`.
+```tsx
+// ✅ Good
+type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
+const ProfileScreen = ({ navigation, route }: Props) => { ... }
+```
+
+### 2. Import Cleanup
+- **No Circular Imports:** Be careful with index files (`components/index.ts`).
+- **Absolute Imports:** Use path aliases (e.g., `@/components/`) configured in `tsconfig.json` and `babel.config.js`.
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Massive Component Trees:** Break down complex screens into smaller, memoized components.
+2. **"Bridge" Overload:** Avoid sending large JSON blobs (base64 images) over the bridge. Use file paths instead.
+3. **Console.log:** Remove `console.log` in production builds (babel-plugin-transform-remove-console).
+
+## 🧪 Testing
+
+- **Unit:** Jest + React Native Testing Library (`@testing-library/react-native`).
+- **E2E:** Maestro or Detox.
+- **Mocking:** Native modules must be mocked in `jest.setup.js`.

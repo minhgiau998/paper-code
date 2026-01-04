@@ -1,0 +1,190 @@
+# Zustand Documentation
+
+> **Purpose:** A small, fast, and scalable bearbones state-management solution using simplified flux principles.
+
+## 📦 Installation
+
+```bash
+npm install zustand
+```
+
+## 🏗️ Architecture: The Store
+
+We use the **Global Store** pattern. Unlike Redux, you don't need a Provider wrapper for standard usage.
+
+### 1. Basic Setup (Small Apps)
+
+**File:** `src/store/useAppStore.ts`
+
+```typescript
+import { create } from 'zustand';
+import { devtools, persist } from 'zustand/middleware';
+
+// 1. Define State & Actions Interface
+interface AppState {
+  count: number;
+  userName: string | null;
+  // Actions
+  increment: () => void;
+  setUserName: (name: string) => void;
+  reset: () => void;
+}
+
+// 2. Create the Store
+export const useAppStore = create<AppState>()(
+  devtools(
+    persist(
+      (set) => ({
+        count: 0,
+        userName: null,
+
+        // Actions implementation
+        increment: () => set((state) => ({ count: state.count + 1 })),
+        setUserName: (name) => set({ userName: name }),
+        reset: () => set({ count: 0, userName: null }),
+      }),
+      {
+        name: 'app-storage', // Key in localStorage
+        // partialize: (state) => ({ count: state.count }), // Optional: Only save specific fields
+      }
+    )
+  )
+);
+```
+
+### 2. Scalable Setup (The Slice Pattern)
+
+For larger applications, do not put everything in one file. Use the **Slice Pattern**.
+
+**File:** `src/store/slices/authSlice.ts`
+```typescript
+import { StateCreator } from 'zustand';
+
+export interface AuthSlice {
+  user: User | null;
+  login: (user: User) => void;
+}
+
+export const createAuthSlice: StateCreator<AuthSlice> = (set) => ({
+  user: null,
+  login: (user) => set({ user }),
+});
+```
+
+**File:** `src/store/useBoundStore.ts` (Combine slices)
+```typescript
+import { create } from 'zustand';
+import { createAuthSlice, AuthSlice } from './slices/authSlice';
+import { createCartSlice, CartSlice } from './slices/cartSlice';
+
+type BoundState = AuthSlice & CartSlice;
+
+export const useBoundStore = create<BoundState>()((...a) => ({
+  ...createAuthSlice(...a),
+  ...createCartSlice(...a),
+}));
+```
+
+## 💻 Usage Patterns
+
+### 1. Atomic Selectors (Critical for Performance)
+
+**Rule:** Never export the whole hook like `const { count } = useAppStore()`. This causes re-renders on *any* state change.
+**Rule:** Always select strictly what you need.
+
+```tsx
+import { useAppStore } from '@/store/useAppStore';
+
+export const Counter = () => {
+  // ✅ Good: Component only re-renders when `count` changes
+  const count = useAppStore((state) => state.count);
+  const increment = useAppStore((state) => state.increment);
+
+  return <button onClick={increment}>{count}</button>;
+};
+```
+
+### 2. Async Actions
+
+Zustand handles async natively. You don't need thunks.
+
+```typescript
+// Inside your store definition
+fetchData: async (id: string) => {
+  set({ isLoading: true });
+  try {
+    const response = await apiClient.get(`/data/${id}`);
+    set({ data: response.data, isLoading: false });
+  } catch (error) {
+    set({ error: error.message, isLoading: false });
+  }
+}
+```
+
+{% if "Next.js" in tech_stack %}
+## ⚠️ Next.js (App Router) Specifics
+
+Since Zustand is a global singleton, using it directly in Next.js Server Components can lead to **State Leakage** between requests.
+
+**Rule:**
+1.  **Client Components:** You can use the standard `useAppStore` hook safely in components marked with `'use client'`.
+2.  **Server Components:** Do **NOT** use the store hook. Fetch data directly in the Server Component and pass it as props.
+
+```tsx
+// app/page.tsx (Server Component)
+export default async function Page() {
+  const data = await fetchData(); // Fetch directly
+  return <ClientComponent initialData={data} />;
+}
+
+// components/ClientComponent.tsx ('use client')
+'use client';
+import { useAppStore } from '@/store/useAppStore';
+import { useEffect } from 'react';
+
+export const ClientComponent = ({ initialData }) => {
+  const setData = useAppStore(s => s.setData);
+  
+  // Hydrate the store
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
+  
+  return <div>...</div>;
+};
+```
+{% endif %}
+
+## 🛡️ Best Practices
+
+### 1. `useShallow` Hook
+If you need to pick multiple values from the store, use `useShallow` to prevent re-renders if the object reference changes but values stay the same.
+
+```tsx
+import { useShallow } from 'zustand/react/shallow';
+
+const { name, age } = useAppStore(
+  useShallow((state) => ({ name: state.name, age: state.age }))
+);
+```
+
+### 2. Action Separation (Optional but Recommended)
+For very large stores, define actions outside the `create` function or in a separate object to keep the state clean.
+
+### 3. Reset Pattern
+Always implement a `reset` action in your store to clear state on User Logout.
+```typescript
+reset: () => set(initialState)
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Destructuring the Store:**
+    *   **Bad:** `const { count } = useStore();` (Re-renders on EVERYTHING).
+    *   **Good:** `const count = useStore((s) => s.count);`
+
+2.  **Logic inside Components:**
+    *   Avoid writing complex state mutation logic inside `useEffect` in components. Move it to a Store Action.
+
+3.  **Storing Complex Class Instances:**
+    *   Store Plain JavaScript Objects (POJO). Zustand works best with immutable serializable data.

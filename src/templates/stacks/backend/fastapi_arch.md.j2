@@ -1,0 +1,73 @@
+# FastAPI Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a high-performance, asynchronous REST API built with **FastAPI**.
+It leverages **Python 3.10+** type hints for validation and documentation.
+
+## 📂 Directory Structure
+
+The project follows a **Production-Ready** application structure (not a single-file script).
+
+```text
+app/
+├── api/                 # API Route Handlers
+│   ├── api_v1/          # Versioning
+│   │   ├── endpoints/   # Route modules (users, items)
+│   │   └── api.py       # Router aggregator
+│   └── deps.py          # Global dependencies (get_current_user, get_db)
+├── core/                # Core Configuration
+│   ├── config.py        # Pydantic Settings
+│   └── security.py      # JWT/Auth logic
+├── models/              # Database Models (ORM)
+│   ├── base.py          # Base declarative class
+│   └── user.py
+├── schemas/             # Pydantic Models (Data Validation)
+│   ├── user.py          # UserCreate, UserUpdate, UserResponse
+│   └── token.py
+├── services/            # Business Logic Layer (Optional but Recommended)
+│   └── user_service.py
+{% if "SQLAlchemy" in libraries %}
+├── db/                  # Database Components
+│   ├── session.py       # Engine & Session factory
+│   └── base.py          # Import all models here for Alembic
+{% endif %}
+├── main.py              # App Entry Point
+└── tests/               # Pytest Suite
+    ├── conftest.py      # Test fixtures
+    └── api/
+{% if "Alembic" in libraries %}
+alembic/                 # Database Migrations
+alembic.ini
+{% endif %}
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Dependency Injection
+FastAPI's dependency injection system (`Depends`) is the backbone of the architecture.
+- **Usage:** Use it for Database Sessions, Authentication, and Shared Logic.
+- **Scope:** Dependencies are per-request by default.
+
+### 2. Pydantic v2 (Validation)
+We strictly use **Pydantic v2** for schemas (DTOs).
+- **Schemas (`app/schemas`):** Define what the API expects (Input) and returns (Output).
+- **Separation:** Never return raw ORM models directly; always map them to Pydantic schemas using `response_model`.
+
+{% if "SQLAlchemy" in libraries %}
+### 3. Database Layer (SQLAlchemy 2.0)
+- **Async:** We use `AsyncSession` and `async/await` for all DB interactions.
+- **Pattern:** Use the **Repository Pattern** or **Service Layer** to isolate DB queries from Route logic.
+- **Migrations:** Managed by **Alembic**.
+{% endif %}
+
+{% if "Celery" in libraries %}
+### 4. Background Tasks (Celery)
+- Heavy operations (Email sending, Image processing) must be offloaded to Celery workers.
+- The API should only enqueue the task and return a status immediately.
+{% endif %}
+
+## 🔒 Security Architecture
+- **OAuth2:** Implemented via `OAuth2PasswordBearer`.
+- **JWT:** Stateless authentication using JSON Web Tokens.
+- **CORS:** Configured in `main.py` to restrict origins.

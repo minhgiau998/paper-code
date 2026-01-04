@@ -1,0 +1,83 @@
+# Flutter Coding Standards
+
+## 📝 Naming Conventions
+
+- **Files:** `snake_case.dart` (Strictly enforced by Dart).
+- **Classes:** `PascalCase`.
+- **Variables:** `camelCase`.
+- **Private:** Prefix with `_` (e.g., `_isLoading`).
+- **Constants:** `lowerCamelCase` (Dart Style Guide preference over `SCREAMING_CASE` unless it's an Enum value).
+
+## ⚡ Modern Dart & Flutter Rules (Critical)
+
+### 1. BuildContext Safety
+**Rule:** Never use `BuildContext` across asynchronous gaps without checking if it's mounted.
+```dart
+// ❌ Bad
+await someAsyncCall();
+Navigator.pop(context); // Unsafe! Widget might be disposed.
+
+// ✅ Good
+await someAsyncCall();
+if (!context.mounted) return; // Check strict mounting
+Navigator.pop(context);
+```
+
+### 2. Dart 3 Features
+**Rule:** Use modern Dart 3 capabilities.
+- **Pattern Matching:** Use `switch` expressions instead of if-else chains for mapping states.
+- **Records:** Use `(String, int)` records for returning multiple values instead of custom classes.
+- **Class Modifiers:** Use `sealed` class for BLoC events or Union Types.
+
+```dart
+// ✅ Good (Switch Expression)
+return switch (state) {
+  AuthLoading() => const CircularProgressIndicator(),
+  AuthSuccess(:final user) => Home(user: user), // Object destructuring
+  AuthError() => const ErrorView(),
+};
+```
+
+### 3. Widget Optimization
+**Rule:** Use `const` constructors whenever possible.
+- This allows Flutter to short-circuit the rebuild process for that widget sub-tree.
+- Enable the linter rule: `prefer_const_constructors`.
+
+### 4. API & Serialization
+
+{% if "Dio" in libraries %}
+- **Dio:** Use a singleton Dio instance with Interceptors for Logging and Auth Token injection.
+- **JSON:** Do not write manual `toJson`/`fromJson`.
+{% endif %}
+{% if "Freezed" in libraries or "JsonSerializable" in libraries %}
+- Use `json_serializable` and/or `freezed`.
+- Command: `dart run build_runner build -d`
+{% endif %}
+
+## 🛡️ State Management Guidelines
+
+{% if "Riverpod" in libraries %}
+### Riverpod Specifics
+- **Generator:** Prefer the `@riverpod` annotation syntax. It handles `autoDispose` and `family` parameters better than manual providers.
+- **Ref:** Do not pass `ref` to functions. Keep logic inside the Notifier.
+{% endif %}
+
+{% if "Bloc" in libraries %}
+### BLoC Specifics
+- **One Event, One State Change:** Don't emit multiple states for a single event if possible.
+- **Transformers:** Use `event_transformer` (droppable, restartable) for limiting frequent events (like search inputs).
+{% endif %}
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Logic in UI:** Widgets should only contain rendering logic. Business logic belongs in Controllers/Cubits/Notifiers.
+2. **Global Variables:** Avoid global mutable state. It breaks testability.
+3. **Hardcoded Strings/Colors:** Use `l10n` (Localization) for text and `Theme.of(context)` for colors.
+4. **Massive `build` methods:** Break down large build methods into smaller, private Widgets (not just helper methods, as Widgets perform better).
+
+## 🧪 Testing
+
+- **Unit:** `flutter_test` for repositories/logic.
+- **Widget:** `widget_test` using `pumpWidget`.
+- **Integration:** `integration_test` package.
+- **Mocking:** Use `mocktail` (simpler API than `mockito`).

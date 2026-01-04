@@ -1,0 +1,809 @@
+# Django REST Framework Documentation
+
+> **Purpose:** A powerful and flexible toolkit for building Web APIs.
+
+## 📦 Installation
+
+```bash
+pip install djangorestframework
+pip install djangorestframework-simplejwt  # For JWT authentication
+pip install django-filter                 # For filtering
+pip install drf-spectacular               # For OpenAPI/Swagger documentation
+```
+
+## 🛠️ Configuration
+
+**Strategy:** Use Django REST Framework with proper settings and authentication.
+
+### 1. Settings Configuration (`settings.py`)
+
+```python
+# settings.py
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    
+    # Third-party apps
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'django_filters',
+    'drf_spectacular',
+    
+    # Your apps
+    'apps.users',
+    'apps.posts',
+    'apps.comments',
+]
+
+# Django REST Framework configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# JWT Configuration
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'JTI_CLAIM': 'jti',
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
+    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1,
+}
+
+# API Documentation
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Project API',
+    'DESCRIPTION': 'Your project description',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+}
+```
+
+### 2. URL Configuration (`urls.py`)
+
+```python
+# urls.py
+from django.contrib import admin
+from django.urls import path, include
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    
+    # API endpoints
+    path('api/auth/', include('apps.users.urls')),
+    path('api/posts/', include('apps.posts.urls')),
+    path('api/comments/', include('apps.comments.urls')),
+    
+    # API Documentation
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+]
+```
+
+## 📝 Models
+
+### 1. User Model (`apps/users/models.py`)
+
+```python
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+
+class User(AbstractUser):
+    """Custom user model."""
+    
+    email = models.EmailField(unique=True)
+    bio = models.TextField(max_length=500, blank=True)
+    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True)
+    is_verified = models.BooleanField(default=False)
+    last_login_ip = models.GenericIPAddressField(blank=True, null=True)
+    
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
+    
+    class Meta:
+        db_table = 'users'
+        verbose_name = 'User'
+        verbose_name_plural = 'Users'
+    
+    def __str__(self):
+        return self.email
+    
+    @property
+    def post_count(self):
+        """Get user's post count."""
+        return self.posts.count()
+```
+
+### 2. Post Model (`apps/posts/models.py`)
+
+```python
+from django.db import models
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class Post(models.Model):
+    """Post model."""
+    
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'Draft'
+        PUBLISHED = 'published', 'Published'
+        ARCHIVED = 'archived', 'Archived'
+    
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=255, unique=True)
+    content = models.TextField()
+    excerpt = models.TextField(max_length=300, blank=True)
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='posts')
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    is_featured = models.BooleanField(default=False)
+    view_count = models.PositiveIntegerField(default=0)
+    tags = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    published_at = models.DateTimeField(blank=True, null=True)
+    
+    class Meta:
+        db_table = 'posts'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['author', 'created_at']),
+            models.Index(fields=['status']),
+            models.Index(fields=['is_featured']),
+        ]
+    
+    def __str__(self):
+        return self.title
+    
+    @property
+    def comment_count(self):
+        """Get post's comment count."""
+        return self.comments.count()
+    
+    @property
+    def reading_time(self):
+        """Estimate reading time in minutes."""
+        word_count = len(self.content.split())
+        return max(1, round(word_count / 200))
+    
+    def save(self, *args, **kwargs):
+        """Override save to generate slug and excerpt."""
+        if not self.slug:
+            from django.utils.text import slugify
+            self.slug = slugify(self.title)
+        
+        if not self.excerpt:
+            self.excerpt = self.content[:150] + '...' if len(self.content) > 150 else self.content
+        
+        if self.status == self.Status.PUBLISHED and not self.published_at:
+            from django.utils import timezone
+            self.published_at = timezone.now()
+        
+        super().save(*args, **kwargs)
+```
+
+### 3. Comment Model (`apps/comments/models.py`)
+
+```python
+from django.db import models
+from django.contrib.auth import get_user_model
+from apps.posts.models import Post
+
+User = get_user_model()
+
+class Comment(models.Model):
+    """Comment model."""
+    
+    content = models.TextField()
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comments')
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments')
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, blank=True, null=True, related_name='replies')
+    is_approved = models.BooleanField(default=True)
+    is_deleted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'comments'
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f'Comment by {self.author.email} on {self.post.title}'
+    
+    @property
+    def reply_count(self):
+        """Get comment's reply count."""
+        return self.replies.count()
+```
+
+## 🔧 Serializers
+
+### 1. User Serializers (`apps/users/serializers.py`)
+
+```python
+from rest_framework import serializers
+from django.contrib.auth import authenticate
+from django.contrib.auth.password_validation import validate_password
+from .models import User
+
+class UserSerializer(serializers.ModelSerializer):
+    """User serializer."""
+    
+    post_count = serializers.ReadOnlyField()
+    
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name',
+            'bio', 'avatar', 'phone', 'is_verified', 'post_count',
+            'date_joined', 'last_login'
+        ]
+        read_only_fields = ['id', 'is_verified', 'date_joined', 'last_login']
+
+class UserRegistrationSerializer(serializers.ModelSerializer):
+    """User registration serializer."""
+    
+    password = serializers.CharField(write_only=True, validators=[validate_password])
+    password_confirm = serializers.CharField(write_only=True)
+    
+    class Meta:
+        model = User
+        fields = [
+            'username', 'email', 'first_name', 'last_name',
+            'password', 'password_confirm'
+        ]
+    
+    def validate_email(self, value):
+        """Validate email is unique."""
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+    
+    def validate(self, attrs):
+        """Validate passwords match."""
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError("Passwords don't match.")
+        return attrs
+    
+    def create(self, validated_data):
+        """Create user with hashed password."""
+        validated_data.pop('password_confirm')
+        user = User.objects.create_user(**validated_data)
+        return user
+
+class UserLoginSerializer(serializers.Serializer):
+    """User login serializer."""
+    
+    email = serializers.EmailField()
+    password = serializers.CharField()
+    
+    def validate(self, attrs):
+        """Validate credentials."""
+        email = attrs.get('email')
+        password = attrs.get('password')
+        
+        if email and password:
+            user = authenticate(username=email, password=password)
+            
+            if not user:
+                raise serializers.ValidationError('Invalid credentials.')
+            
+            if not user.is_active:
+                raise serializers.ValidationError('User account is disabled.')
+            
+            attrs['user'] = user
+            return attrs
+        
+        raise serializers.ValidationError('Must include email and password.')
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """User profile serializer for update."""
+    
+    class Meta:
+        model = User
+        fields = [
+            'username', 'first_name', 'last_name', 'bio', 'avatar', 'phone'
+        ]
+    
+    def validate_username(self, value):
+        """Validate username is unique."""
+        user = self.instance
+        if User.objects.exclude(pk=user.pk).filter(username=value).exists():
+            raise serializers.ValidationError("A user with this username already exists.")
+        return value
+
+class PasswordChangeSerializer(serializers.Serializer):
+    """Password change serializer."""
+    
+    current_password = serializers.CharField()
+    new_password = serializers.CharField(validators=[validate_password])
+    new_password_confirm = serializers.CharField()
+    
+    def validate_current_password(self, value):
+        """Validate current password."""
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+    
+    def validate(self, attrs):
+        """Validate new passwords match."""
+        if attrs['new_password'] != attrs['new_password_confirm']:
+            raise serializers.ValidationError("New passwords don't match.")
+        return attrs
+    
+    def save(self):
+        """Save new password."""
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user
+```
+
+### 2. Post Serializers (`apps/posts/serializers.py`)
+
+```python
+from rest_framework import serializers
+from .models import Post
+
+class PostSerializer(serializers.ModelSerializer):
+    """Post serializer."""
+    
+    author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+    author_email = serializers.CharField(source='author.email', read_only=True)
+    comment_count = serializers.ReadOnlyField()
+    reading_time = serializers.ReadOnlyField()
+    
+    class Meta:
+        model = Post
+        fields = [
+            'id', 'title', 'slug', 'content', 'excerpt', 'author',
+            'author_name', 'author_email', 'status', 'is_featured',
+            'view_count', 'tags', 'comment_count', 'reading_time',
+            'created_at', 'updated_at', 'published_at'
+        ]
+        read_only_fields = [
+            'id', 'slug', 'author', 'author_name', 'author_email',
+            'view_count', 'comment_count', 'reading_time',
+            'created_at', 'updated_at', 'published_at'
+        ]
+
+class PostCreateSerializer(serializers.ModelSerializer):
+    """Post creation serializer."""
+    
+    class Meta:
+        model = Post
+        fields = [
+            'title', 'content', 'excerpt', 'status', 'is_featured', 'tags'
+        ]
+    
+    def create(self, validated_data):
+        """Create post with author."""
+        validated_data['author'] = self.context['request'].user
+        return super().create(validated_data)
+
+class PostUpdateSerializer(serializers.ModelSerializer):
+    """Post update serializer."""
+    
+    class Meta:
+        model = Post
+        fields = [
+            'title', 'content', 'excerpt', 'status', 'is_featured', 'tags'
+        ]
+```
+
+### 3. Comment Serializers (`apps/comments/serializers.py`)
+
+```python
+from rest_framework import serializers
+from .models import Comment
+
+class CommentSerializer(serializers.ModelSerializer):
+    """Comment serializer."""
+    
+    author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+    author_email = serializers.CharField(source='author.email', read_only=True)
+    reply_count = serializers.ReadOnlyField()
+    
+    class Meta:
+        model = Comment
+        fields = [
+            'id', 'content', 'author', 'author_name', 'author_email',
+            'post', 'parent', 'is_approved', 'reply_count',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'author', 'author_name', 'author_email',
+            'reply_count', 'created_at', 'updated_at'
+        ]
+
+class CommentCreateSerializer(serializers.ModelSerializer):
+    """Comment creation serializer."""
+    
+    class Meta:
+        model = Comment
+        fields = ['content', 'post', 'parent']
+    
+    def create(self, validated_data):
+        """Create comment with author."""
+        validated_data['author'] = self.context['request'].user
+        return super().create(validated_data)
+```
+
+## 🚀 Views
+
+### 1. User Views (`apps/users/views.py`)
+
+```python
+from rest_framework import generics, status, permissions
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import get_user_model
+
+from .serializers import (
+    UserSerializer, UserRegistrationSerializer, UserLoginSerializer,
+    UserProfileSerializer, PasswordChangeSerializer
+)
+
+User = get_user_model()
+
+class UserRegistrationView(generics.CreateAPIView):
+    """User registration view."""
+    
+    serializer_class = UserRegistrationSerializer
+    permission_classes = [permissions.AllowAny]
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def login_view(request):
+    """User login view."""
+    serializer = UserLoginSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    
+    user = serializer.validated_data['user']
+    refresh = RefreshToken.for_user(user)
+    
+    return Response({
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+        'user': UserSerializer(user).data
+    })
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def logout_view(request):
+    """User logout view."""
+    try:
+        refresh_token = request.data["refresh"]
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+        return Response({"message": "Successfully logged out."})
+    except Exception:
+        return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+
+class UserProfileView(generics.RetrieveUpdateAPIView):
+    """User profile view."""
+    
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_object(self):
+        return self.request.user
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def change_password_view(request):
+    """Change password view."""
+    serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response({"message": "Password changed successfully."})
+
+class UserListView(generics.ListAPIView):
+    """User list view."""
+    
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['is_active', 'is_verified']
+    search_fields = ['username', 'email', 'first_name', 'last_name']
+    ordering_fields = ['date_joined', 'last_login', 'username']
+    ordering = ['-date_joined']
+```
+
+### 2. Post Views (`apps/posts/views.py`)
+
+```python
+from rest_framework import generics, permissions, status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
+
+from .models import Post
+from .serializers import PostSerializer, PostCreateSerializer, PostUpdateSerializer
+
+class PostListCreateView(generics.ListCreateAPIView):
+    """Post list and create view."""
+    
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['status', 'author', 'is_featured']
+    search_fields = ['title', 'content', 'excerpt']
+    ordering_fields = ['created_at', 'updated_at', 'view_count']
+    ordering = ['-created_at']
+    
+    def get_queryset(self):
+        """Get filtered queryset."""
+        queryset = Post.objects.all()
+        
+        # Only show published posts to non-authenticated users
+        if not self.request.user.is_authenticated:
+            queryset = queryset.filter(status=Post.Status.PUBLISHED)
+        elif not self.request.user.is_staff:
+            queryset = queryset.filter(
+                models.Q(status=Post.Status.PUBLISHED) |
+                models.Q(author=self.request.user)
+            )
+        
+        return queryset
+    
+    def get_serializer_class(self):
+        """Get appropriate serializer."""
+        if self.request.method == 'POST':
+            return PostCreateSerializer
+        return PostSerializer
+    
+    def perform_create(self, serializer):
+        """Set author on create."""
+        serializer.save(author=self.request.user)
+
+class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Post detail view."""
+    
+    queryset = Post.objects.all()
+    
+    def get_serializer_class(self):
+        """Get appropriate serializer."""
+        if self.request.method in ['PUT', 'PATCH']:
+            return PostUpdateSerializer
+        return PostSerializer
+    
+    def get_permissions(self):
+        """Get appropriate permissions."""
+        if self.request.method in ['PUT', 'PATCH', 'DELETE']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Retrieve post and increment view count."""
+        instance = self.get_object()
+        
+        # Increment view count (only for published posts)
+        if instance.status == Post.Status.PUBLISHED:
+            instance.view_count += 1
+            instance.save(update_fields=['view_count'])
+        
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def publish_post(request, pk):
+    """Publish post."""
+    try:
+        post = Post.objects.get(pk=pk, author=request.user)
+        post.status = Post.Status.PUBLISHED
+        post.save()
+        return Response({"message": "Post published successfully."})
+    except Post.DoesNotExist:
+        return Response({"error": "Post not found."}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def feature_post(request, pk):
+    """Feature/unfeature post."""
+    try:
+        post = Post.objects.get(pk=pk)
+        post.is_featured = not post.is_featured
+        post.save()
+        return Response({
+            "message": f"Post {'featured' if post.is_featured else 'unfeatured'} successfully."
+        })
+    except Post.DoesNotExist:
+        return Response({"error": "Post not found."}, status=status.HTTP_404_NOT_FOUND)
+```
+
+## 🛡️ Permissions
+
+### 1. Custom Permissions (`apps/users/permissions.py`)
+
+```python
+from rest_framework import permissions
+
+class IsOwnerOrReadOnly(permissions.BasePermission):
+    """Custom permission to only allow owners of an object to edit it."""
+    
+    def has_object_permission(self, request, view, obj):
+        # Read permissions are allowed to any request,
+        # so we'll always allow GET, HEAD or OPTIONS requests.
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        
+        # Write permissions are only allowed to the owner of the object.
+        return obj.author == request.user
+
+class IsAdminOrReadOnly(permissions.BasePermission):
+    """Custom permission to only allow admins to edit."""
+    
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        
+        return request.user and request.user.is_staff
+
+class IsOwnerOrAdmin(permissions.BasePermission):
+    """Custom permission to allow owners or admins."""
+    
+    def has_object_permission(self, request, view, obj):
+        return obj.author == request.user or request.user.is_staff
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Missing Permissions:**
+   - **Bad:** Not implementing proper permission checks.
+   - **Good:** Always use appropriate permission classes.
+
+2. **Inconsistent Serialization:**
+   - **Bad:** Using the same serializer for all operations.
+   - **Good:** Use different serializers for create, update, and read operations.
+
+3. **Ignoring Pagination:**
+   - **Bad:** Returning all records without pagination.
+   - **Good:** Always paginate list responses.
+
+4. **Hardcoding Logic:**
+   - **Bad:** Hardcoding business logic in views.
+   - **Good:** Move business logic to services or models.
+
+5. **Missing Validation:**
+   - **Bad:** Not validating input data properly.
+   - **Good:** Use serializer validation and custom validators.
+
+## 🧪 Testing Strategy
+
+{% if "Pytest" in libraries %}
+Testing Django REST Framework:
+
+```python
+# tests/test_users.py
+from django.urls import reverse
+from rest_framework.test import APITestCase
+from rest_framework import status
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class UserAPITestCase(APITestCase):
+    """Test user API endpoints."""
+    
+    def setUp(self):
+        """Set up test data."""
+        self.user_data = {
+            'username': 'testuser',
+            'email': 'test@example.com',
+            'password': 'TestPass123',
+            'password_confirm': 'TestPass123',
+            'first_name': 'Test',
+            'last_name': 'User'
+        }
+    
+    def test_user_registration(self):
+        """Test user registration."""
+        url = reverse('user-register')
+        response = self.client.post(url, self.user_data)
+        
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(User.objects.filter(email='test@example.com').exists())
+    
+    def test_user_login(self):
+        """Test user login."""
+        # Create user first
+        User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='TestPass123'
+        )
+        
+        login_data = {
+            'email': 'test@example.com',
+            'password': 'TestPass123'
+        }
+        
+        url = reverse('login')
+        response = self.client.post(url, login_data)
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('access', response.data)
+        self.assertIn('refresh', response.data)
+    
+    def test_user_profile(self):
+        """Test user profile retrieval."""
+        user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='TestPass123'
+        )
+        
+        self.client.force_authenticate(user=user)
+        url = reverse('user-profile')
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['email'], 'test@example.com')
+```
+{% endif %}
+
+## 📦 Requirements
+
+```txt
+# requirements.txt
+Django>=4.2.0
+djangorestframework>=3.14.0
+djangorestframework-simplejwt>=5.2.0
+django-filter>=23.0
+drf-spectacular>=0.26.0
+Pillow>=10.0.0  # For image fields
+```

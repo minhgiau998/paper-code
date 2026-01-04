@@ -1,0 +1,58 @@
+# Go (Cobra) Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a Command Line Interface built with **Go** using the **Cobra** framework.
+It follows the [Standard Go Project Layout](https://github.com/golang-standards/project-layout), ensuring separation between the CLI entry point and the core business logic.
+
+## 📂 Directory Structure
+
+```text
+root/
+├── cmd/
+│   └── {{ project_name | lower | replace(" ", "-") }}/
+│       └── main.go          # Application Entry Point
+├── internal/                # Private Logic (Not importable by other apps)
+│   ├── config/              # Configuration loading (Viper)
+│   ├── commands/            # Command implementations (Optional separation)
+│   └── app/                 # Core Business Logic
+├── pkg/                     # Public Libraries (Optional)
+│   └── utils/
+├── config.yaml              # Default configuration
+├── go.mod
+└── go.sum
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. The `cmd` Directory
+- **Location:** `cmd/<app-name>/main.go`
+- **Responsibility:** Only bootstraps the root command and calls `Execute()`.
+- **Rule:** No business logic lives here.
+
+### 2. Command Structure
+Cobra commands are defined in `cmd/` or `internal/commands/`.
+- **Root Command:** Sets up global flags (verbose, config file) and initializes configuration.
+- **Sub-commands:** Added via `rootCmd.AddCommand(subCmd)`.
+
+### 3. Separation of Concerns (UI vs Logic)
+- **Cobra (`RunE`):** Handles "UI" concerns: parsing flags, printing to Stdout/Stderr, and exiting.
+- **Internal (`internal/app`):** Handles "Logic": interacting with files, APIs, or databases.
+- **Integration:** The Cobra command calls functions in `internal/` passing the necessary context and parameters.
+
+{% if "Viper" in libraries %}
+### 4. Configuration (Viper)
+- **Hierarchy:** Flags > Env Vars > Config File > Defaults.
+- **Binding:** We strictly bind Cobra flags to Viper keys so that `viper.GetString("key")` works regardless of where the value came from.
+- **Env Vars:** Configured with `viper.SetEnvPrefix("APP")` and `viper.AutomaticEnv()`.
+{% endif %}
+
+{% if "Bubbletea" in libraries %}
+### 5. TUI (Bubbletea)
+- If a command launches an interactive TUI, it initializes the **Bubbletea Model**.
+- The TUI logic lives in `internal/ui/`, following The Elm Architecture (Model-View-Update).
+{% endif %}
+
+## 📦 Distribution
+- **Build:** `go build -o bin/app ./cmd/...`
+- **Releasing:** We use **GoReleaser** to cross-compile binaries for Windows, macOS, and Linux automatically.

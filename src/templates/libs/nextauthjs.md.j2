@@ -1,0 +1,202 @@
+# NextAuth.js (v5) Documentation
+
+> **Purpose:** The standard authentication solution for Next.js, recently rebranded as **Auth.js**. It supports OAuth, Email, and Credentials auth.
+
+## 📦 Installation
+
+```bash
+npm install next-auth@beta
+{% if "Prisma" in libraries %}
+npm install @auth/prisma-adapter
+{% endif %}
+```
+
+## 🛠️ Configuration (v5 Standard)
+
+We follow the **Split Config** pattern to support Next.js Edge Middleware.
+
+### 1. Base Config (Edge Compatible)
+**File:** `src/auth.config.ts`
+
+```typescript
+import type { NextAuthConfig } from 'next-auth';
+
+export const authConfig = {
+  pages: {
+    signIn: '/login',
+  },
+  callbacks: {
+    authorized({ auth, request: { nextUrl } }) {
+      const isLoggedIn = !!auth?.user;
+      const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
+      
+      if (isOnDashboard) {
+        if (isLoggedIn) return true;
+        return false; // Redirect unauthenticated users to login page
+      } else if (isLoggedIn) {
+        // Redirect authenticated users away from login page
+        if (nextUrl.pathname === '/login') {
+            return Response.redirect(new URL('/dashboard', nextUrl));
+        }
+      }
+      return true;
+    },
+    // 🔧 Enhance Session: Add User ID to session
+    session({ session, token }) {
+      if (session.user && token.sub) {
+        session.user.id = token.sub;
+      }
+      return session;
+    },
+  },
+  providers: [], // Configured in auth.ts to avoid Edge issues with DB adapters
+} satisfies NextAuthConfig;
+```
+
+### 2. Main Config (DB & Providers)
+**File:** `src/auth.ts`
+
+```typescript
+import NextAuth from 'next-auth';
+import { authConfig } from './auth.config';
+import Google from 'next-auth/providers/google';
+import Credentials from 'next-auth/providers/credentials';
+import { z } from 'zod';
+
+{% if "Prisma" in libraries %}
+import { PrismaAdapter } from '@auth/prisma-adapter';
+import { prisma } from '@/lib/db'; // Your Prisma Singleton
+{% endif %}
+
+export const { auth, signIn, signOut, handlers } = NextAuth({
+  ...authConfig,
+{% if "Prisma" in libraries %}
+  adapter: PrismaAdapter(prisma),
+  session: { strategy: 'jwt' }, // Prisma default is 'database', change to 'jwt' for Edge compatibility
+{% endif %}
+  providers: [
+    Google,
+    Credentials({
+      async authorize(credentials) {
+        // Validate inputs
+        const parsedCredentials = z
+          .object({ email: z.string().email(), password: z.string().min(6) })
+          .safeParse(credentials);
+
+        if (parsedCredentials.success) {
+          const { email, password } = parsedCredentials.data;
+          // Logic to verify user (e.g., fetch from DB and bcrypt.compare)
+          // return user;
+        }
+        return null;
+      },
+    }),
+  ],
+});
+```
+
+### 3. Route Handler
+**File:** `app/api/auth/[...nextauth]/route.ts`
+
+```typescript
+import { handlers } from "@/auth";
+export const { GET, POST } = handlers;
+```
+
+### 4. Middleware (Protect Routes)
+**File:** `middleware.ts` (in root)
+
+```typescript
+import NextAuth from 'next-auth';
+import { authConfig } from './src/auth.config';
+
+export default NextAuth(authConfig).auth;
+
+export const config = {
+  // Matcher ignoring static files
+  matcher: ['/((?!api|_next/static|_next/image|.*\\.png$).*)'],
+};
+```
+
+## 🛡️ Type Safety (Critical)
+
+**Problem:** TypeScript complains that `session.user.id` does not exist.
+**Solution:** Module Augmentation.
+
+**File:** `src/types/next-auth.d.ts`
+
+```typescript
+import NextAuth, { DefaultSession } from "next-auth";
+
+declare module "next-auth" {
+  /**
+   * Returned by `auth`, `useSession`, `getSession` and received as a prop on the `SessionProvider` React Context
+   */
+  interface Session {
+    user: {
+      id: string;
+      role?: string; // Example extension
+    } & DefaultSession["user"];
+  }
+}
+```
+
+## 💻 Usage Patterns
+
+### 1. Server Components (Recommended)
+In Next.js App Router, fetch the session directly on the server.
+
+```tsx
+import { auth } from "@/auth";
+
+export default async function Dashboard() {
+  const session = await auth();
+
+  if (!session) return <div>Access Denied</div>;
+
+  return (
+    <div>
+      <h1>Welcome, {session.user.name}</h1>
+      <p>ID: {session.user.id}</p>
+    </div>
+  );
+}
+```
+
+### 2. Client Components
+To use `useSession` in Client Components, you must wrap the app in a Provider.
+
+**File:** `src/components/SessionProvider.tsx` (Client Wrapper)
+```tsx
+'use client';
+import { SessionProvider as Provider } from 'next-auth/react';
+
+export default function SessionProvider({ children }: { children: React.ReactNode }) {
+  return <Provider>{children}</Provider>;
+}
+```
+
+**Usage:**
+```tsx
+'use client';
+import { useSession } from 'next-auth/react';
+
+export function UserButton() {
+  const { data: session } = useSession();
+  if (!session) return <button>Sign In</button>;
+  return <button>Sign Out {session.user.name}</button>;
+}
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Exposing Secrets:**
+    *   Set `AUTH_SECRET` in your `.env`. Never hardcode secrets in the config.
+    *   Run `npx auth secret` to generate a secure key.
+
+2.  **Database in Middleware:**
+    *   **Rule:** Do not import `prisma` or any database adapter in `middleware.ts` or `auth.config.ts`.
+    *   Middleware runs on the Edge (Vercel Edge Runtime) where traditional DB connections often fail or are slow. Keep DB logic in `auth.ts`.
+
+3.  **Client-Side Protection:**
+    *   Don't rely solely on `useSession()` to protect pages. Use the `middleware.ts` or Server Component checks (`await auth()`) for true security.

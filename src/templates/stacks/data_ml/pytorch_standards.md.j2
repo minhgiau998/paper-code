@@ -1,0 +1,85 @@
+# PyTorch Coding Standards
+
+## 📝 Naming Conventions
+
+- **Tensors:** `snake_case` (e.g., `input_tensor`, `mask`).
+- **Dimensions:** Use clear variable names for shapes (e.g., `batch_size`, `num_channels` instead of `b`, `c`).
+- **Models:** PascalCase (e.g., `ResNet50`, `TransformerEncoder`).
+- **Datasets:** PascalCase, suffix with Dataset (e.g., `ImageTextDataset`).
+
+## ⚡ PyTorch Best Practices (Critical)
+
+### 1. Device Agnostic Code
+**Rule:** Never hardcode `.cuda()` or `.cpu()`.
+- Use the `device` variable passed from arguments.
+- Use `.to(device)` for moving tensors/models.
+
+```python
+# ❌ Bad
+x = x.cuda()
+
+# ✅ Good
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+x = x.to(device)
+```
+
+### 2. Type Hinting (Tensor Shapes)
+**Rule:** Use Type Hints for all function signatures.
+- While Python cannot statically check tensor shapes, documenting them in docstrings or using `jaxtyping` is encouraged.
+
+```python
+def forward(self, x: torch.Tensor) -> torch.Tensor:
+    """
+    Args:
+        x: Input tensor of shape (Batch, Channels, Height, Width)
+    Returns:
+        Logits of shape (Batch, Classes)
+    """
+    ...
+```
+
+### 3. Reproducibility
+**Rule:** Always set seeds at the start of `train.py`.
+- Seed: Python `random`, NumPy, and PyTorch (CPU & GPU).
+- Use `torch.backends.cudnn.deterministic = True` for strict reproducibility if needed.
+
+### 4. Zero Gradients
+**Rule:** Use `optimizer.zero_grad(set_to_none=True)` instead of `zero_grad()`.
+- Setting gradients to `None` is slightly faster and memory efficient than setting them to zero tensors.
+
+## 🛠️ Model Definition Rules
+
+### 1. Modular Blocks
+**Rule:** Break complex models into sub-modules (blocks).
+- Do not write a 500-line `__init__` method.
+
+### 2. Forward Pass
+**Rule:** Keep `forward()` clean.
+- It should represent the data flow.
+- Avoid side effects (printing, saving files) inside `forward()`.
+
+### 3. PyTorch 2.0 Compatibility
+**Rule:** Avoid Graph Breaks if you plan to use `torch.compile`.
+- Avoid converting Tensors to NumPy/Lists inside the model.
+- Avoid strict Python control flow (`if tensor.item() > 0`) if possible; use `torch.where`.
+
+## 💾 Data Handling
+
+### 1. Preprocessing
+**Rule:** Heavy preprocessing (resizing images, tokenizing text) should be done **offline** (saved to `data/processed`) or in the `__getitem__` only if it's fast.
+- Do not perform heavy CPU operations in the main training loop.
+
+### 2. Num Workers
+**Rule:** Tune `num_workers` in `DataLoader`.
+- Setting `num_workers=0` (default) runs data loading on the main thread, blocking training. Set it to `cpu_count() - 1` or similar.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **`tensor.data`:** Never use `.data` to access the underlying tensor (it breaks autograd tracking). Use `.detach()` instead.
+2.  **In-place Operations:** Be careful with in-place ops (like `x += 1` or `relu_(x)`). They can break gradient calculation in complex graphs.
+3.  **For loops over Tensors:** Never iterate over a tensor using a Python `for` loop. Use vectorized operations.
+
+## 🧪 Testing
+
+- **Shape Tests:** Write unit tests that pass a dummy tensor through the model and assert the output shape.
+- **Overfit Batch:** A sanity check test: Try to overfit a single batch of data to 0.0 loss. If the model can't do this, it has a bug.

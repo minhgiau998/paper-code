@@ -1,0 +1,1102 @@
+# Alembic Documentation
+
+> **Purpose:** Database migration tool for SQLAlchemy.
+
+## 📦 Installation
+
+```bash
+pip install alembic
+# Usually installed with SQLAlchemy
+pip install sqlalchemy
+```
+
+## 🛠️ Configuration
+
+**Strategy:** Use Alembic for database schema versioning and migrations.
+
+### 1. Initialize Alembic (`alembic.ini`)
+
+```ini
+# A generic, single database configuration.
+
+[alembic]
+# path to migration scripts
+script_location = migrations
+
+# template used to generate migration file names; The default value is %%(rev)s_%%(slug)s
+# Uncomment the line below if you want the files to be prepended with date and time
+# file_template = %%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s
+
+# sys.path path, will be prepended to sys.path if present.
+# defaults to the current working directory.
+prepend_sys_path = .
+
+# timezone to use when rendering the date within the migration file
+# as well as the filename.
+# If specified, requires the python-dateutil library that can be
+# installed by adding `alembic[tz]` to the pip requirements
+# string value is passed to dateutil.tz.gettz()
+# leave blank for localtime
+# timezone =
+
+# max length of characters to apply to the
+# "slug" field
+# truncate_slug_length = 40
+
+# set to 'true' to run the environment during
+# the 'revision' command, regardless of autogenerate
+# revision_environment = false
+
+# set to 'true' to allow .pyc and .pyo files without
+# a source .py file to be detected as revisions in the
+# versions/ directory
+# sourceless = false
+
+# version number format
+version_num_format = %04d
+
+# version path separator; As mentioned above, this is the character used to split
+# version_locations. The default within new alembic.ini files is "os", which uses
+# os.pathsep. If this key is omitted entirely, it falls back to the legacy
+# behavior of splitting on spaces and/or commas.
+# Valid values for version_path_separator are:
+#
+# version_path_separator = :
+# version_path_separator = ;
+# version_path_separator = space
+version_path_separator = os
+
+# set to 'true' to search source files recursively
+# in each "version_locations" directory
+# new in Alembic version 1.10
+# recursive_version_locations = false
+
+# the output encoding used when revision files
+# are written from script.py.mako
+# output_encoding = utf-8
+
+sqlalchemy.url = postgresql://user:password@localhost/myapp
+
+[post_write_hooks]
+# post_write_hooks defines scripts or Python functions that are run
+# on newly generated revision scripts.  See the documentation for further
+# detail and examples
+
+# format using "black" - use the console_scripts runner, against the "black" entrypoint
+# hooks = black
+# black.type = console_scripts
+# black.entrypoint = black
+# black.options = -l 79 REVISION_SCRIPT_FILENAME
+
+# lint with attempts to fix using "ruff" - use the exec runner, execute a binary
+# hooks = ruff
+# ruff.type = exec
+# ruff.executable = %(here)s/.venv/bin/ruff
+# ruff.options = --fix REVISION_SCRIPT_FILENAME
+
+# Logging configuration
+[loggers]
+keys = root,sqlalchemy,alembic
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = WARN
+handlers = console
+qualname =
+
+[logger_sqlalchemy]
+level = WARN
+handlers =
+qualname = sqlalchemy.engine
+
+[logger_alembic]
+level = INFO
+handlers =
+qualname = alembic
+
+[handler_console]
+class = StreamHandler
+args = (sys.stderr,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+format = %(levelname)-5.5s [%(name)s] %(message)s
+datefmt = %H:%M:%S
+```
+
+### 2. Environment Configuration (`migrations/env.py`)
+
+```python
+from logging.config import fileConfig
+from sqlalchemy import engine_from_config
+from sqlalchemy import pool
+from alembic import context
+import os
+import sys
+
+# Add your project's directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+# Import your models
+from src.models.base import Base  # Your base model
+from src.models.user import User
+from src.models.post import Post
+from src.models.comment import Comment
+
+# this is the Alembic Config object, which provides
+# access to the values within the .ini file in use.
+config = context.config
+
+# Interpret the config file for Python logging.
+# This line sets up loggers basically.
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+# add your model's MetaData object here
+# for 'autogenerate' support
+target_metadata = Base.metadata
+
+# other values from the config, defined by the needs of env.py,
+# can be acquired:
+# my_important_option = config.get_main_option("my_important_option")
+# ... etc.
+
+
+def get_database_url():
+    """Get database URL from environment variables."""
+    db_type = os.getenv('DB_TYPE', 'postgresql')
+    
+    if db_type == 'postgresql':
+        return (
+            f"postgresql://{os.getenv('DB_USER', 'postgres')}:"
+            f"{os.getenv('DB_PASSWORD', 'password')}@"
+            f"{os.getenv('DB_HOST', 'localhost')}:"
+            f"{os.getenv('DB_PORT', '5432')}/"
+            f"{os.getenv('DB_NAME', 'myapp')}"
+        )
+    elif db_type == 'mysql':
+        return (
+            f"mysql+pymysql://{os.getenv('DB_USER', 'root')}:"
+            f"{os.getenv('DB_PASSWORD', 'password')}@"
+            f"{os.getenv('DB_HOST', 'localhost')}:"
+            f"{os.getenv('DB_PORT', '3306')}/"
+            f"{os.getenv('DB_NAME', 'myapp')}"
+        )
+    elif db_type == 'sqlite':
+        return f"sqlite:///{os.getenv('DB_PATH', 'app.db')}"
+    else:
+        raise ValueError(f"Unsupported database type: {db_type}")
+
+
+def run_migrations_offline() -> None:
+    """Run migrations in 'offline' mode.
+
+    This configures the context with just a URL
+    and not an Engine, though an Engine is acceptable
+    here as well.  By skipping the Engine creation
+    we don't even need a DBAPI to be available.
+
+    Calls to context.execute() here emit the given string to the
+    script output.
+
+    """
+    url = get_database_url()
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+        compare_type=True,
+        compare_server_default=True,
+    )
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+def run_migrations_online() -> None:
+    """Run migrations in 'online' mode.
+
+    In this scenario we need to create an Engine
+    and associate a connection with the context.
+
+    """
+    # Override the sqlalchemy.url in the config
+    configuration = config.get_section(config.config_ini_section)
+    configuration["sqlalchemy.url"] = get_database_url()
+    
+    connectable = engine_from_config(
+        configuration,
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+    )
+
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True,
+            include_schemas=True,
+            render_item=render_item,
+        )
+
+        with context.begin_transaction():
+            context.run_migrations()
+
+
+def render_item(type_, obj, autogen_context):
+    """Custom rendering for migration items."""
+    if type_ == "type" and isinstance(obj, (sa.DateTime, sa.Date)):
+        return "sa.DateTime(timezone=True)"
+    return False
+
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()
+```
+
+### 3. Migration Script Template (`migrations/script.py.mako`)
+
+```python
+"""${message}
+
+Revision ID: ${up_revision}
+Revises: ${down_revision | comma,n}
+Create Date: ${create_date}
+
+"""
+from alembic import op
+import sqlalchemy as sa
+${imports if imports else ""}
+
+# revision identifiers, used by Alembic.
+revision = ${repr(up_revision)}
+down_revision = ${repr(down_revision)}
+branch_labels = ${repr(branch_labels)}
+depends_on = ${repr(depends_on)}
+
+
+def upgrade() -> None:
+    ${upgrades if upgrades else "pass"}
+
+
+def downgrade() -> None:
+    ${downgrades if downgrades else "pass"}
+```
+
+## 📝 Creating Migrations
+
+### 1. Manual Migration Creation
+
+```bash
+# Create a new migration
+alembic revision --autogenerate -m "Add user table"
+
+# Create migration without autogenerate
+alembic revision -m "Add custom migration"
+
+# Create migration with specific revision
+alembic revision --autogenerate -m "Add post table" --rev-id 0002
+```
+
+### 2. Example Migration Files
+
+#### User Table Migration (`migrations/versions/0001_add_user_table.py`)
+
+```python
+"""Add user table
+
+Revision ID: 0001
+Revises: 
+Create Date: 2024-01-01 10:00:00.000000
+
+"""
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+# revision identifiers, used by Alembic.
+revision = '0001'
+down_revision = None
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    # Create user_roles enum type
+    op.execute("CREATE TYPE user_role AS ENUM ('user', 'admin', 'moderator')")
+    
+    # Create users table
+    op.create_table(
+        'users',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('name', sa.String(length=100), nullable=False),
+        sa.Column('email', sa.String(length=255), nullable=False),
+        sa.Column('password', sa.String(length=255), nullable=False),
+        sa.Column('avatar', sa.String(length=255), nullable=True),
+        sa.Column('bio', sa.Text(), nullable=True),
+        sa.Column('phone', sa.String(length=20), nullable=True),
+        sa.Column('role', sa.Enum('user', 'admin', 'moderator', name='user_role'), nullable=False),
+        sa.Column('is_active', sa.Boolean(), nullable=False),
+        sa.Column('is_verified', sa.Boolean(), nullable=False),
+        sa.Column('last_login', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+        sa.PrimaryKeyConstraint('id')
+    )
+    
+    # Create indexes
+    op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
+    op.create_index(op.f('ix_users_is_active'), 'users', ['is_active'], unique=False)
+    op.create_index(op.f('ix_users_is_verified'), 'users', ['is_verified'], unique=False)
+    op.create_index('ix_users_created_at', 'users', ['created_at'], unique=False)
+
+
+def downgrade() -> None:
+    # Drop indexes
+    op.drop_index(op.f('ix_users_is_verified'), table_name='users')
+    op.drop_index(op.f('ix_users_is_active'), table_name='users')
+    op.drop_index(op.f('ix_users_email'), table_name='users')
+    op.drop_index('ix_users_created_at', table_name='users')
+    
+    # Drop table
+    op.drop_table('users')
+    
+    # Drop enum type
+    op.execute("DROP TYPE user_role")
+```
+
+#### Post Table Migration (`migrations/versions/0002_add_post_table.py`)
+
+```python
+"""Add post table
+
+Revision ID: 0002
+Revises: 0001
+Create Date: 2024-01-01 11:00:00.000000
+
+"""
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+# revision identifiers, used by Alembic.
+revision = '0002'
+down_revision = '0001'
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    # Create post_status enum type
+    op.execute("CREATE TYPE post_status AS ENUM ('draft', 'published', 'archived')")
+    
+    # Create posts table
+    op.create_table(
+        'posts',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('title', sa.String(length=200), nullable=False),
+        sa.Column('slug', sa.String(length=255), nullable=True),
+        sa.Column('content', sa.Text(), nullable=False),
+        sa.Column('excerpt', sa.Text(), nullable=True),
+        sa.Column('status', sa.Enum('draft', 'published', 'archived', name='post_status'), nullable=False),
+        sa.Column('is_featured', sa.Boolean(), nullable=False),
+        sa.Column('view_count', sa.Integer(), nullable=False),
+        sa.Column('tags', sa.JSON(), nullable=True),
+        sa.Column('metadata', sa.JSON(), nullable=True),
+        sa.Column('author_id', sa.Integer(), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+        sa.Column('published_at', sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(['author_id'], ['users.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    
+    # Create indexes
+    op.create_index(op.f('ix_posts_slug'), 'posts', ['slug'], unique=True)
+    op.create_index(op.f('ix_posts_status'), 'posts', ['status'], unique=False)
+    op.create_index(op.f('ix_posts_is_featured'), 'posts', ['is_featured'], unique=False)
+    op.create_index('ix_posts_author_id', 'posts', ['author_id'], unique=False)
+    op.create_index('ix_posts_created_at', 'posts', ['created_at'], unique=False)
+    
+    # Create trigger for updated_at
+    op.execute("""
+        CREATE OR REPLACE FUNCTION update_updated_at_column()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            NEW.updated_at = NOW();
+            RETURN NEW;
+        END;
+        $$ language 'plpgsql';
+    """)
+    
+    op.execute("""
+        CREATE TRIGGER update_posts_updated_at 
+            BEFORE UPDATE ON posts 
+            FOR EACH ROW 
+            EXECUTE FUNCTION update_updated_at_column();
+    """)
+
+
+def downgrade() -> None:
+    # Drop trigger
+    op.execute("DROP TRIGGER IF EXISTS update_posts_updated_at ON posts")
+    
+    # Drop function
+    op.execute("DROP FUNCTION IF EXISTS update_updated_at_column()")
+    
+    # Drop indexes
+    op.drop_index('ix_posts_created_at', table_name='posts')
+    op.drop_index('ix_posts_author_id', table_name='posts')
+    op.drop_index(op.f('ix_posts_is_featured'), table_name='posts')
+    op.drop_index(op.f('ix_posts_status'), table_name='posts')
+    op.drop_index(op.f('ix_posts_slug'), table_name='posts')
+    
+    # Drop table
+    op.drop_table('posts')
+    
+    # Drop enum type
+    op.execute("DROP TYPE post_status")
+```
+
+#### Comment Table Migration (`migrations/versions/0003_add_comment_table.py`)
+
+```python
+"""Add comment table
+
+Revision ID: 0003
+Revises: 0002
+Create Date: 2024-01-01 12:00:00.000000
+
+"""
+from alembic import op
+import sqlalchemy as sa
+
+# revision identifiers, used by Alembic.
+revision = '0003'
+down_revision = '0002'
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    # Create comments table
+    op.create_table(
+        'comments',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('content', sa.Text(), nullable=False),
+        sa.Column('is_approved', sa.Boolean(), nullable=False),
+        sa.Column('is_deleted', sa.Boolean(), nullable=False),
+        sa.Column('author_id', sa.Integer(), nullable=False),
+        sa.Column('post_id', sa.Integer(), nullable=False),
+        sa.Column('parent_id', sa.Integer(), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+        sa.ForeignKeyConstraint(['author_id'], ['users.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['parent_id'], ['comments.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['post_id'], ['posts.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    
+    # Create indexes
+    op.create_index('ix_comments_author_id', 'comments', ['author_id'], unique=False)
+    op.create_index('ix_comments_post_id', 'comments', ['post_id'], unique=False)
+    op.create_index('ix_comments_parent_id', 'comments', ['parent_id'], unique=False)
+    op.create_index('ix_comments_created_at', 'comments', ['created_at'], unique=False)
+    
+    # Create trigger for updated_at
+    op.execute("""
+        CREATE TRIGGER update_comments_updated_at 
+            BEFORE UPDATE ON comments 
+            FOR EACH ROW 
+            EXECUTE FUNCTION update_updated_at_column();
+    """)
+
+
+def downgrade() -> None:
+    # Drop trigger
+    op.execute("DROP TRIGGER IF EXISTS update_comments_updated_at ON comments")
+    
+    # Drop indexes
+    op.drop_index('ix_comments_created_at', table_name='comments')
+    op.drop_index('ix_comments_parent_id', table_name='comments')
+    op.drop_index('ix_comments_post_id', table_name='comments')
+    op.drop_index('ix_comments_author_id', table_name='comments')
+    
+    # Drop table
+    op.drop_table('comments')
+```
+
+## 🔄 Running Migrations
+
+### 1. Basic Commands
+
+```bash
+# Upgrade to latest version
+alembic upgrade head
+
+# Upgrade to specific version
+alembic upgrade 0002
+
+# Downgrade one version
+alembic downgrade -1
+
+# Downgrade to specific version
+alembic downgrade 0001
+
+# Downgrade to base (no tables)
+alembic downgrade base
+
+# Show current version
+alembic current
+
+# Show history of migrations
+alembic history
+
+# Show migration history as graph
+alembic history --verbose
+
+# Show pending migrations
+alembic heads
+```
+
+### 2. Migration Management Script (`scripts/migrate.py`)
+
+```python
+#!/usr/bin/env python3
+"""
+Migration management script
+"""
+
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+
+def run_command(cmd):
+    """Run alembic command and handle errors."""
+    try:
+        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error running command: {cmd}")
+        print(e.stdout)
+        print(e.stderr, file=sys.stderr)
+        return False
+
+
+def create_migration(message, autogenerate=True):
+    """Create a new migration."""
+    cmd = f"alembic revision"
+    if autogenerate:
+        cmd += " --autogenerate"
+    cmd += f" -m \"{message}\""
+    
+    print(f"Creating migration: {message}")
+    return run_command(cmd)
+
+
+def upgrade(target="head"):
+    """Upgrade database."""
+    print(f"Upgrading to: {target}")
+    return run_command(f"alembic upgrade {target}")
+
+
+def downgrade(target="-1"):
+    """Downgrade database."""
+    print(f"Downgrading to: {target}")
+    return run_command(f"alembic downgrade {target}")
+
+
+def current():
+    """Show current migration version."""
+    print("Current migration version:")
+    return run_command("alembic current")
+
+
+def history():
+    """Show migration history."""
+    print("Migration history:")
+    return run_command("alembic history")
+
+
+def heads():
+    """Show available heads."""
+    print("Available migration heads:")
+    return run_command("alembic heads")
+
+
+def stamp(revision):
+    """Set database version without running migrations."""
+    print(f"Stamping database as: {revision}")
+    return run_command(f"alembic stamp {revision}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Alembic migration management")
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    
+    # Create migration
+    create_parser = subparsers.add_parser("create", help="Create new migration")
+    create_parser.add_argument("message", help="Migration message")
+    create_parser.add_argument("--no-autogenerate", action="store_true", 
+                              help="Don't use autogenerate")
+    
+    # Upgrade
+    upgrade_parser = subparsers.add_parser("upgrade", help="Upgrade database")
+    upgrade_parser.add_argument("target", nargs="?", default="head", 
+                                help="Target revision (default: head)")
+    
+    # Downgrade
+    downgrade_parser = subparsers.add_parser("downgrade", help="Downgrade database")
+    downgrade_parser.add_argument("target", nargs="?", default="-1", 
+                                 help="Target revision (default: -1)")
+    
+    # Status commands
+    subparsers.add_parser("current", help="Show current version")
+    subparsers.add_parser("history", help="Show migration history")
+    subparsers.add_parser("heads", help="Show available heads")
+    
+    # Stamp
+    stamp_parser = subparsers.add_parser("stamp", help="Set database version")
+    stamp_parser.add_argument("revision", help="Revision to stamp")
+    
+    args = parser.parse_args()
+    
+    if not args.command:
+        parser.print_help()
+        return
+    
+    success = False
+    
+    if args.command == "create":
+        success = create_migration(args.message, not args.no_autogenerate)
+    elif args.command == "upgrade":
+        success = upgrade(args.target)
+    elif args.command == "downgrade":
+        success = downgrade(args.target)
+    elif args.command == "current":
+        success = current()
+    elif args.command == "history":
+        success = history()
+    elif args.command == "heads":
+        success = heads()
+    elif args.command == "stamp":
+        success = stamp(args.revision)
+    
+    if not success:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+## 🔧 Advanced Features
+
+### 1. Batch Operations
+
+```python
+"""Add multiple columns to users table
+
+Revision ID: 0004
+Revises: 0003
+Create Date: 2024-01-01 13:00:00.000000
+
+"""
+from alembic import op
+import sqlalchemy as sa
+
+# revision identifiers, used by Alembic.
+revision = '0004'
+down_revision = '0003'
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    # Batch operations for better performance
+    with op.batch_alter_table('users') as batch_op:
+        batch_op.add_column(sa.Column('website', sa.String(length=255), nullable=True))
+        batch_op.add_column(sa.Column('location', sa.String(length=100), nullable=True))
+        batch_op.add_column(sa.Column('birth_date', sa.Date(), nullable=True))
+        batch_op.add_column(sa.Column('preferences', sa.JSON(), nullable=True))
+        
+        batch_op.create_index('ix_users_website', 'website', unique=False)
+        batch_op.create_index('ix_users_location', 'location', unique=False)
+
+
+def downgrade() -> None:
+    with op.batch_alter_table('users') as batch_op:
+        batch_op.drop_index('ix_users_location')
+        batch_op.drop_index('ix_users_website')
+        batch_op.drop_column('preferences')
+        batch_op.drop_column('birth_date')
+        batch_op.drop_column('location')
+        batch_op.drop_column('website')
+```
+
+### 2. Data Migration
+
+```python
+"""Migrate user data and add default values
+
+Revision ID: 0005
+Revises: 0004
+Create Date: 2024-01-01 14:00:00.000000
+
+"""
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.sql import table, column
+from datetime import datetime
+
+# revision identifiers, used by Alembic.
+revision = '0005'
+down_revision = '0004'
+branch_labels = None
+depends_on = None
+
+# Define table for data operations
+users_table = table('users',
+    column('id', sa.Integer),
+    column('role', sa.String),
+    column('is_verified', sa.Boolean),
+    column('preferences', sa.JSON),
+)
+
+
+def upgrade() -> None:
+    # Add default preferences for existing users
+    connection = op.get_bind()
+    
+    # Get all users without preferences
+    result = connection.execute(
+        sa.text("SELECT id FROM users WHERE preferences IS NULL")
+    )
+    
+    default_preferences = {
+        "theme": "light",
+        "language": "en",
+        "notifications": {
+            "email": True,
+            "push": False,
+            "sms": False
+        },
+        "privacy": {
+            "profile_visible": True,
+            "show_email": False
+        }
+    }
+    
+    # Update each user with default preferences
+    for row in result:
+        connection.execute(
+            users_table.update()
+            .where(users_table.c.id == row.id)
+            .values(preferences=default_preferences)
+        )
+    
+    # Set first user as admin if no admin exists
+    connection.execute(
+        sa.text("""
+            UPDATE users 
+            SET role = 'admin' 
+            WHERE id = (
+                SELECT id FROM users 
+                ORDER BY created_at ASC 
+                LIMIT 1
+            ) AND NOT EXISTS (
+                SELECT 1 FROM users WHERE role = 'admin'
+            )
+        """)
+    )
+
+
+def downgrade() -> None:
+    # Remove preferences from all users
+    connection = op.get_bind()
+    connection.execute(
+        sa.text("UPDATE users SET preferences = NULL")
+    )
+    
+    # Reset all roles to 'user'
+    connection.execute(
+        sa.text("UPDATE users SET role = 'user' WHERE role != 'user'")
+    )
+```
+
+### 3. Conditional Migrations
+
+```python
+"""Add search functionality with full-text search
+
+Revision ID: 0006
+Revises: 0005
+Create Date: 2024-01-01 15:00:00.000000
+
+"""
+from alembic import op
+import sqlalchemy as sa
+
+# revision identifiers, used by Alembic.
+revision = '0006'
+down_revision = '0005'
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    # Check if PostgreSQL for full-text search
+    connection = op.get_bind()
+    db_dialect = connection.dialect.name
+    
+    if db_dialect == 'postgresql':
+        # Add full-text search columns
+        op.add_column('posts', sa.Column('search_vector', sa.Text(), nullable=True))
+        
+        # Create GIN index for full-text search
+        op.execute("""
+            CREATE INDEX ix_posts_search_vector 
+            ON posts 
+            USING gin(to_tsvector('english', title || ' ' || content))
+        """)
+        
+        # Create trigger function for search vector
+        op.execute("""
+            CREATE OR REPLACE FUNCTION update_search_vector()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                NEW.search_vector := to_tsvector('english', NEW.title || ' ' || NEW.content);
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        """)
+        
+        # Create trigger
+        op.execute("""
+            CREATE TRIGGER update_posts_search_vector
+                BEFORE INSERT OR UPDATE ON posts
+                FOR EACH ROW
+                EXECUTE FUNCTION update_search_vector();
+        """)
+        
+        # Update existing posts
+        op.execute("""
+            UPDATE posts 
+            SET search_vector = to_tsvector('english', title || ' ' || content)
+            WHERE search_vector IS NULL
+        """)
+    else:
+        # For other databases, add simple search columns
+        op.add_column('posts', sa.Column('search_title', sa.String(length=255), nullable=True))
+        op.add_column('posts', sa.Column('search_content', sa.Text(), nullable=True))
+        
+        # Create indexes
+        op.create_index('ix_posts_search_title', 'posts', ['search_title'])
+        op.create_index('ix_posts_search_content', 'posts', ['search_content'])
+
+
+def downgrade() -> None:
+    connection = op.get_bind()
+    db_dialect = connection.dialect.name
+    
+    if db_dialect == 'postgresql':
+        # Drop trigger
+        op.execute("DROP TRIGGER IF EXISTS update_posts_search_vector ON posts")
+        
+        # Drop function
+        op.execute("DROP FUNCTION IF EXISTS update_search_vector()")
+        
+        # Drop index
+        op.drop_index('ix_posts_search_vector', table_name='posts')
+        
+        # Drop column
+        op.drop_column('posts', 'search_vector')
+    else:
+        # Drop indexes
+        op.drop_index('ix_posts_search_content', table_name='posts')
+        op.drop_index('ix_posts_search_title', table_name='posts')
+        
+        # Drop columns
+        op.drop_column('posts', 'search_content')
+        op.drop_column('posts', 'search_title')
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Data Loss in Downgrades:**
+   - **Bad:** Downgrade migrations that can't restore data.
+   - **Good:** Always write reversible migrations.
+
+2. **Large Migrations:**
+   - **Bad:** Single migration with many changes.
+   - **Good:** Break large migrations into smaller, logical pieces.
+
+3. **Missing Indexes:**
+   - **Bad:** Creating tables without proper indexes.
+   - **Good:** Always include necessary indexes in migrations.
+
+4. **Hardcoded Values:**
+   - **Bad:** Hardcoding environment-specific values.
+   - **Good:** Use environment variables and configuration.
+
+5. **No Testing:**
+   - **Bad:** Not testing migrations before deployment.
+   - **Good:** Test migrations in staging environment.
+
+## 🧪 Testing Strategy
+
+### 1. Migration Testing (`tests/test_migrations.py`)
+
+```python
+import pytest
+from alembic.command import upgrade, downgrade, revision
+from alembic.config import Config
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+
+from src.models.base import Base
+from src.models.user import User
+from src.models.post import Post
+
+
+@pytest.fixture
+def alembic_config():
+    """Get Alembic configuration for testing."""
+    return Config("test_alembic.ini")
+
+
+@pytest.fixture
+def test_engine():
+    """Create test database engine."""
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    return engine
+
+
+@pytest.fixture
+def test_session(test_engine):
+    """Create test database session."""
+    Session = sessionmaker(bind=test_engine)
+    session = Session()
+    yield session
+    session.close()
+
+
+def test_migration_up_down(alembic_config, test_engine):
+    """Test migration upgrade and downgrade."""
+    # Upgrade to head
+    upgrade(alembic_config, "head")
+    
+    # Check tables exist
+    with test_engine.connect() as conn:
+        result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
+        tables = [row[0] for row in result]
+        assert 'users' in tables
+        assert 'posts' in tables
+        assert 'comments' in tables
+    
+    # Downgrade to base
+    downgrade(alembic_config, "base")
+    
+    # Check tables are gone
+    with test_engine.connect() as conn:
+        result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
+        tables = [row[0] for row in result]
+        assert 'users' not in tables
+        assert 'posts' not in tables
+        assert 'comments' not in tables
+
+
+def test_data_migration(alembic_config, test_engine, test_session):
+    """Test data migration preserves data."""
+    # Upgrade to head
+    upgrade(alembic_config, "head")
+    
+    # Create test data
+    user = User(
+        name="Test User",
+        email="test@example.com",
+        password="hashed_password"
+    )
+    test_session.add(user)
+    test_session.commit()
+    
+    # Downgrade and upgrade again
+    downgrade(alembic_config, "0004")
+    upgrade(alembic_config, "head")
+    
+    # Check data still exists
+    saved_user = test_session.query(User).filter_by(email="test@example.com").first()
+    assert saved_user is not None
+    assert saved_user.name == "Test User"
+
+
+def test_autogenerate(alembic_config):
+    """Test autogenerate creates expected migration."""
+    # Create a migration
+    revision(alembic_config, autogenerate=True, message="test_autogenerate")
+    
+    # Check migration file was created
+    import os
+    migrations_dir = "migrations/versions"
+    migration_files = [f for f in os.listdir(migrations_dir) if f.endswith('.py')]
+    
+    assert len(migration_files) > 0
+    
+    # Clean up
+    for file in migration_files:
+        if "test_autogenerate" in file:
+            os.remove(os.path.join(migrations_dir, file))
+```
+
+## 📦 Environment Variables
+
+```env
+# Database Configuration
+DATABASE_URL=postgresql://user:password@localhost/myapp
+DB_TYPE=postgresql
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=password
+DB_NAME=myapp
+
+# SQLite Configuration
+# DATABASE_URL=sqlite:///app.db
+# DB_PATH=app.db
+
+# Alembic Configuration
+ALEMBIC_CONFIG_FILE=alembic.ini
+ALEMBIC_SCRIPT_LOCATION=migrations
+```
+
+## 📦 Package.json Scripts
+
+```json
+{
+  "scripts": {
+    "migrate": "alembic upgrade head",
+    "migrate:down": "alembic downgrade -1",
+    "migrate:create": "alembic revision --autogenerate -m",
+    "migrate:history": "alembic history",
+    "migrate:current": "alembic current",
+    "db:reset": "alembic downgrade base && alembic upgrade head",
+    "db:seed": "python scripts/seed_database.py"
+  }
+}
+```

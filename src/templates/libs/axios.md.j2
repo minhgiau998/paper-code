@@ -1,0 +1,226 @@
+# Axios Documentation
+
+> **Purpose:** Promise based HTTP client for the browser and node.js.
+
+## 📦 Installation
+
+```bash
+npm install axios
+```
+
+## 🛠️ Configuration (The Singleton Pattern)
+
+**Critical Rule:** Do not use `import axios from 'axios'` directly in your components or services. Instead, configure a centralized instance.
+
+**Why?**
+1.  **Centralized Config:** Set `baseURL` once.
+2.  **Interceptors:** Handle Auth tokens (JWT) and Error logging in one place.
+3.  **Maintainability:** Easy to swap endpoints or logic later.
+
+### 1. Create the Client
+
+Create this file at `src/lib/axios.ts` (or `src/utils/http.ts`):
+
+```typescript
+import axios from 'axios';
+
+// Create a custom instance
+const apiClient = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || 'http://localhost:3000/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 10000, // 10 seconds
+});
+
+// 🔒 Request Interceptor (Add Token)
+apiClient.interceptors.request.use(
+  (config) => {
+    // Example: Get token from localStorage (Client-side) or Cookie
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// 🚨 Response Interceptor (Global Error Handling)
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle 401 Unauthorized globally
+    if (error.response?.status === 401) {
+      // Logic to redirect to login or refresh token
+      console.warn('Unauthorized, logging out...');
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default apiClient;
+```
+
+---
+
+## 💻 Usage Patterns
+
+{% if "React" in tech_stack or "Next.js" in tech_stack or "React Native" in tech_stack %}
+### React / Next.js / React Native
+
+**Best Practice:** Use inside `useEffect` or Custom Hooks.
+
+```tsx
+import { useState, useEffect } from 'react';
+import apiClient from '@/lib/axios';
+
+interface User {
+  id: number;
+  name: string;
+}
+
+export const UserProfile = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        // ✅ Type-safe response
+        const { data } = await apiClient.get<User>('/users/me');
+        setUser(data);
+      } catch (err) {
+        console.error('Failed to fetch user', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  if (loading) return <div>Loading...</div>;
+  return <div>Welcome, {user?.name}</div>;
+};
+```
+
+{% if "React Native" in tech_stack %}
+> **📱 Mobile Note:** For Android Emulator, use `http://10.0.2.2:3000` instead of `localhost`. For Physical devices, use your computer's LAN IP.
+{% endif %}
+
+{% elif "Vue" in tech_stack %}
+### Vue 3 (Composition API)
+
+**Best Practice:** Use inside `onMounted` or Composables.
+
+{% raw %}
+```vue
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import apiClient from '@/lib/axios';
+
+interface Product {
+  id: number;
+  title: string;
+}
+
+const products = ref<Product[]>([]);
+const error = ref('');
+
+onMounted(async () => {
+  try {
+    const response = await apiClient.get<Product[]>('/products');
+    products.value = response.data;
+  } catch (err: any) {
+    error.value = err.message;
+  }
+});
+</script>
+
+<template>
+  <div v-if="error">Error: {{ error }}</div>
+  <ul v-else>
+    <li v-for="p in products" :key="p.id">{{ p.title }}</li>
+  </ul>
+</template>
+```
+{% endraw %}
+
+{% elif "Nuxt.js" in tech_stack %}
+### Nuxt.js
+
+> **Warning:** Nuxt 3 recommends using the built-in `useFetch` or `$fetch` over Axios for better SSR support.
+> However, if you must use Axios (e.g., for legacy code migration), inject the instance.
+
+**Usage in Plugins (`plugins/axios.ts`):**
+```typescript
+import apiClient from '@/lib/axios';
+
+export default defineNuxtPlugin(() => {
+  return {
+    provide: {
+      api: apiClient
+    }
+  }
+});
+```
+
+**Usage in Components:**
+```vue
+<script setup>
+const { $api } = useNuxtApp();
+
+const fetchData = async () => {
+  const { data } = await $api.get('/test');
+};
+</script>
+```
+
+{% elif "Node.js" in tech_stack or "NestJS" in tech_stack %}
+### Node.js / Backend
+
+**Best Practice:** Use in Service Layer / Repository Pattern.
+
+```typescript
+import apiClient from './lib/axios'; // Adjust path
+
+export const ExternalService = {
+  async getThirdPartyData(id: string) {
+    try {
+      const response = await apiClient.get(\`/external/items/\${id}\`);
+      return response.data;
+    } catch (error) {
+      // Enhance error before throwing
+      throw new Error(\`External API Failed: \${error.message}\`);
+    }
+  }
+};
+```
+{% endif %}
+
+## 🛡️ TypeScript Usage
+
+Axios is generic by default. Always pass the expected response type to the method.
+
+```typescript
+// ❌ Bad (Implicit 'any')
+const res = await apiClient.get('/users');
+
+// ✅ Good (Strict Typing)
+interface UserResponse {
+  id: string;
+  email: string;
+}
+const res = await apiClient.get<UserResponse>('/users');
+// res.data is now typed as UserResponse
+```
+
+## 🚫 Common Pitfalls
+
+1.  **Duplicate Requests in React strict mode:** This is normal in dev. Use a cleanup function (AbortController) or a library like **TanStack Query** to handle caching and deduplication.
+2.  **Missing `await`:** Axios returns a Promise. Always use `await` or `.then()`.
+3.  **Sending JSON manually:** Axios automatically stringifies JSON.
+    *   **Bad:** `axios.post(url, JSON.stringify(data))`
+    *   **Good:** `axios.post(url, data)`

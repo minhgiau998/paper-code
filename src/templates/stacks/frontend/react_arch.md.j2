@@ -1,0 +1,73 @@
+# React Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built as a **Single Page Application (SPA)** using React.
+{% if "TypeScript" in libraries or "TypeScript Lib" in libraries %}
+It utilizes **TypeScript** for type safety and scalability.
+{% endif %}
+
+The architecture follows a **Feature-based** (or Domain-driven) structure rather than a purely technical structure. This ensures that code related to a specific feature stays together.
+
+## 📂 Directory Structure
+
+```text
+src/
+├── assets/              # Static assets (images, fonts)
+├── components/          # Shared/Global UI Components (Buttons, Inputs)
+│   ├── ui/              # Primitive UI components
+│   └── layout/          # Layout components (Header, Sidebar)
+├── features/            # Feature-based modules (The core of the app)
+│   ├── auth/            # Auth feature
+│   │   ├── api/         # API calls specific to Auth
+│   │   ├── components/  # Components specific to Auth
+│   │   └── hooks/       # Hooks specific to Auth
+│   └── dashboard/
+├── hooks/               # Global custom hooks (useTheme, useWindowSize)
+├── lib/                 # Third-party library configurations
+│   ├── axios.ts         # Axios instance setup
+│   └── utils.ts         # Global utility functions
+├── context/             # React Context definitions (Global State)
+{% if "Redux Toolkit" in libraries %}
+├── store/               # Redux Store configuration
+{% endif %}
+├── types/               # Global type definitions
+├── App.tsx              # Root component & Routing setup
+└── main.tsx             # Entry point
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Feature Slices
+Code is organized by **Feature**, not by file type.
+- **Bad:** `src/components/LoginForm.tsx`, `src/actions/authActions.ts`
+- **Good:** `src/features/auth/components/LoginForm.tsx`, `src/features/auth/api/auth.ts`
+
+### 2. Component Composition
+We favor composition over inheritance.
+- Use `children` prop to pass content into wrappers.
+- Use **Layout Components** to manage page structures.
+
+### 3. State Management Strategy
+{% if "Redux Toolkit" in libraries %}
+- **Global Server State:** Managed by **Redux Toolkit (RTK Query)** or separate query library.
+- **Global UI State:** Managed by **Redux Slices**.
+- **Local State:** `useState` or `useReducer` for form inputs/toggles.
+{% elif "Zustand" in libraries %}
+- **Global State:** Managed by **Zustand** stores. Keep stores small and focused.
+- **Local State:** `useState`.
+{% elif "TanStack Query" in libraries %}
+- **Server State:** Strictly managed by **TanStack Query**. Do not store API data in global context manually.
+- **Client State:** React Context or `useState`.
+{% else %}
+- **Global State:** React Context API (use sparingly for theme/auth).
+- **Local State:** `useState` / `useReducer`.
+{% endif %}
+
+### 4. Data Fetching
+{% if "Axios" in libraries %}
+- All API calls are abstracted in `src/lib/axios.ts` or feature-specific `api/` folders.
+- Components never call `fetch` or `axios` directly; they call a Hook or Service function.
+{% else %}
+- API calls are encapsulated in custom hooks (e.g., `useFetchData`).
+{% endif %}

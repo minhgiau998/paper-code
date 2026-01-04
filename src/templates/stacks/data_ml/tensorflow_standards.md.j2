@@ -1,0 +1,80 @@
+# TensorFlow Coding Standards
+
+## 📝 Naming Conventions
+
+- **Tensors:** `snake_case` (e.g., `input_tensor`, `logits`).
+- **Layers:** `snake_case` variables, `PascalCase` classes.
+- **Models:** `PascalCase`.
+- **Callbacks:** `PascalCase`.
+
+## ⚡ TensorFlow 2.x / Keras 3 Rules (Critical)
+
+### 1. No TF 1.x Legacy
+**Rule:** STRICTLY FORBIDDEN to use:
+- `tf.Session`
+- `tf.placeholder`
+- `tf.global_variables_initializer`
+- `tf.compat.v1`
+These concepts do not exist in our TF 2.x Eager Execution workflow.
+
+### 2. The `tf.data` Mandate
+**Rule:** Do not feed Python lists or generators directly to `model.fit()`.
+- Use `tf.data.Dataset`.
+- **Performance:** Always chain `.cache()` (if dataset fits in RAM) and `.prefetch(tf.data.AUTOTUNE)` at the end of the pipeline.
+
+```python
+# ✅ Good Pipeline
+ds = tf.data.Dataset.from_tensor_slices((paths, labels))
+ds = ds.map(load_and_preprocess, num_parallel_calls=tf.data.AUTOTUNE)
+ds = ds.batch(32)
+ds = ds.prefetch(tf.data.AUTOTUNE)
+```
+
+### 3. Keras Format
+**Rule:** Use the `.keras` extension for saving models.
+- **Do not** use `.h5` (Legacy HDF5).
+- **Do not** use `model.to_json()` unless debugging.
+
+```python
+# ✅ Good
+model.save('my_model.keras')
+```
+
+### 4. Custom Layers & Models
+**Rule:** When Subclassing `tf.keras.Model` or `Layer`:
+- Implement `get_config()` method to ensure the model is serializable.
+- Use `@tf.function` on the `call` method only if you need graph optimization (Keras does this automatically in `fit`, but explicit is good for custom loops).
+
+## 🛠️ Performance Guidelines
+
+### 1. Vectorization
+**Rule:** Avoid Python `for` loops inside `tf.function`. Use TensorFlow ops (`tf.reduce_sum`, `tf.map_fn`, `tf.vectorized_map`).
+- Python loops unroll into a gigantic static graph, causing memory explosions and slow compilation.
+
+### 2. XLA (Just-In-Time Compilation)
+**Rule:** Enable JIT compilation for optimizers and fitting where possible.
+```python
+model.compile(
+    optimizer='adam', 
+    loss='mse', 
+    jit_compile=True  # 🚀 Speed boost
+)
+```
+
+### 3. Mixed Precision
+**Rule:** Use Mixed Precision (`float16`) on compatible GPUs (NVIDIA Volta+) to double throughput.
+```python
+tf.keras.mixed_precision.set_global_policy('mixed_float16')
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Eager Execution in Loops:** Running heavy training loops purely in Eager mode is slow. Wrap custom training steps with `@tf.function`.
+2.  **Hardcoded Shapes:** Avoid hardcoding `(224, 224)` in multiple places. Use a config constant.
+3.  **Global State:** Do not rely on global variables inside `tf.function`. Pass all inputs as arguments.
+
+## 🧪 Testing
+
+- **Layer Tests:** Verify custom layers can serialize/deserialize (`get_config`).
+- **Gradient Check:** Ensure gradients are not becoming NaN during the first few steps.
+- **Overfit Check:** Same as PyTorch, ensure the model can overfit a small batch.

@@ -1,0 +1,168 @@
+# Shadcn UI Documentation
+
+> **Purpose:** Beautifully designed components that you can copy and paste into your apps. Accessible. Customizable. Open Source.
+> **Core Concept:** This is **NOT** a component library (like MUI or Chakra). It is a collection of re-usable components that you copy into your apps.
+
+## 📦 Installation & Initialization
+
+**Prerequisite:** You must have **Tailwind CSS** installed.
+
+### 1. Initialize
+Run the CLI to set up the `components.json` configuration and base styles.
+
+```bash
+npx shadcn@latest init
+```
+
+**Recommended Configuration:**
+- **Style:** New York (Smaller, sharper) or Default.
+- **Base Color:** Slate/Zinc.
+- **CSS Variables:** `Yes` (Crucial for generic theming).
+- **Utils file:** `src/lib/utils.ts` (or `lib/utils.ts` in Next.js).
+- **UI Components:** `src/components/ui` (or `components/ui`).
+
+### 2. Add Components
+You do not install components via npm. You use the CLI to generate the code.
+
+```bash
+npx shadcn@latest add button input card
+```
+
+## 🛠️ Configuration (`components.json`)
+
+This file holds the configuration for the CLI. You generally don't need to touch this manually, but ensure aliases match your `tsconfig.json`.
+
+```json
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.js",
+    "css": "src/app/globals.css",
+    "baseColor": "slate",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils"
+  }
+}
+```
+
+## 💻 Usage Standards
+
+### 1. Customization (You Own The Code)
+Since the component lives in your folder (e.g., `src/components/ui/button.tsx`), you are expected to modify it directly.
+
+**Scenario:** You need a "super-large" button variant.
+**Action:** Open `button.tsx` and add it to the `cva` (Class Variance Authority) config.
+
+```tsx
+// src/components/ui/button.tsx
+const buttonVariants = cva(
+  "...",
+  {
+    variants: {
+      size: {
+        default: "h-9 px-4 py-2",
+        sm: "h-8 rounded-md px-3",
+        lg: "h-10 rounded-md px-8",
+        xl: "h-14 rounded-xl px-10 text-xl", // 👈 Added manually
+      },
+    },
+  }
+)
+```
+
+### 2. Composition (The `asChild` Pattern)
+Shadcn (via Radix UI) uses the `Slot` component to merge props. This avoids nested `div`s or `button`s inside `a` tags.
+
+**Scenario:** A Button that functions as a Link.
+
+```tsx
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+
+// ❌ Bad: Button inside Link (Invalid HTML: button inside anchor)
+<Link href="/login">
+  <Button>Login</Button>
+</Link>
+
+// ✅ Good: Use asChild
+<Button asChild>
+  <Link href="/login">Login</Link>
+</Button>
+```
+
+### 3. Form Usage
+Shadcn `Form` components wrap `react-hook-form` and `zod`.
+
+```tsx
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+
+// ... setup form ...
+
+return (
+  <Form {...form}>
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FormField
+        control={form.control}
+        name="username"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Username</FormLabel>
+            <FormControl>
+              <Input placeholder="shadcn" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </form>
+  </Form>
+)
+```
+
+## 🛡️ Best Practices & Strategies
+
+### 1. The `cn` Utility
+Shadcn relies on a helper in `@/lib/utils` to merge Tailwind classes safely.
+**Rule:** Always use `cn()` when allowing `className` props in your own components.
+
+```typescript
+import { type ClassValue, clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+```
+
+### 2. Icons
+Shadcn is optimized for **Lucide React** icons.
+```bash
+npm install lucide-react
+```
+```tsx
+import { Mail } from "lucide-react"
+
+<Button>
+  <Mail className="mr-2 h-4 w-4" /> Login with Email
+</Button>
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Treating it like MUI:**
+    *   Don't try to override styles with `!important` or complex CSS selectors.
+    *   **Solution:** Just go into the component file and change the Tailwind class.
+
+2.  **Skipping `form` components:**
+    *   Don't just use `<Input>` directly with `react-hook-form`. Use the `<FormField>` wrapper provided by Shadcn. It handles accessibility (ARIA labels) and error messages automatically.
+
+3.  **Barrel Files in `ui` folder:**
+    *   Avoid creating an `index.ts` in `components/ui` that exports everything. Since these files contain client-side directives (sometimes), importing all of them can break tree-shaking or server components optimization. Import files individually: `import { Button } from "@/components/ui/button"`.

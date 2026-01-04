@@ -1,0 +1,86 @@
+# Go (Gin) Coding Standards
+
+## 📝 Naming Conventions
+
+- **File Names:** `snake_case.go` (e.g., `user_handler.go`, `user_test.go`).
+- **Directories:** `kebab-case` or `snake_case` (consistent).
+- **Interfaces:** ending in `er` (e.g., `Reader`, `Writer`, `Service`, `Repository`).
+- **Structs/Functions:** `PascalCase` (Exported) vs `camelCase` (Unexported).
+- **Errors:** `Err` prefix (e.g., `ErrNotFound`).
+
+## ⚡ Idiomatic Go Rules (Critical)
+
+### 1. Error Handling
+**Rule:** Handle errors explicitly. Never use `_` to ignore an error.
+- **Wrap Errors:** Use `fmt.Errorf("action failed: %w", err)` to add context to errors while preserving the original error for `errors.Is()`.
+- **Return Early:** Keep the "happy path" aligned to the left.
+
+```go
+// ❌ Bad
+if err == nil {
+    // do logic
+}
+
+// ✅ Good
+if err != nil {
+    return nil, fmt.Errorf("failed to get user: %w", err)
+}
+// do logic
+```
+
+### 2. Context Usage
+**Rule:** The first argument of every function in the Service and Repository layers MUST be `ctx context.Context`.
+```go
+// ✅ Good
+func (s *userService) Create(ctx context.Context, user *User) error { ... }
+```
+
+### 3. Gin Specifics
+- **Binding:** Use `c.ShouldBindJSON` instead of `c.BindJSON`. `BindJSON` automatically writes a 400 response on error, which makes custom error handling difficult.
+- **Response:** Use a standardized response helper function (e.g., `pkg.response.Success(c, data)` or `pkg.response.Error(c, err)`).
+
+### 4. Global Variables
+**Rule:** **Strictly Forbidden** for application state (DB connection, Config).
+- Use dependency injection. Globals make testing impossible and cause race conditions.
+
+## 💾 Database Guidelines
+
+{% if "Gorm" in libraries %}
+### GORM Best Practices
+1. **No Logic in Models:** Structs in `models/` should be dumb data containers.
+2. **Scopes:** Use Gorm Scopes for reusable queries.
+3. **Session handling:** Do not open a new DB connection per request. Use the connection pool configured in `main.go`.
+
+```go
+// ❌ Bad (Global DB)
+func GetUser() { db.Find(...) }
+
+// ✅ Good (Injected DB)
+func (r *userRepo) GetUser(ctx context.Context) {
+    r.db.WithContext(ctx).Find(...)
+}
+```
+{% endif %}
+
+{% if "Zap" in libraries %}
+### Structured Logging
+**Rule:** Use **Zap** for structured logging. Do not use `fmt.Printf` or `log.Println`.
+```go
+// ✅ Good
+logger.Info("user created", zap.String("user_id", id))
+```
+{% endif %}
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **`panic`:** Never use `panic` in normal application code. Only use it during startup (e.g., if Config fails to load).
+2. **`init()` functions:** Avoid `init()` functions for side effects. They are hard to test and maintain. Explicit initialization in `main` is better.
+3. **Returning Interfaces:** Accept Interfaces, Return Structs. (Postel's Law applied to Go).
+   - *Exception:* If using strict Clean Architecture where the Service returns a domain Interface, but typically returning the Struct pointer is preferred in Go.
+
+## 🧪 Testing
+
+- **Framework:** Go standard `testing` package + `testify` (assert/require).
+- **Mocks:** Use `mockery` or `gomock` to generate mocks for interfaces.
+- **Unit Tests:** Place `_test.go` files next to the code they test.
+- **Coverage:** Aim for high coverage in `service/` and `core/` layers.

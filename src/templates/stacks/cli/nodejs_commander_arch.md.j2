@@ -1,0 +1,70 @@
+# Node.js CLI Architecture (Commander)
+
+## 🏗️ High-Level Overview
+
+This project is a Command Line Interface (CLI) tool built with **Node.js** and **Commander.js**.
+It uses **ES Modules** natively and follows the **Command Pattern** to organize sub-commands.
+
+## 📂 Directory Structure
+
+```text
+root/
+├── bin/
+│   └── cli.js           # Executable Entry Point (Shebang)
+├── src/
+│   ├── main.js          # Commander program definition
+│   ├── commands/        # Command modules
+│   │   ├── init.js      # e.g., 'mycli init'
+│   │   └── build.js     # e.g., 'mycli build'
+│   ├── lib/             # Core Business Logic (Testable)
+│   ├── utils/           # Shared Helpers (Logger, Config)
+│   └── prompts/         # Interactive prompts definitions
+├── package.json         # "bin" configuration
+└── README.md
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. The Entry Point (`bin/cli.js`)
+- Contains the `#!/usr/bin/env node` shebang.
+- Purely imports the app and executes it.
+- **Rule:** No business logic here. Just a shim to bootstrap the runtime.
+
+### 2. Command Modules
+We avoid defining all commands in a single huge file.
+- Each command resides in `src/commands/`.
+- It exports a function that takes the `program` instance and registers itself.
+
+```javascript
+// src/commands/build.js
+export function registerBuildCommand(program) {
+  program
+    .command('build')
+    .description('Build the project')
+    .action(async (options) => { ... });
+}
+```
+
+### 3. Logic Separation (Actions vs. Lib)
+- **Action Handlers:** Handle CLI-specific concerns (parsing options, printing colors, showing spinners).
+- **Lib/Service:** Pure functions that do the actual work (file manipulation, API calls).
+- **Benefit:** You can test the `Lib` functions without mocking CLI inputs.
+
+{% if "Inquirer" in libraries %}
+### 4. Interactive Mode (Prompts)
+- If required arguments are missing, the CLI prompts the user via **Inquirer**.
+- Prompt logic is encapsulated in `src/prompts/` to keep command files clean.
+{% endif %}
+
+{% if "Figlet" in libraries %}
+### 5. Branding
+- Upon initialization (or help command), **Figlet** is used to display the ASCII logo of the tool.
+{% endif %}
+
+## 💾 Configuration Management
+- CLI tools often need persistent config (e.g., API keys).
+- We typically store this in the user's home directory (`~/.config/{{ project_name }}/config.json`) using tools like `conf` or `dot-json`.
+
+## 📦 Distribution
+- The project is configured to be installed via `npm install -g`.
+- The `bin` field in `package.json` maps the command name to `bin/cli.js`.

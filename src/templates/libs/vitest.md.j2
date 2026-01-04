@@ -1,0 +1,175 @@
+# Vitest Documentation
+
+> **Purpose:** A blazing fast unit test framework powered by Vite. It is a drop-in replacement for Jest in Vite projects.
+
+## 📦 Installation
+
+```bash
+npm install -D vitest
+```
+
+{% if "React" in tech_stack or "Vue" in tech_stack or "Svelte" in tech_stack %}
+### Frontend Environment
+Vitest runs in Node.js, so we need a browser simulation.
+
+```bash
+# We use jsdom for compatibility (or happy-dom for speed)
+npm install -D jsdom @testing-library/jest-dom
+{% if "React" in tech_stack %}
+npm install -D @testing-library/react @testing-library/user-event
+{% elif "Vue" in tech_stack %}
+npm install -D @testing-library/vue
+{% endif %}
+```
+{% endif %}
+
+## 🛠️ Configuration (`vite.config.ts`)
+
+**Strategy:** Reuse the Vite pipeline. No need for a separate `vitest.config.ts` unless the project is very complex.
+
+**Important:** Add the triple-slash reference at the top to allow TypeScript to recognize the `test` property.
+
+```typescript
+/// <reference types="vitest" />
+import { defineConfig } from 'vite';
+// ... other imports
+
+export default defineConfig({
+  // ... plugins and other config
+  
+  test: {
+    // 🌍 Environment
+    {% if "React" in tech_stack or "Vue" in tech_stack %}
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    {% else %}
+    environment: 'node',
+    {% endif %}
+
+    // 🔍 Pattern
+    include: ['src/**/*.{test,spec}.{js,ts,jsx,tsx}'],
+
+    // ⚡ Performance
+    // Vitest runs tests in parallel by default.
+    // Use `threads: false` only if you have heavy native dependencies crashing.
+    
+    // 📉 Coverage (v8 is the default and fastest)
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+    },
+    
+    // 🧹 Auto-cleanup (restore mocks after each test)
+    restoreMocks: true,
+  },
+});
+```
+
+{% if "React" in tech_stack or "Vue" in tech_stack %}
+### Setup File (`src/test/setup.ts`)
+
+```typescript
+import '@testing-library/jest-dom';
+
+// Clean up DOM after each test
+import { cleanup } from '@testing-library/{% if "React" in tech_stack %}react{% else %}vue{% endif %}';
+import { afterEach } from 'vitest';
+
+afterEach(() => {
+  cleanup();
+});
+```
+{% endif %}
+
+## 💻 Usage Patterns
+
+### 1. Explicit Imports (Recommended)
+**Rule:** Do not rely on Globals. Import what you need.
+- **Why?** Better IDE support, no "magic" variables, and explicit dependency tracking.
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { sum } from './math';
+
+describe('Math Utils', () => {
+  it('should add numbers', () => {
+    expect(sum(1, 2)).toBe(3);
+  });
+});
+```
+
+### 2. In-Source Testing
+**Strategy:** Vitest allows writing tests inside your source code blocks (`if (import.meta.vitest)`).
+
+**Rule:** Use this **ONLY** for pure utility functions (`src/utils`).
+**Forbidden:** Do NOT use this for UI Components or complex logic files. It bloats the file and makes readability difficult.
+
+```typescript
+// src/utils/currency.ts
+export function formatCurrency(value: number) {
+  return `$${value.toFixed(2)}`;
+}
+
+// ✅ Allowed: Small, co-located test for utilities
+if (import.meta.vitest) {
+  const { it, expect } = import.meta.vitest;
+  it('formats correctly', () => {
+    expect(formatCurrency(10)).toBe('$10.00');
+  });
+}
+```
+
+### 3. Mocking Modules
+Vitest API is highly compatible with Jest (`vi` replaces `jest`).
+
+```typescript
+import { vi, test, expect } from 'vitest';
+import * as api from './api';
+
+test('mocks api call', async () => {
+  const spy = vi.spyOn(api, 'fetchUser').mockResolvedValue({ id: 1, name: 'Test' });
+  
+  await api.getUser(1);
+  
+  expect(spy).toHaveBeenCalledWith(1);
+});
+```
+
+## 🛡️ Best Practices
+
+### 1. Vitest UI
+**Tip:** Run `npx vitest --ui`.
+- It opens a web dashboard to visualize test suites, console logs, and file dependencies.
+- Use this for debugging complex failures instead of staring at the terminal.
+
+### 2. Type-Safe Mocking
+Just like in Jest, use `vi.mocked()` to preserve types.
+
+```typescript
+import { exampleFn } from './dep';
+vi.mock('./dep');
+
+const mockedFn = vi.mocked(exampleFn);
+mockedFn.mockReturnValue('foo'); // Type-checked!
+```
+
+### 3. Snapshot Serializers
+If you are testing weird data structures, use custom serializers.
+However, **Rule:** Avoid large Snapshots for UI components (same as Jest rule). Assert specific DOM elements instead.
+
+## 🚫 Anti-Patterns
+
+1.  **Global Pollution:**
+    *   Avoid setting `globals: true` in config unless migrating a massive legacy Jest codebase. Explicit imports are cleaner.
+
+2.  **Mixing Jest and Vitest types:**
+    *   If you have `@types/jest` installed (from legacy tools), it might conflict with Vitest types. Uninstall `@types/jest` if possible.
+
+3.  **Slow Tests:**
+    *   Vitest is fast because of Vite. If tests are slow, check if you are importing massive libraries that are not being externalized or if you have unclosed handles (database connections).
+
+## 📝 Commands
+
+- **Run Watch Mode:** `npm test` (default)
+- **Run Once (CI):** `npm run test:run` (or `vitest run`)
+- **Coverage:** `npm run coverage` (or `vitest run --coverage`)

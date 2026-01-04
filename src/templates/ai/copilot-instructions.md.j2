@@ -1,0 +1,34 @@
+# GitHub Copilot Instructions
+
+You are an AI programming assistant working on the **{{ project_name }}** project.
+
+## 🧠 Tech Stack Profile
+- **Language:** {{ tech_stack }}
+- **Type System:** {% if "TypeScript" in libraries %}TypeScript{% else %}Standard{% endif %}
+- **Architecture:** {{ project_type }}
+
+## 📝 Coding Guidelines
+
+1. **Naming Conventions:**
+   - Adhere strictly to the conventions defined in `docs/CODE_STANDARDS.md`.
+   - Variables: camelCase (JS/TS), snake_case (Python/Rust).
+   - Components/Classes: PascalCase.
+
+2. **Preferred Libraries:**
+   {% if libraries %}
+   You should prioritize using the following installed libraries over native solutions or other 3rd party packages:
+   {% for lib in libraries %}
+   - **{{ lib }}**
+   {% endfor %}
+   {% endif %}
+
+3. **Error Handling:**
+   - Always implement defensive programming.
+   - Use `try/catch` (JS) or `try/except` (Python) blocks for side-effects.
+
+4. **Documentation:**
+   - Add JSDoc/Docstrings to all exported functions and classes.
+
+## 🚫 Constraints
+- Do not generate deprecated code (e.g., Class Components in React, `var` in JS).
+- Do not hallucinate imports. Only import from installed packages listed in `package.json` or `requirements.txt`.

@@ -1,0 +1,71 @@
+# 🤖 AI Rules & Guidelines
+
+> **System Prompt:** You are an expert Senior Software Engineer specializing in **{{ tech_stack }}**.
+
+## 🧠 Project Context
+**Goal:** {{ description }}
+**Primary Stack:** {{ tech_stack }}
+{% if libraries %}
+**Key Libraries:** {{ libraries | join(", ") }}
+{% endif %}
+
+## 🔄 Version Awareness Protocol (Future-Proofing)
+
+Technological stacks change rapidly. To ensure code quality:
+
+1. **Context First:** Always analyze `package.json` (or equivalent) to detect the specific versions of **{{ tech_stack }}** and installed libraries.
+2. **Deprecation Check:** Do not use deprecated APIs (e.g., avoid `componentWillMount` in React, avoid `app.on_event` in FastAPI v0.100+).
+3. **Modern Features:**
+{% if "React" in tech_stack %}
+   - Prefer **Hooks** over Class Components.
+   - If React >= 18, be aware of concurrent features.
+   - If React >= 19, use the new Compiler optimizations and Actions.
+{% elif "Java" in tech_stack %}
+   - Use features from the configured JDK version (Records, Pattern Matching for switch).
+{% endif %}
+
+## 🛡️ General Principles
+1. **Be Concise:** Do not offer long explanations unless asked. Focus on code.
+2. **No "Lazy" Code:** Never output placeholders like `// ... rest of code`. Output the full, working code block.
+3. **Type Safety:** 
+   {% if "TypeScript" in libraries or "Next.js" in tech_stack or "Angular" in tech_stack %}
+   - Strictly use **TypeScript**. Avoid `any`. Use Interfaces/Types for everything.
+   {% elif "Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack %}
+   - Strictly use **Python Type Hints** (`typing` module) for all function arguments and return types.
+   {% else %}
+   - Follow strict typing rules suitable for the language.
+   {% endif %}
+4. **Error Handling:** Always implement robust error handling (Try/Catch in JS, Try/Except in Python, Result types in Rust/Go).
+
+## 🛠️ Stack-Specific Rules
+
+{% if "React" in tech_stack or "Next.js" in tech_stack or "Vue" in tech_stack %}
+### Frontend ({{ tech_stack }})
+- **Components:** Use functional components. Keep them small and atomic.
+- **State:** Avoid complex local state. Use `useContext` or global state managers only when necessary.
+{% if "TailwindCSS" in libraries %}
+- **Styling:** Use **Tailwind CSS** utility classes. Do not create `.css` files unless absolutely necessary for complex animations.
+{% endif %}
+{% if "Axios" in libraries %}
+- **Data Fetching:** Use the pre-configured Axios instance. Do not use `fetch` directly.
+{% endif %}
+{% endif %}
+
+{% if "FastAPI" in tech_stack or "Django" in tech_stack or "Flask" in tech_stack %}
+### Backend (Python)
+- **Structure:** Follow the modular structure (Service/Repository pattern).
+- **Async:** Use `async/await` for I/O bound operations (DB, API calls).
+{% if "Pydantic" in libraries or "FastAPI" in tech_stack %}
+- **Validation:** Use **Pydantic** models for all data validation (Input/Output schemas).
+{% endif %}
+{% endif %}
+
+{% if "Go" in tech_stack %}
+### Backend (Go)
+- **Idiomatic Go:** Prefer clear control flow over magic. Handle errors explicitly (`if err != nil`).
+- **Context:** Always propagate `context.Context` through function calls.
+{% endif %}
+
+## 📝 Documentation
+- Add **Docstrings** (Python) or **JSDoc** (TS/JS) to every exported function and class.
+- Update `README.md` if you introduce new environment variables or build steps.

@@ -1,0 +1,72 @@
+# Nuxt.js Coding Standards
+
+## 📝 Naming Conventions
+
+- **Components:** PascalCase. Multi-word names are mandatory (e.g., `ProductCard.vue`).
+- **Pages:** kebab-case (matches URL structure).
+- **Composables:** camelCase, starting with `use` (e.g., `useAuth.ts`).
+- **Server Routes:** kebab-case (e.g., `server/api/create-user.ts`).
+
+## ⚡ Nuxt Specific Rules (Critical)
+
+### 1. Strict Composition API
+**Rule:** Use `<script setup lang="ts">` exclusively.
+- **Forbidden:** Do not use `export default {}` (Options API).
+- **Forbidden:** Do not use `asyncData` or `fetch()` hook (Nuxt 2 legacy). Use `useFetch` instead.
+
+### 2. No Manual Imports
+**Rule:** Do not manually import Vue core functions or project components.
+- **Bad:** `import { ref, computed } from 'vue'`
+- **Good:** Just use `ref()` directly. Nuxt handles the import.
+
+### 3. Data Fetching
+**Rule:** Use `useFetch` for component data.
+- Always provide a `key` if the fetch depends on dynamic parameters to ensure proper hydration.
+```ts
+const { data, error } = await useFetch('/api/user', {
+  key: `user-${props.id}`,
+  query: { id: props.id }
+})
+```
+
+### 4. SEO & Metadata
+**Rule:** Use `useSeoMeta` or `definePageMeta` inside `<script setup>`.
+- **Do not** use `head()` method (Nuxt 2).
+
+```ts
+useSeoMeta({
+  title: 'My Page',
+  description: 'This is an awesome page'
+})
+```
+
+## 🛡️ Security & Server Rules
+
+### 1. Runtime Config
+**Rule:** Never hardcode secrets. Use `useRuntimeConfig()`.
+- **Public:** `config.public.apiBase` (Available on Client & Server).
+- **Private:** `config.apiSecret` (Available ONLY on Server).
+
+### 2. Server Routes (Nitro)
+- Validate inputs inside `server/api` handlers.
+- Use `readBody(event)` or `getQuery(event)` to parse requests.
+{% if "Zod" in libraries %}
+- **Mandatory:** Validate all request bodies with **Zod**.
+```ts
+// server/api/submit.post.ts
+import { z } from 'zod'
+
+export default defineEventHandler(async (event) => {
+  const body = await readBody(event)
+  const schema = z.object({ email: z.string().email() })
+  const result = await schema.parseAsync(body)
+  // ...
+})
+```
+{% endif %}
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Direct Axios Usage:** Do not install `axios` unless strictly necessary. Nuxt's `ofetch` is pre-configured for SSR headers and cookie passing.
+2. **Client-Side Only logic in Setup:** Remember that `<script setup>` runs on the Server too (during SSR). Guard browser-only APIs (like `window`, `localStorage`) with `if (import.meta.client)`.
+3. **Global State Abuse:** Do not use `useState` for complex global state. Use **Pinia** for structured data.

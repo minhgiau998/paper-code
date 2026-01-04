@@ -1,0 +1,200 @@
+# React Router Documentation
+
+> **Purpose:** The standard routing library for React, enabling declarative routing and data loading.
+
+## 📦 Installation
+
+```bash
+npm install react-router-dom
+```
+
+## 🛠️ Configuration (Data Router)
+
+**Strategy:** We strictly use the **Data Router** API (`createBrowserRouter`).
+Do not use the legacy `<BrowserRouter>` wrapper in `main.tsx` if you want to use Loaders, Actions, or Error Boundaries.
+
+**File:** `src/router.tsx`
+
+```tsx
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+
+// Layouts
+import RootLayout from '@/layouts/RootLayout';
+import AuthLayout from '@/layouts/AuthLayout';
+
+// Lazy Load Pages (Performance Optimization)
+const HomePage = lazy(() => import('@/pages/Home'));
+const LoginPage = lazy(() => import('@/pages/Login'));
+const DashboardPage = lazy(() => import('@/pages/Dashboard'));
+
+// Loading Fallback
+const Loading = () => <div className="p-4">Loading page...</div>;
+
+export const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <RootLayout />,
+    errorElement: <div>Oops! Something went wrong.</div>,
+    children: [
+      {
+        index: true,
+        element: (
+          <Suspense fallback={<Loading />}>
+            <HomePage />
+          </Suspense>
+        ),
+      },
+      // Protected Routes Wrapper
+      {
+        path: 'app',
+        element: <ProtectedRoute />, // See implementation below
+        children: [
+          {
+            path: 'dashboard',
+            element: (
+              <Suspense fallback={<Loading />}>
+                <DashboardPage />
+              </Suspense>
+            ),
+          },
+        ],
+      },
+    ],
+  },
+  {
+    path: '/auth',
+    element: <AuthLayout />,
+    children: [
+      { path: 'login', element: <LoginPage /> },
+    ],
+  },
+  // 404 Catch-all
+  { path: '*', element: <Navigate to="/" replace /> },
+]);
+```
+
+**File:** `src/main.tsx`
+
+```tsx
+import { RouterProvider } from 'react-router-dom';
+import { router } from './router';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <RouterProvider router={router} />
+  </React.StrictMode>
+);
+```
+
+## 🛡️ Authentication Pattern (Protected Routes)
+
+**Pattern:** Use an `<Outlet />` wrapper component.
+Do not use Higher-Order Components (HOCs) for routing protection in v6+.
+
+**File:** `src/components/ProtectedRoute.tsx`
+
+{% raw %}
+```tsx
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth'; // Your auth hook
+
+export const ProtectedRoute = () => {
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
+
+  if (!isAuthenticated) {
+    // Redirect to login, but save the current location they were trying to go to
+    return <Navigate to="/auth/login" state={{ from: location }} replace />;
+  }
+
+  return <Outlet />;
+};
+```
+{% endraw %}
+
+## 💻 Usage Standards
+
+### 1. Navigation (`Link` vs `useNavigate`)
+
+- **Declarative (`Link`):** Preferred for user interactions (menus, buttons).
+- **Imperative (`useNavigate`):** Use only after an action (e.g., submitting a form).
+
+```tsx
+import { Link, useNavigate } from 'react-router-dom';
+
+export const Menu = () => {
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    // ✅ Good: Navigate after logic
+    navigate('/auth/login', { replace: true });
+  };
+
+  return (
+    <nav>
+      {/* ✅ Good: Standard navigation */}
+      <Link to="/profile" className="text-blue-500">Profile</Link>
+      <button onClick={handleLogout}>Logout</button>
+    </nav>
+  );
+};
+```
+
+### 2. URL Parameters (`useParams`)
+
+Always type your parameters via Generics or casting if using TypeScript.
+
+```tsx
+import { useParams } from 'react-router-dom';
+
+type UserParams = {
+  userId: string;
+};
+
+export const UserDetail = () => {
+  // ⚠️ Note: Params are always strings
+  const { userId } = useParams<UserParams>(); 
+  
+  return <h1>User ID: {userId}</h1>;
+};
+```
+
+### 3. Data Loading (Loaders) - *Optional*
+
+If using the Data Router, you can fetch data *before* the component renders.
+
+```tsx
+// src/pages/Dashboard.tsx
+export const dashboardLoader = async () => {
+  const res = await fetch('/api/stats');
+  if (!res.ok) throw new Error("Failed to load");
+  return res.json();
+};
+
+// src/router.tsx
+{
+  path: 'dashboard',
+  element: <Dashboard />,
+  loader: dashboardLoader, // 👈 Hooks up here
+}
+
+// In Component
+import { useLoaderData } from 'react-router-dom';
+const data = useLoaderData();
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **`useHistory`:**
+    *   **Dead API.** `useHistory` was removed in v6. Use `useNavigate`.
+
+2.  **`<Switch>`:**
+    *   **Dead API.** `<Switch>` was renamed to `<Routes>` in v6, but with `createBrowserRouter`, you define routes in an array object, not JSX.
+
+3.  **`window.location.href`:**
+    *   Never use native browser navigation. It causes a full page reload, destroying the React state. Always use `useNavigate` or `Link`.
+
+4.  **Complex Logic in Router:**
+    *   Keep the `router.tsx` clean. Move Loaders and Actions to separate files or colocate them with the Pages.

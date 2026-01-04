@@ -1,0 +1,81 @@
+# Django Coding Standards
+
+## 📝 Naming Conventions
+
+- **Models:** PascalCase, singular (e.g., `Product`, `UserProfile`).
+- **URLs:** kebab-case (e.g., `api/v1/user-profiles/`).
+- **Views:** PascalCase (e.g., `ProductListView`).
+- **Variables/Functions:** snake_case.
+- **Reverse Names:** snake_case (e.g., `users:detail`).
+
+## ⚡ Modern Django Rules (Critical)
+
+### 1. Type Hinting
+**Rule:** Use Python Type Hints everywhere, even in Django Views and Models.
+```python
+# ✅ Good
+def get_active_users(min_age: int) -> QuerySet[User]:
+    return User.objects.filter(age__gte=min_age, is_active=True)
+```
+
+### 2. Database Performance (N+1 Problem)
+**Rule:** You MUST use `select_related` (ForeignKeys) and `prefetch_related` (ManyToMany/Reverse FK) when querying related objects.
+- **Strictly Forbidden:** Loop queries in Views/Serializers.
+
+```python
+# ❌ Bad (Causes N+1 queries)
+books = Book.objects.all()
+for book in books:
+    print(book.author.name) 
+
+# ✅ Good
+books = Book.objects.select_related('author').all()
+```
+
+### 3. Custom User Model
+**Rule:** Always start a project with a custom User model, even if it inherits directly from `AbstractUser`.
+- Refer to `AUTH_USER_MODEL` in ForeignKeys, never `'auth.User'`.
+
+### 4. Async Views (Django 5+)
+**Rule:** Use `async def` views or ORM methods (`aget`, `afilter`) when performing I/O bound operations that don't depend on sync-only middleware.
+```python
+# ✅ Async View
+async def my_view(request):
+    user = await User.objects.aget(id=1)
+    return HttpResponse(f"Hello {user.username}")
+```
+
+## 🛡️ Framework Specifics
+
+{% if "Django REST Framework" in libraries %}
+### Django REST Framework (DRF)
+1. **Thick Serializers:** Put validation logic (field-level and object-level) inside Serializers (`validate_<field>`, `validate`).
+2. **Thin Views:** Views should simply delegate to Services or Serializers.
+3. **Permissions:** Use Custom Permission Classes (`BasePermission`). Do not write permission logic inside the view method.
+4. **Pagination:** Always enable pagination globally in `settings.py`. Do not return unbounded lists.
+{% endif %}
+
+### Model Design
+1. **`__str__`:** Every model must have a human-readable `__str__` method.
+2. **`related_name`:** Always define explicit `related_name` on ForeignKeys to avoid confusion (e.g., `related_name='orders'`).
+3. **Fat Models (Logic):** Encapsulate row-level logic in Model methods (e.g., `user.activate()`), but move complex cross-model logic to **Services**.
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Business Logic in Views:** Views are for HTTP wiring. Logic belongs in `services.py`.
+2. **Hardcoded URLs:** Always use `reverse()` or `reverse_lazy()`. Never hardcode `/api/v1/...`.
+3. **Mutable Defaults:** Never use mutable objects as default arguments in functions or model fields.
+   ```python
+   # ❌ Bad
+   def add_item(items=[]): ...
+   
+   # ✅ Good
+   def add_item(items=None):
+       if items is None: items = []
+   ```
+
+## 🧪 Testing
+
+- **Library:** Use `pytest-django` over the standard `unittest`.
+- **Factories:** Use **Factory Boy** instead of fixtures for creating test data.
+- **DB Access:** Mark tests with `@pytest.mark.django_db`.

@@ -1,0 +1,79 @@
+# Go (Gin) Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a high-performance HTTP REST API built with **Go** and the **Gin Web Framework**.
+It follows the **Standard Go Project Layout** and implements **Clean Architecture** to separate Transport (HTTP), Business Logic (Service), and Data Access (Repository).
+
+## 📂 Directory Structure
+
+We strictly adhere to the `internal/` pattern to enforce encapsulation.
+
+```text
+root/
+├── cmd/
+│   └── server/
+│       └── main.go          # Application Entry Point
+├── config/                  # Configuration files (YAML/JSON)
+├── internal/                # Private Application Code
+│   ├── api/                 # Transport Layer
+│   │   ├── handlers/        # Gin Handlers (Controllers)
+│   │   ├── middleware/      # Gin Middlewares
+│   │   └── routes/          # Route definitions
+│   ├── core/                # Domain Layer
+│   │   ├── domain/          # Structs/Entities
+│   │   └── ports/           # Interfaces (Service/Repository contracts)
+│   ├── service/             # Business Logic Layer
+│   └── repository/          # Data Access Layer
+{% if "Gorm" in libraries %}
+│       └── models/          # GORM Models
+{% endif %}
+├── pkg/                     # Public Shared Libraries (Utils, Logger)
+│   ├── logger/
+│   └── validator/
+├── go.mod
+└── go.sum
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Clean Architecture (Layers)
+Data flows strictly from outer layers to inner layers via Interfaces.
+1.  **Handler (API):** Parses HTTP request, validates input (`c.ShouldBind`), calls Service.
+2.  **Service (Business):** Contains logic. Agnostic of HTTP. Accepts and returns Domain Structs.
+3.  **Repository (Data):** Talks to DB/External APIs. Returns Domain Structs.
+
+### 2. Dependency Injection (DI)
+We do not use global state. All dependencies are injected via **Constructor Injection**.
+```go
+// Example
+func NewUserHandler(svc ports.UserService) *UserHandler {
+    return &UserHandler{service: svc}
+}
+```
+In `main.py`, we wire up the application: `Repo -> Service -> Handler`.
+
+### 3. Context Propagation
+**Critical:** `context.Context` must be passed through every layer, from Handler to Database.
+- This ensures request cancellation and timeouts work correctly.
+- Gin's context (`c`) contains the standard context: `ctx := c.Request.Context()`.
+
+{% if "Viper" in libraries %}
+### 4. Configuration (Viper)
+- **Viper** is used to load configuration from environment variables and config files (`config.yaml`).
+- Config is loaded once at startup and passed to dependencies.
+{% endif %}
+
+{% if "Gorm" in libraries %}
+### 5. Database (GORM)
+- We use **GORM** for ORM capabilities.
+- The `repository` layer wraps GORM calls.
+- **Transaction Boundary:** Transactions should be managed at the Service layer (if possible) or Repository layer.
+{% endif %}
+
+## 🔒 Security Architecture
+- **Graceful Shutdown:** The server handles `SIGTERM`/`SIGINT` to finish active requests before closing.
+- **Middleware:**
+  - `Recovery`: Catches panics.
+  - `Logger`: Logs requests.
+  - `CORS`: Restricts origins.

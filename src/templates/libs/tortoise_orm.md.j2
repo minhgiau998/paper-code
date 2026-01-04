@@ -1,0 +1,639 @@
+# Tortoise ORM Documentation
+
+> **Purpose:** Easy-to-use asyncio ORM (Object Relational Mapper) inspired by Django ORM and SQLAlchemy.
+
+## 📦 Installation
+
+```bash
+pip install tortoise-orm
+# Database drivers (choose one)
+pip install aiomysql          # MySQL
+pip install aiosqlite         # SQLite
+pip install asyncpg           # PostgreSQL
+```
+
+## 🛠️ Database Configuration
+
+**Strategy:** Use Tortoise ORM with async/await for high-performance database operations.
+
+### 1. Database Configuration (`src/config/database.py`)
+
+```python
+import os
+from tortoise import Tortoise
+from tortoise.contrib.fastapi import register_tortoise
+from tortoise.exceptions import DBConnectionError
+
+# Database configuration
+DB_CONFIG = {
+    "connections": {
+        "default": {
+            "engine": os.getenv("DB_ENGINE", "tortoise.backends.asyncpg"),
+            "credentials": {
+                "host": os.getenv("DB_HOST", "localhost"),
+                "port": int(os.getenv("DB_PORT", "5432")),
+                "user": os.getenv("DB_USER", "postgres"),
+                "password": os.getenv("DB_PASSWORD", "password"),
+                "database": os.getenv("DB_NAME", "myapp"),
+                "minsize": int(os.getenv("DB_POOL_MIN", "1")),
+                "maxsize": int(os.getenv("DB_POOL_MAX", "10")),
+                "echo": os.getenv("DB_DEBUG", "false").lower() == "true",
+            },
+        }
+    },
+    "apps": {
+        "models": {
+            "models": ["src.models", "aerich.models"],
+            "default_connection": "default",
+        }
+    },
+    "use_tz": True,
+    "timezone": "UTC",
+}
+
+async def init_db():
+    """Initialize database connection."""
+    try:
+        await Tortoise.init(config=DB_CONFIG)
+        # Generate schema if doesn't exist
+        await Tortoise.generate_schemas()
+        print("Database initialized successfully")
+    except DBConnectionError as e:
+        print(f"Database connection error: {e}")
+        raise
+
+async def close_db():
+    """Close database connection."""
+    await Tortoise.close_connections()
+    print("Database connections closed")
+
+def register_db(app):
+    """Register Tortoise ORM with FastAPI."""
+    register_tortoise(
+        app,
+        config=DB_CONFIG,
+        generate_schemas=True,
+        add_exception_handlers=True,
+    )
+
+def get_db_config():
+    """Get database configuration."""
+    return DB_CONFIG
+```
+
+### 2. FastAPI Integration (`src/main.py`)
+
+```python
+from fastapi import FastAPI
+from src.config.database import register_db, init_db, close_db
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await init_db()
+    yield
+    # Shutdown
+    await close_db()
+
+app = FastAPI(lifespan=lifespan)
+
+# Alternative: Register directly
+# register_db(app)
+```
+
+## 📝 Model Definition
+
+**Strategy:** Use Tortoise models with proper relationships and validators.
+
+### 1. Base Model (`src/models/base.py`)
+
+```python
+from tortoise.models import Model
+from tortoise.fields import IntField, DatetimeField
+from tortoise.contrib.pydantic import pydantic_model_creator
+from datetime import datetime, timezone
+from typing import Optional
+
+class BaseModel(Model):
+    """Base model with common fields."""
+    
+    id = IntField(pk=True)
+    created_at = DatetimeField(auto_now_add=True)
+    updated_at = DatetimeField(auto_now=True)
+    
+    class Meta:
+        abstract = True
+    
+    def to_dict(self, exclude_fields: list = None) -> dict:
+        """Convert model to dictionary."""
+        data = self.__dict__.copy()
+        
+        # Remove Tortoise internal fields
+        exclude = exclude_fields or []
+        exclude.extend(['_partial', '_saved_in_db', '_custom_generated_pk'])
+        
+        for field in exclude:
+            data.pop(field, None)
+        
+        # Convert datetime to ISO format
+        for key, value in data.items():
+            if isinstance(value, datetime):
+                if value.tzinfo is None:
+                    value = value.replace(tzinfo=timezone.utc)
+                data[key] = value.isoformat()
+        
+        return data
+    
+    @classmethod
+    async def get_by_id(cls, obj_id: int):
+        """Get object by ID."""
+        return await cls.get_or_none(id=obj_id)
+    
+    @classmethod
+    async def get_all(cls, limit: int = 100, offset: int = 0):
+        """Get all objects with pagination."""
+        return await cls.all().limit(limit).offset(offset)
+    
+    @classmethod
+    async def count_all(cls):
+        """Count all objects."""
+        return await cls.all().count()
+    
+    async def update_from_dict(self, data: dict):
+        """Update model from dictionary."""
+        for key, value in data.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+        await self.save()
+        return self
+```
+
+### 2. User Model (`src/models/user.py`)
+
+```python
+from tortoise.models import Model
+from tortoise.fields import CharField, BooleanField, DatetimeField, TextField, IntField
+from tortoise.contrib.pydantic import pydantic_model_creator, pydantic_queryset_creator
+from tortoise.validators import RegexValidator, MinLengthValidator, MaxLengthValidator
+from datetime import datetime, timezone
+from typing import Optional, List
+import bcrypt
+
+from .base import BaseModel
+
+class UserRole:
+    USER = "user"
+    ADMIN = "admin"
+    MODERATOR = "moderator"
+    
+    CHOICES = [
+        (USER, "User"),
+        (ADMIN, "Admin"),
+        (MODERATOR, "Moderator"),
+    ]
+
+class User(BaseModel):
+    """User model."""
+    
+    username = CharField(
+        max_length=50,
+        unique=True,
+        validators=[
+            RegexValidator(r'^[a-zA-Z0-9_]+$', 'Username can only contain letters, numbers, and underscores'),
+            MinLengthValidator(3),
+        ]
+    )
+    email = CharField(
+        max_length=255,
+        unique=True,
+        validators=[
+            RegexValidator(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', 'Invalid email format'),
+        ]
+    )
+    password = CharField(max_length=255)
+    name = CharField(max_length=100, validators=[MinLengthValidator(2)])
+    avatar = CharField(max_length=255, null=True)
+    bio = TextField(null=True, max_length=500)
+    phone = CharField(
+        max_length=20,
+        null=True,
+        validators=[
+            RegexValidator(r'^\+?1?\d{9,15}$', 'Invalid phone number format'),
+        ]
+    )
+    role = CharField(
+        max_length=20,
+        default=UserRole.USER,
+        choices=UserRole.CHOICES
+    )
+    is_active = BooleanField(default=True)
+    is_verified = BooleanField(default=False)
+    last_login = DatetimeField(null=True)
+    
+    # Relationships
+    posts: List["Post"]  # Forward reference
+    
+    class Meta:
+        table = "users"
+        table_description = "User accounts"
+        ordering = ["-created_at"]
+        indexes = [
+            ("email",),
+            ("username",),
+            ("is_active",),
+            ("role",),
+            ("created_at",),
+        ]
+    
+    def __str__(self):
+        return self.email
+    
+    async def set_password(self, password: str):
+        """Set hashed password."""
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+        self.password = hashed.decode('utf-8')
+        await self.save()
+    
+    def check_password(self, password: str) -> bool:
+        """Check if password matches."""
+        return bcrypt.checkpw(password.encode('utf-8'), self.password.encode('utf-8'))
+    
+    def is_admin(self) -> bool:
+        """Check if user is admin."""
+        return self.role == UserRole.ADMIN
+    
+    async def update_last_login(self):
+        """Update last login timestamp."""
+        self.last_login = datetime.now(timezone.utc)
+        await self.save()
+    
+    async def get_post_count(self) -> int:
+        """Get user's post count."""
+        return await self.posts.filter(deleted=False).count()
+    
+    async def to_dict_with_counts(self) -> dict:
+        """Convert to dictionary with additional counts."""
+        data = self.to_dict()
+        data['post_count'] = await self.get_post_count()
+        return data
+
+# Pydantic models for serialization
+UserPydantic = pydantic_model_creator(User, name="User", exclude=("password",))
+UserInPydantic = pydantic_model_creator(User, name="UserIn", exclude_readonly=True)
+UserUpdatePydantic = pydantic_model_creator(User, name="UserUpdate", exclude=("password", "created_at", "updated_at"))
+UserListPydantic = pydantic_queryset_creator(User, name="UserList", exclude=("password",))
+```
+
+## 🔍 Repository Pattern
+
+### 1. Base Repository (`src/repositories/base.py`)
+
+```python
+from typing import TypeVar, Generic, List, Optional, Dict, Any
+from tortoise.queryset import QuerySet
+from tortoise.models import Model
+from tortoise.transactions import in_transaction
+
+from ..models.base import BaseModel
+
+T = TypeVar('T', bound=BaseModel)
+
+class BaseRepository(Generic[T]):
+    """Base repository with common CRUD operations."""
+    
+    model_class: type = None
+    
+    def __init__(self):
+        if not self.model_class:
+            raise ValueError("model_class must be set")
+    
+    async def create(self, **kwargs) -> T:
+        """Create a new record."""
+        return await self.model_class.create(**kwargs)
+    
+    async def get_by_id(self, obj_id: int) -> Optional[T]:
+        """Get record by ID."""
+        return await self.model_class.get_or_none(id=obj_id)
+    
+    async def get_all(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        order_by: str = None,
+        filters: Dict[str, Any] = None
+    ) -> List[T]:
+        """Get all records with optional filtering and ordering."""
+        queryset = self.model_class.all()
+        
+        if filters:
+            queryset = queryset.filter(**filters)
+        
+        if order_by:
+            queryset = queryset.order_by(order_by)
+        
+        return await queryset.limit(limit).offset(offset)
+    
+    async def update(self, obj_id: int, **kwargs) -> Optional[T]:
+        """Update a record."""
+        obj = await self.get_by_id(obj_id)
+        if obj:
+            await obj.update_from_dict(kwargs)
+        return obj
+    
+    async def delete(self, obj_id: int) -> bool:
+        """Delete a record."""
+        obj = await self.get_by_id(obj_id)
+        if obj:
+            await obj.delete()
+            return True
+        return False
+    
+    async def count(self, filters: Dict[str, Any] = None) -> int:
+        """Count records with optional filters."""
+        queryset = self.model_class.all()
+        
+        if filters:
+            queryset = queryset.filter(**filters)
+        
+        return await queryset.count()
+    
+    async def exists(self, obj_id: int) -> bool:
+        """Check if record exists."""
+        return await self.model_class.exists(id=obj_id)
+    
+    async def search(
+        self,
+        query: str,
+        search_fields: List[str],
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[T]:
+        """Search records by text in specified fields."""
+        queryset = self.model_class.all()
+        
+        # Build search conditions
+        search_conditions = []
+        for field in search_fields:
+            if hasattr(self.model_class, field):
+                search_conditions.append({f"{field}__icontains": query})
+        
+        if search_conditions:
+            # Use OR condition for multiple fields
+            from tortoise.query_utils import Q
+            q_objects = [Q(**condition) for condition in search_conditions]
+            final_q = q_objects[0]
+            for q_obj in q_objects[1:]:
+                final_q |= q_obj
+            
+            queryset = queryset.filter(final_q)
+        
+        return await queryset.limit(limit).offset(offset)
+```
+
+### 2. User Repository (`src/repositories/user.py`)
+
+```python
+from typing import List, Optional, Dict, Any
+from tortoise.queryset import QuerySet
+from tortoise.expressions import Q
+
+from ..models.user import User, UserRole
+from .base import BaseRepository
+
+class UserRepository(BaseRepository[User]):
+    """User repository with user-specific operations."""
+    
+    model_class = User
+    
+    async def get_by_email(self, email: str) -> Optional[User]:
+        """Get user by email."""
+        return await self.model_class.get_or_none(email=email)
+    
+    async def get_active_users(
+        self,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[User]:
+        """Get active users."""
+        return await self.get_all(
+            limit=limit,
+            offset=offset,
+            filters={"is_active": True},
+            order_by="-created_at"
+        )
+    
+    async def get_user_stats(self) -> Dict[str, int]:
+        """Get user statistics."""
+        total_users = await self.count()
+        active_users = await self.count({"is_active": True})
+        admin_users = await self.count({"role": UserRole.ADMIN, "is_active": True})
+        verified_users = await self.count({"is_verified": True, "is_active": True})
+        
+        return {
+            "total_users": total_users,
+            "active_users": active_users,
+            "admin_users": admin_users,
+            "verified_users": verified_users,
+        }
+    
+    async def create_user(self, user_data: Dict[str, Any]) -> User:
+        """Create a new user with validation."""
+        # Check if email already exists
+        existing_user = await self.get_by_email(user_data["email"])
+        if existing_user:
+            raise ValueError("User with this email already exists")
+        
+        # Set default role if not provided
+        if "role" not in user_data:
+            user_data["role"] = UserRole.USER
+        
+        user = await self.create(**user_data)
+        
+        # Hash password if provided
+        if "password" in user_data:
+            await user.set_password(user_data["password"])
+        
+        return user
+    
+    async def authenticate_user(self, email: str, password: str) -> Optional[User]:
+        """Authenticate user with email and password."""
+        user = await self.get_by_email(email)
+        
+        if not user or not user.is_active:
+            return None
+        
+        if user.check_password(password):
+            await user.update_last_login()
+            return user
+        
+        return None
+```
+
+## 🔄 Service Layer
+
+### 1. User Service (`src/services/user_service.py`)
+
+```python
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone
+
+from ..models.user import User, UserRole
+from ..repositories.user import UserRepository
+
+class UserService:
+    """User service with business logic."""
+    
+    def __init__(self):
+        self.user_repo = UserRepository()
+    
+    async def create_user(self, user_data: Dict[str, Any]) -> User:
+        """Create a new user."""
+        # Validate required fields
+        required_fields = ['email', 'password', 'name']
+        for field in required_fields:
+            if field not in user_data:
+                raise ValueError(f"Field '{field}' is required")
+        
+        # Set default values
+        user_data.setdefault('role', UserRole.USER)
+        user_data.setdefault('is_active', True)
+        user_data.setdefault('is_verified', False)
+        
+        return await self.user_repo.create_user(user_data)
+    
+    async def authenticate_user(self, email: str, password: str) -> Optional[User]:
+        """Authenticate user."""
+        user = await self.user_repo.authenticate_user(email, password)
+        return user
+    
+    async def get_user_by_id(self, user_id: int) -> Optional[User]:
+        """Get user by ID."""
+        return await self.user_repo.get_by_id(user_id)
+    
+    async def get_user_stats(self) -> Dict[str, int]:
+        """Get user statistics."""
+        return await self.user_repo.get_user_stats()
+    
+    async def verify_user(self, user_id: int) -> bool:
+        """Verify user email."""
+        return await self.user_repo.update(user_id, is_verified=True) is not None
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Missing Relationships:**
+   - **Bad:** Not defining proper relationships between models.
+   - **Good:** Always define relationships with proper cascade options.
+
+2. **N+1 Query Problem:**
+   - **Bad:** Loading related objects in loops.
+   - **Good:** Use `prefetch_related` and `select_related`.
+
+3. **Ignoring Transactions:**
+   - **Bad:** Performing multiple operations without transactions.
+   - **Good:** Use `in_transaction()` for complex operations.
+
+4. **Missing Indexes:**
+   - **Bad:** Not creating indexes for frequently queried fields.
+   - **Good:** Define indexes in model Meta class.
+
+5. **Blocking Operations:**
+   - **Bad:** Using synchronous database operations in async code.
+   - **Good:** Always use async/await with Tortoise ORM.
+
+## 🧪 Testing Strategy
+
+```python
+# tests/test_user_service.py
+import pytest
+from tortoise import Tortoise
+from tortoise.contrib.test import finalizer, initializer
+
+from src.services.user_service import UserService
+from src.models.user import User
+
+@pytest.fixture(scope="function")
+async def user_service():
+    """Initialize test database and service."""
+    initializer(["src.models"])
+    await Tortoise.generate_schemas()
+    
+    service = UserService()
+    yield service
+    
+    await Tortoise.close_connections()
+
+@pytest.mark.asyncio
+async def test_create_user(user_service):
+    """Test user creation."""
+    user_data = {
+        "email": "test@example.com",
+        "password": "TestPass123",
+        "name": "Test User",
+    }
+    
+    user = await user_service.create_user(user_data)
+    
+    assert user.email == user_data["email"]
+    assert user.name == user_data["name"]
+    assert user.role == "user"
+    assert user.is_active is True
+    assert user.is_verified is False
+
+@pytest.mark.asyncio
+async def test_authenticate_user(user_service):
+    """Test user authentication."""
+    # Create user
+    user_data = {
+        "email": "test@example.com",
+        "password": "TestPass123",
+        "name": "Test User",
+    }
+    await user_service.create_user(user_data)
+    
+    # Authenticate
+    user = await user_service.authenticate_user("test@example.com", "TestPass123")
+    
+    assert user is not None
+    assert user.email == "test@example.com"
+    
+    # Test wrong password
+    wrong_user = await user_service.authenticate_user("test@example.com", "wrong")
+    assert wrong_user is None
+```
+
+## 📦 Environment Variables
+
+```env
+# Database Configuration
+DB_ENGINE=tortoise.backends.asyncpg
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=password
+DB_NAME=myapp
+DB_POOL_MIN=1
+DB_POOL_MAX=10
+DB_DEBUG=false
+
+# SQLite Configuration
+# DB_ENGINE=tortoise.backends.sqlite
+# DB_PATH=app.db
+
+# Timezone
+TIMEZONE=UTC
+```
+
+## 📦 Requirements
+
+```txt
+# requirements.txt
+tortoise-orm>=0.19.0
+aiomysql>=0.1.1
+aiosqlite>=0.17.0
+asyncpg>=0.27.0
+pydantic>=2.0.0
+fastapi>=0.100.0
+```

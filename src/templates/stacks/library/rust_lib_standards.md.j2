@@ -1,0 +1,87 @@
+# Rust Library Coding Standards
+
+## 📝 Naming Conventions
+
+- **Crate:** `snake_case` (e.g., `my_crate`).
+- **Traits:** Verb or Noun (e.g., `Read`, `Transformer`).
+- **Types:** `PascalCase` (e.g., `TcpStream`).
+- **Functions:** `snake_case`.
+- **Conversion Methods:** `as_type` (cheap/borrowed), `to_type` (expensive/cloned), `into_type` (consumes).
+
+## ⚡ Rust Library Best Practices (Critical)
+
+### 1. No Panics (`unwrap` / `expect`)
+**Rule:** **STRICTLY FORBIDDEN** in library code.
+- A library panic crashes the user's entire application.
+- **Solution:** Always return `Result<T, Error>`.
+- **Exception:** `unwrap` is allowed in `tests` modules or `examples`.
+
+### 2. Documentation Tests (DocTests)
+**Rule:** Every public function must have an implementation example in its documentation comments (`///`).
+- Rust automatically compiles and runs code blocks inside `///`. This ensures your documentation never lies.
+
+```rust
+/// Adds two numbers.
+///
+/// # Examples
+///
+/// ```
+/// let result = my_crate::add(2, 2);
+/// assert_eq!(result, 4);
+/// ```
+pub fn add(a: i32, b: i32) -> i32 { ... }
+```
+
+### 3. Public Types
+**Rule:** No Private Types in Public Signatures.
+- If a public function returns a struct, that struct must also be `pub`.
+- Run `cargo doc --open` to verify that no links are broken/hidden.
+
+### 4. Send + Sync
+**Rule:** Types should generally implement `Send` and `Sync` to work in multi-threaded environments (like Tokio).
+- Avoid `Rc` / `RefCell` in public APIs unless single-threaded usage is the strict domain. Use `Arc` / `Mutex` instead.
+
+## 🛡️ Error Design
+
+### 1. The `Error` Enum
+**Rule:** Use `thiserror` to derive `Display` and `Error`.
+- Ensure every variant has a meaningful error message.
+
+```rust
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("network request failed")]
+    Network(#[from] std::io::Error),
+    
+    #[error("invalid configuration: {0}")]
+    Config(String),
+}
+```
+
+### 2. Non-Exhaustive Enums
+**Rule:** Use `#[non_exhaustive]` on public Enums if you plan to add variants in the future.
+- This forces users to add a catch-all (`_`) arm in `match`, preventing breaking changes when you add new features.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Leaking Implementation Details:** Do not expose `inner` fields of structs. keep fields private and provide getters/setters.
+2.  **Stringly Typed Errors:** Do not return `String` or `&str` as an error.
+3.  **Heavy Default Features:** Do not include heavy dependencies (like `reqwest` or `serde`) in `default` features unless they are the core purpose of the library. Let users opt-in.
+
+## 🧪 Testing
+
+- **Unit Tests:** Place in `src/mod.rs` inside a `mod tests { ... }` block. Test internal logic.
+- **Integration Tests:** Place in `tests/*.rs`. These test the library as an external consumer (using `pub` API only).
+- **Doc Tests:** Covered by `cargo test`.
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn internal_logic_works() {
+        // ...
+    }
+}
+```

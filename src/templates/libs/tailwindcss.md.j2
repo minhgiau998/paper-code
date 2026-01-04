@@ -1,0 +1,189 @@
+# Tailwind CSS Documentation
+
+> **Purpose:** A utility-first CSS framework for rapidly building custom user interfaces.
+
+## 📦 Installation & Setup
+
+{% if "React Native" in tech_stack %}
+### Mobile Setup (NativeWind)
+
+We use **NativeWind**, which allows using Tailwind classes in React Native.
+
+1.  **Install:**
+    ```bash
+    npm install nativewind
+    npm install --save-dev tailwindcss
+    ```
+
+2.  **Init:**
+    ```bash
+    npx tailwindcss init
+    ```
+
+3.  **Babel Config (`babel.config.js`):**
+    ```javascript
+    module.exports = function (api) {
+      api.cache(true);
+      return {
+        presets: ['babel-preset-expo'],
+        plugins: ['nativewind/babel'], // 👈 Add this
+      };
+    };
+    ```
+
+{% elif "Nuxt" in tech_stack %}
+### Nuxt Module Setup
+
+We use the official **Nuxt Module**.
+
+1.  **Install:**
+    ```bash
+    npm install -D @nuxtjs/tailwindcss
+    ```
+
+2.  **Config (`nuxt.config.ts`):**
+    ```typescript
+    export default defineNuxtConfig({
+      modules: ['@nuxtjs/tailwindcss']
+    })
+    ```
+
+{% else %}
+### Standard Web Setup (Vite / Next.js / Angular)
+
+1.  **Install:**
+    ```bash
+    npm install -D tailwindcss postcss autoprefixer
+    npx tailwindcss init -p
+    ```
+    *(Note: The `-p` flag creates a `postcss.config.js` automatically).*
+
+{% if "Angular" in tech_stack %}
+> **Angular Note:** If you are using Angular v16+, you might strictly need the build steps defined in your `angular.json` or use the `@ngneat/tailwind` schematic.
+{% endif %}
+{% endif %}
+
+## 🛠️ Configuration (`tailwind.config.js`)
+
+Ensure your `content` array matches your framework's file structure to enable Tree-Shaking (JIT).
+
+```javascript
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    // ⬇️ Context-Aware Content Paths
+{% if "Next.js" in tech_stack %}
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+{% elif "Vue" in tech_stack or "Nuxt" in tech_stack %}
+    "./components/**/*.{js,vue,ts}",
+    "./layouts/**/*.vue",
+    "./pages/**/*.vue",
+    "./plugins/**/*.{js,ts}",
+    "./app.vue",
+{% elif "Svelte" in tech_stack %}
+    "./src/**/*.{html,js,svelte,ts}",
+{% elif "React Native" in tech_stack %}
+    "./App.{js,jsx,ts,tsx}",
+    "./src/**/*.{js,jsx,ts,tsx}",
+{% else %}
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+{% endif %}
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: '#3b82f6', // Define semantic colors here
+        secondary: '#64748b',
+      },
+    },
+  },
+  plugins: [],
+}
+```
+
+## 🧩 The `cn` Utility (Class Merging)
+
+**Critical Architecture Pattern:**
+We strictly use a helper function to merge classes safely. This solves the "Last Class Wins" problem and handles conditional rendering clean.
+
+**Install dependencies:**
+```bash
+npm install clsx tailwind-merge
+```
+
+**Create file:** `src/lib/utils.ts` (or `src/utils/cn.ts`)
+
+```typescript
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+/**
+ * Merges Tailwind classes safely.
+ * Usage: cn("p-4 bg-red-500", condition && "bg-blue-500")
+ * Result: "p-4 bg-blue-500" (red is correctly overridden)
+ */
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+```
+
+## 💻 Usage Standards
+
+### 1. Component Usage
+Always use the `cn` utility when allowing external classes via props.
+
+{% if "React" in tech_stack or "Next.js" in tech_stack %}
+```tsx
+import { cn } from "@/lib/utils";
+
+interface Props {
+  className?: string;
+  children: React.ReactNode;
+}
+
+export const Card = ({ className, children }: Props) => {
+  return (
+    // 🟢 Good: External 'className' can safely override default styles
+    <div className={cn("rounded-lg border bg-white shadow-sm", className)}>
+      {children}
+    </div>
+  );
+};
+```
+{% elif "Vue" in tech_stack %}
+```vue
+<script setup lang="ts">
+import { cn } from '@/lib/utils';
+defineProps<{ class?: string }>();
+</script>
+
+<template>
+  <div :class="cn('rounded-lg border bg-white shadow-sm', $props.class)">
+    <slot />
+  </div>
+</template>
+```
+{% endif %}
+
+### 2. Semantic Naming (Config)
+Avoid hardcoding hex values in your markup. Extend the theme in `tailwind.config.js`.
+
+- **Bad:** `bg-[#1da1f2]`
+- **Good:** `bg-brand-blue` (Where `brand-blue` is defined in config)
+
+## 🚫 Anti-Patterns
+
+1.  **The `@apply` Trap:**
+    *   **Rule:** Avoid using `@apply` in CSS files to create "classes".
+    *   **Reason:** It bloats the CSS bundle and breaks the "utility-first" workflow. Extract logic to **Components** (React/Vue components), not CSS classes.
+    *   *Exception:* Resetting base styles in `globals.css` (e.g., scrollbars).
+
+2.  **Dynamic Class Strings:**
+    *   Tailwind's scanner cannot detect dynamically constructed strings.
+    *   **Bad:** `bg-${color}-500` (The scanner doesn't know which colors to generate).
+    *   **Good:** Full strings: `const map = { red: 'bg-red-500', blue: 'bg-blue-500' }`.
+
+3.  **Arbitrary Values Abuse:**
+    *   Avoid usage like `w-[357px]` unless absolutely necessary for pixel-perfect implementation of a weird asset. Use standard spacing (`w-96`, `w-full`).

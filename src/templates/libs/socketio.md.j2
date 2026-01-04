@@ -1,0 +1,1160 @@
+# Socket.io Documentation
+
+> **Purpose:** Enables real-time, bidirectional and event-based communication.
+
+## 📦 Installation
+
+```bash
+npm install socket.io
+# For client-side
+npm install socket.io-client
+```
+
+## 🛠️ Server Configuration
+
+**Strategy:** Use Socket.io with Express/NestJS for real-time features.
+
+### 1. Basic Server Setup (`src/socket/socket.js`)
+
+```javascript
+const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
+
+class SocketService {
+  constructor() {
+    this.io = null;
+    this.connectedUsers = new Map(); // userId -> socket.id
+    this.rooms = new Map(); // roomId -> Set of userIds
+  }
+
+  initialize(server) {
+    this.io = new Server(server, {
+      cors: {
+        origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+        methods: ["GET", "POST"],
+        credentials: true,
+      },
+      transports: ["websocket", "polling"],
+    });
+
+    // Middleware for authentication
+    this.io.use(async (socket, next) => {
+      try {
+        const token = socket.handshake.auth.token;
+        if (!token) {
+          return next(new Error("Authentication error"));
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        socket.userId = decoded.userId;
+        socket.userRole = decoded.role;
+        next();
+      } catch (err) {
+        next(new Error("Authentication error"));
+      }
+    });
+
+    this.setupEventHandlers();
+    console.log("Socket.io server initialized");
+  }
+
+  setupEventHandlers() {
+    this.io.on("connection", (socket) => {
+      console.log(`User ${socket.userId} connected with socket ${socket.id}`);
+
+      // Track connected user
+      this.connectedUsers.set(socket.userId, socket.id);
+
+      // Join user to their personal room
+      socket.join(`user:${socket.userId}`);
+
+      // Handle joining rooms
+      socket.on("join_room", (data) => {
+        this.handleJoinRoom(socket, data);
+      });
+
+      // Handle leaving rooms
+      socket.on("leave_room", (data) => {
+        this.handleLeaveRoom(socket, data);
+      });
+
+      // Handle chat messages
+      socket.on("send_message", (data) => {
+        this.handleSendMessage(socket, data);
+      });
+
+      // Handle typing indicators
+      socket.on("typing_start", (data) => {
+        this.handleTypingStart(socket, data);
+      });
+
+      socket.on("typing_stop", (data) => {
+        this.handleTypingStop(socket, data);
+      });
+
+      // Handle notifications
+      socket.on("mark_notification_read", (data) => {
+        this.handleMarkNotificationRead(socket, data);
+      });
+
+      // Handle disconnection
+      socket.on("disconnect", () => {
+        this.handleDisconnect(socket);
+      });
+
+      // Send welcome message
+      socket.emit("connected", {
+        message: "Connected to server",
+        userId: socket.userId,
+        socketId: socket.id,
+      });
+    });
+  }
+
+  handleJoinRoom(socket, data) {
+    const { roomId, roomType = "chat" } = data;
+
+    // Validate room access
+    if (!this.validateRoomAccess(socket.userId, roomId, roomType)) {
+      socket.emit("error", { message: "Access denied to room" });
+      return;
+    }
+
+    socket.join(roomId);
+
+    // Track room membership
+    if (!this.rooms.has(roomId)) {
+      this.rooms.set(roomId, new Set());
+    }
+    this.rooms.get(roomId).add(socket.userId);
+
+    // Notify room members
+    socket.to(roomId).emit("user_joined", {
+      userId: socket.userId,
+      roomId,
+      timestamp: new Date(),
+    });
+
+    // Send room info to user
+    socket.emit("room_joined", {
+      roomId,
+      roomType,
+      memberCount: this.rooms.get(roomId).size,
+    });
+
+    console.log(`User ${socket.userId} joined room ${roomId}`);
+  }
+
+  handleLeaveRoom(socket, data) {
+    const { roomId } = data;
+
+    socket.leave(roomId);
+
+    // Remove from room tracking
+    if (this.rooms.has(roomId)) {
+      this.rooms.get(roomId).delete(socket.userId);
+      if (this.rooms.get(roomId).size === 0) {
+        this.rooms.delete(roomId);
+      }
+    }
+
+    // Notify room members
+    socket.to(roomId).emit("user_left", {
+      userId: socket.userId,
+      roomId,
+      timestamp: new Date(),
+    });
+
+    socket.emit("room_left", { roomId });
+    console.log(`User ${socket.userId} left room ${roomId}`);
+  }
+
+  handleSendMessage(socket, data) {
+    const { roomId, message, type = "text" } = data;
+
+    // Validate room membership
+    if (!this.rooms.has(roomId) || !this.rooms.get(roomId).has(socket.userId)) {
+      socket.emit("error", { message: "Not a member of this room" });
+      return;
+    }
+
+    const messageData = {
+      id: this.generateMessageId(),
+      roomId,
+      senderId: socket.userId,
+      message,
+      type,
+      timestamp: new Date(),
+    };
+
+    // Save message to database (implement this)
+    this.saveMessage(messageData);
+
+    // Broadcast to room
+    this.io.to(roomId).emit("new_message", messageData);
+
+    // Send notification to offline users
+    this.notifyOfflineUsers(roomId, messageData);
+  }
+
+  handleTypingStart(socket, data) {
+    const { roomId } = data;
+
+    if (!this.rooms.has(roomId) || !this.rooms.get(roomId).has(socket.userId)) {
+      return;
+    }
+
+    socket.to(roomId).emit("user_typing", {
+      userId: socket.userId,
+      roomId,
+      isTyping: true,
+    });
+  }
+
+  handleTypingStop(socket, data) {
+    const { roomId } = data;
+
+    if (!this.rooms.has(roomId) || !this.rooms.get(roomId).has(socket.userId)) {
+      return;
+    }
+
+    socket.to(roomId).emit("user_typing", {
+      userId: socket.userId,
+      roomId,
+      isTyping: false,
+    });
+  }
+
+  handleMarkNotificationRead(socket, data) {
+    const { notificationId } = data;
+
+    // Mark notification as read in database
+    this.markNotificationRead(socket.userId, notificationId);
+
+    socket.emit("notification_marked_read", {
+      notificationId,
+      timestamp: new Date(),
+    });
+  }
+
+  handleDisconnect(socket) {
+    console.log(`User ${socket.userId} disconnected`);
+
+    // Remove from connected users
+    this.connectedUsers.delete(socket.userId);
+
+    // Remove from all rooms
+    for (const [roomId, members] of this.rooms.entries()) {
+      if (members.has(socket.userId)) {
+        members.delete(socket.userId);
+        
+        // Notify room members
+        socket.to(roomId).emit("user_left", {
+          userId: socket.userId,
+          roomId,
+          timestamp: new Date(),
+        });
+
+        // Clean up empty rooms
+        if (members.size === 0) {
+          this.rooms.delete(roomId);
+        }
+      }
+    }
+  }
+
+  // Utility methods
+  validateRoomAccess(userId, roomId, roomType) {
+    // Implement room access validation logic
+    // Check if user has permission to join the room
+    return true; // Simplified for example
+  }
+
+  generateMessageId() {
+    return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  async saveMessage(messageData) {
+    // Save message to database
+    // Implement your database logic here
+    console.log("Saving message:", messageData);
+  }
+
+  async notifyOfflineUsers(roomId, messageData) {
+    // Get offline users in the room
+    const roomMembers = this.rooms.get(roomId) || new Set();
+    const onlineUsers = new Set(this.connectedUsers.keys());
+    
+    for (const userId of roomMembers) {
+      if (!onlineUsers.has(userId)) {
+        // Send push notification or email
+        await this.sendNotification(userId, messageData);
+      }
+    }
+  }
+
+  async sendNotification(userId, messageData) {
+    // Implement notification sending logic
+    console.log(`Sending notification to user ${userId}:`, messageData);
+  }
+
+  async markNotificationRead(userId, notificationId) {
+    // Mark notification as read in database
+    console.log(`Marking notification ${notificationId} as read for user ${userId}`);
+  }
+
+  // Public methods for external use
+  sendToUser(userId, event, data) {
+    const socketId = this.connectedUsers.get(userId);
+    if (socketId) {
+      this.io.to(socketId).emit(event, data);
+    }
+  }
+
+  sendToRoom(roomId, event, data) {
+    this.io.to(roomId).emit(event, data);
+  }
+
+  broadcast(event, data) {
+    this.io.emit(event, data);
+  }
+
+  getConnectedUsers() {
+    return Array.from(this.connectedUsers.keys());
+  }
+
+  getRoomMembers(roomId) {
+    return Array.from(this.rooms.get(roomId) || []);
+  }
+
+  getRoomCount() {
+    return this.rooms.size;
+  }
+
+  getConnectionCount() {
+    return this.connectedUsers.size;
+  }
+}
+
+module.exports = new SocketService();
+```
+
+### 2. Integration with Express (`src/app.js`)
+
+```javascript
+const express = require("express");
+const http = require("http");
+const socketService = require("./socket/socket");
+
+const app = express();
+const server = http.createServer(app);
+
+// Initialize Socket.io
+socketService.initialize(server);
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+```
+
+### 3. Integration with NestJS (`src/socket/socket.gateway.ts`)
+
+```typescript
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+  OnGatewayInit,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  MessageBody,
+  ConnectedSocket,
+} from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
+import { Logger } from '@nestjs/common';
+
+@WebSocketGateway({
+  cors: {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    credentials: true,
+  },
+  transports: ['websocket', 'polling'],
+})
+export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+  @WebSocketServer() server: Server;
+  private logger: Logger = new Logger('SocketGateway');
+  private connectedUsers = new Map<string, string>(); // userId -> socket.id
+  private rooms = new Map<string, Set<string>>(); // roomId -> Set of userIds
+
+  constructor(private jwtService: JwtService) {}
+
+  afterInit(server: Server) {
+    this.logger.log('Socket Gateway initialized');
+  }
+
+  async handleConnection(client: Socket) {
+    try {
+      const token = client.handshake.auth.token;
+      const decoded = this.jwtService.verify(token);
+      
+      client.data.userId = decoded.userId;
+      client.data.userRole = decoded.role;
+      
+      this.connectedUsers.set(decoded.userId, client.id);
+      client.join(`user:${decoded.userId}`);
+      
+      client.emit('connected', {
+        message: 'Connected to server',
+        userId: decoded.userId,
+        socketId: client.id,
+      });
+      
+      this.logger.log(`User ${decoded.userId} connected`);
+    } catch (error) {
+      this.logger.error('Authentication error:', error);
+      client.disconnect();
+    }
+  }
+
+  handleDisconnect(client: Socket) {
+    const userId = client.data.userId;
+    
+    this.connectedUsers.delete(userId);
+    
+    // Remove from all rooms
+    for (const [roomId, members] of this.rooms.entries()) {
+      if (members.has(userId)) {
+        members.delete(userId);
+        client.to(roomId).emit('user_left', {
+          userId,
+          roomId,
+          timestamp: new Date(),
+        });
+        
+        if (members.size === 0) {
+          this.rooms.delete(roomId);
+        }
+      }
+    }
+    
+    this.logger.log(`User ${userId} disconnected`);
+  }
+
+  @SubscribeMessage('join_room')
+  handleJoinRoom(
+    @MessageBody() data: { roomId: string; roomType?: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { roomId, roomType = 'chat' } = data;
+    const userId = client.data.userId;
+
+    if (!this.validateRoomAccess(userId, roomId, roomType)) {
+      client.emit('error', { message: 'Access denied to room' });
+      return;
+    }
+
+    client.join(roomId);
+
+    if (!this.rooms.has(roomId)) {
+      this.rooms.set(roomId, new Set());
+    }
+    this.rooms.get(roomId).add(userId);
+
+    client.to(roomId).emit('user_joined', {
+      userId,
+      roomId,
+      timestamp: new Date(),
+    });
+
+    client.emit('room_joined', {
+      roomId,
+      roomType,
+      memberCount: this.rooms.get(roomId).size,
+    });
+  }
+
+  @SubscribeMessage('leave_room')
+  handleLeaveRoom(
+    @MessageBody() data: { roomId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { roomId } = data;
+    const userId = client.data.userId;
+
+    client.leave(roomId);
+
+    if (this.rooms.has(roomId)) {
+      this.rooms.get(roomId).delete(userId);
+      if (this.rooms.get(roomId).size === 0) {
+        this.rooms.delete(roomId);
+      }
+    }
+
+    client.to(roomId).emit('user_left', {
+      userId,
+      roomId,
+      timestamp: new Date(),
+    });
+
+    client.emit('room_left', { roomId });
+  }
+
+  @SubscribeMessage('send_message')
+  handleSendMessage(
+    @MessageBody() data: { roomId: string; message: string; type?: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { roomId, message, type = 'text' } = data;
+    const userId = client.data.userId;
+
+    if (!this.rooms.has(roomId) || !this.rooms.get(roomId).has(userId)) {
+      client.emit('error', { message: 'Not a member of this room' });
+      return;
+    }
+
+    const messageData = {
+      id: this.generateMessageId(),
+      roomId,
+      senderId: userId,
+      message,
+      type,
+      timestamp: new Date(),
+    };
+
+    this.server.to(roomId).emit('new_message', messageData);
+    this.saveMessage(messageData);
+  }
+
+  @SubscribeMessage('typing_start')
+  handleTypingStart(
+    @MessageBody() data: { roomId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { roomId } = data;
+    const userId = client.data.userId;
+
+    if (this.rooms.has(roomId) && this.rooms.get(roomId).has(userId)) {
+      client.to(roomId).emit('user_typing', {
+        userId,
+        roomId,
+        isTyping: true,
+      });
+    }
+  }
+
+  @SubscribeMessage('typing_stop')
+  handleTypingStop(
+    @MessageBody() data: { roomId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const { roomId } = data;
+    const userId = client.data.userId;
+
+    if (this.rooms.has(roomId) && this.rooms.get(roomId).has(userId)) {
+      client.to(roomId).emit('user_typing', {
+        userId,
+        roomId,
+        isTyping: false,
+      });
+    }
+  }
+
+  // Utility methods
+  private validateRoomAccess(userId: string, roomId: string, roomType: string): boolean {
+    // Implement room access validation logic
+    return true;
+  }
+
+  private generateMessageId(): string {
+    return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private async saveMessage(messageData: any) {
+    // Save message to database
+    this.logger.log('Saving message:', messageData);
+  }
+
+  // Public methods
+  sendToUser(userId: string, event: string, data: any) {
+    const socketId = this.connectedUsers.get(userId);
+    if (socketId) {
+      this.server.to(socketId).emit(event, data);
+    }
+  }
+
+  sendToRoom(roomId: string, event: string, data: any) {
+    this.server.to(roomId).emit(event, data);
+  }
+
+  broadcast(event: string, data: any) {
+    this.server.emit(event, data);
+  }
+}
+```
+
+## 📱 Client Configuration
+
+### 1. React Client (`src/hooks/useSocket.js`)
+
+```javascript
+import { useEffect, useRef, useState } from 'react';
+import { io } from 'socket.io-client';
+
+const useSocket = (token) => {
+  const [socket, setSocket] = useState(null);
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const newSocket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:3000', {
+      auth: {
+        token,
+      },
+      transports: ['websocket', 'polling'],
+    });
+
+    newSocket.on('connect', () => {
+      setConnected(true);
+      setError(null);
+      console.log('Connected to socket server');
+    });
+
+    newSocket.on('disconnect', () => {
+      setConnected(false);
+      console.log('Disconnected from socket server');
+    });
+
+    newSocket.on('error', (err) => {
+      setError(err.message);
+      console.error('Socket error:', err);
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.close();
+    };
+  }, [token]);
+
+  const joinRoom = (roomId, roomType = 'chat') => {
+    if (socket && connected) {
+      socket.emit('join_room', { roomId, roomType });
+    }
+  };
+
+  const leaveRoom = (roomId) => {
+    if (socket && connected) {
+      socket.emit('leave_room', { roomId });
+    }
+  };
+
+  const sendMessage = (roomId, message, type = 'text') => {
+    if (socket && connected) {
+      socket.emit('send_message', { roomId, message, type });
+    }
+  };
+
+  const startTyping = (roomId) => {
+    if (socket && connected) {
+      socket.emit('typing_start', { roomId });
+    }
+  };
+
+  const stopTyping = (roomId) => {
+    if (socket && connected) {
+      socket.emit('typing_stop', { roomId });
+    }
+  };
+
+  const markNotificationRead = (notificationId) => {
+    if (socket && connected) {
+      socket.emit('mark_notification_read', { notificationId });
+    }
+  };
+
+  return {
+    socket,
+    connected,
+    error,
+    joinRoom,
+    leaveRoom,
+    sendMessage,
+    startTyping,
+    stopTyping,
+    markNotificationRead,
+  };
+};
+
+export default useSocket;
+```
+
+### 2. Vue Client (`src/composables/useSocket.js`)
+
+```javascript
+import { ref, onMounted, onUnmounted } from 'vue';
+import { io } from 'socket.io-client';
+
+export function useSocket(token) {
+  const socket = ref(null);
+  const connected = ref(false);
+  const error = ref(null);
+
+  const connect = () => {
+    if (!token) return;
+
+    socket.value = io(process.env.VUE_APP_SOCKET_URL || 'http://localhost:3000', {
+      auth: {
+        token,
+      },
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.value.on('connect', () => {
+      connected.value = true;
+      error.value = null;
+      console.log('Connected to socket server');
+    });
+
+    socket.value.on('disconnect', () => {
+      connected.value = false;
+      console.log('Disconnected from socket server');
+    });
+
+    socket.value.on('error', (err) => {
+      error.value = err.message;
+      console.error('Socket error:', err);
+    });
+  };
+
+  const disconnect = () => {
+    if (socket.value) {
+      socket.value.close();
+      socket.value = null;
+    }
+  };
+
+  const joinRoom = (roomId, roomType = 'chat') => {
+    if (socket.value && connected.value) {
+      socket.value.emit('join_room', { roomId, roomType });
+    }
+  };
+
+  const leaveRoom = (roomId) => {
+    if (socket.value && connected.value) {
+      socket.value.emit('leave_room', { roomId });
+    }
+  };
+
+  const sendMessage = (roomId, message, type = 'text') => {
+    if (socket.value && connected.value) {
+      socket.value.emit('send_message', { roomId, message, type });
+    }
+  };
+
+  const startTyping = (roomId) => {
+    if (socket.value && connected.value) {
+      socket.value.emit('typing_start', { roomId });
+    }
+  };
+
+  const stopTyping = (roomId) => {
+    if (socket.value && connected.value) {
+      socket.value.emit('typing_stop', { roomId });
+    }
+  };
+
+  onMounted(() => {
+    connect();
+  });
+
+  onUnmounted(() => {
+    disconnect();
+  });
+
+  return {
+    socket,
+    connected,
+    error,
+    joinRoom,
+    leaveRoom,
+    sendMessage,
+    startTyping,
+    stopTyping,
+  };
+}
+```
+
+## 🗄️ Database Models
+
+### 1. Message Model (`src/models/Message.js`)
+
+```javascript
+const mongoose = require('mongoose');
+
+const messageSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  roomId: { type: String, required: true, index: true },
+  senderId: { type: String, required: true, index: true },
+  message: { type: String, required: true },
+  type: { type: String, enum: ['text', 'image', 'file', 'system'], default: 'text' },
+  timestamp: { type: Date, default: Date.now, index: true },
+  edited: { type: Boolean, default: false },
+  editedAt: { type: Date },
+  deleted: { type: Boolean, default: false },
+  deletedAt: { type: Date },
+  readBy: [{ type: String, index: true }], // Array of user IDs who read the message
+  metadata: { type: mongoose.Schema.Types.Mixed }, // Additional data
+}, {
+  timestamps: true,
+});
+
+messageSchema.index({ roomId: 1, timestamp: -1 });
+messageSchema.index({ senderId: 1, roomId: 1 });
+
+module.exports = mongoose.model('Message', messageSchema);
+```
+
+### 2. Room Model (`src/models/Room.js`)
+
+```javascript
+const mongoose = require('mongoose');
+
+const roomSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  name: { type: String, required: true },
+  type: { type: String, enum: ['chat', 'channel', 'direct', 'group'], required: true },
+  description: { type: String },
+  avatar: { type: String },
+  createdBy: { type: String, required: true, index: true },
+  members: [{
+    userId: { type: String, required: true },
+    role: { type: String, enum: ['admin', 'moderator', 'member'], default: 'member' },
+    joinedAt: { type: Date, default: Date.now },
+  }],
+  settings: {
+    isPrivate: { type: Boolean, default: false },
+    isArchived: { type: Boolean, default: false },
+    maxMembers: { type: Number, default: 100 },
+    allowInvites: { type: Boolean, default: true },
+    requireApproval: { type: Boolean, default: false },
+  },
+  lastMessage: {
+    id: String,
+    content: String,
+    senderId: String,
+    timestamp: Date,
+  },
+  metadata: { type: mongoose.Schema.Types.Mixed },
+}, {
+  timestamps: true,
+});
+
+roomSchema.index({ 'members.userId': 1 });
+roomSchema.index({ type: 1, 'settings.isPrivate': 1 });
+
+module.exports = mongoose.model('Room', roomSchema);
+```
+
+## 🔄 Service Layer
+
+### 1. Chat Service (`src/services/chatService.js`)
+
+```javascript
+const Message = require('../models/Message');
+const Room = require('../models/Room');
+const socketService = require('../socket/socket');
+
+class ChatService {
+  async createRoom(roomData) {
+    const room = new Room(roomData);
+    await room.save();
+    
+    // Notify room creator
+    socketService.sendToUser(room.createdBy, 'room_created', {
+      roomId: room.id,
+      room: room.toJSON(),
+    });
+    
+    return room;
+  }
+
+  async joinRoom(userId, roomId) {
+    const room = await Room.findOne({ id: roomId });
+    if (!room) {
+      throw new Error('Room not found');
+    }
+
+    // Check if user is already a member
+    const existingMember = room.members.find(m => m.userId === userId);
+    if (existingMember) {
+      return room;
+    }
+
+    // Add user to room
+    room.members.push({
+      userId,
+      role: 'member',
+      joinedAt: new Date(),
+    });
+
+    await room.save();
+    return room;
+  }
+
+  async leaveRoom(userId, roomId) {
+    const room = await Room.findOne({ id: roomId });
+    if (!room) {
+      throw new Error('Room not found');
+    }
+
+    // Remove user from room
+    room.members = room.members.filter(m => m.userId !== userId);
+    
+    // Delete room if no members left
+    if (room.members.length === 0) {
+      await Room.deleteOne({ id: roomId });
+    } else {
+      await room.save();
+    }
+
+    return room;
+  }
+
+  async saveMessage(messageData) {
+    const message = new Message(messageData);
+    await message.save();
+
+    // Update room's last message
+    await Room.updateOne(
+      { id: messageData.roomId },
+      {
+        lastMessage: {
+          id: message.id,
+          content: message.message,
+          senderId: message.senderId,
+          timestamp: message.timestamp,
+        },
+      }
+    );
+
+    return message;
+  }
+
+  async getRoomMessages(roomId, page = 1, limit = 50) {
+    const skip = (page - 1) * limit;
+    
+    const messages = await Message.find({ 
+      roomId, 
+      deleted: false 
+    })
+    .sort({ timestamp: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate('senderId', 'name avatar')
+    .lean();
+
+    return messages.reverse(); // Return in chronological order
+  }
+
+  async markMessageAsRead(userId, messageId) {
+    await Message.updateOne(
+      { id: messageId },
+      { $addToSet: { readBy: userId } }
+    );
+  }
+
+  async deleteMessage(userId, messageId) {
+    const message = await Message.findOne({ id: messageId });
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
+    // Check if user can delete the message
+    if (message.senderId !== userId) {
+      const room = await Room.findOne({ id: message.roomId });
+      const userMember = room.members.find(m => m.userId === userId);
+      const isModerator = userMember && ['admin', 'moderator'].includes(userMember.role);
+      
+      if (!isModerator) {
+        throw new Error('Permission denied');
+      }
+    }
+
+    message.deleted = true;
+    message.deletedAt = new Date();
+    await message.save();
+
+    return message;
+  }
+
+  async editMessage(userId, messageId, newContent) {
+    const message = await Message.findOne({ id: messageId });
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
+    if (message.senderId !== userId) {
+      throw new Error('Permission denied');
+    }
+
+    message.message = newContent;
+    message.edited = true;
+    message.editedAt = new Date();
+    await message.save();
+
+    return message;
+  }
+
+  async getUserRooms(userId) {
+    const rooms = await Room.find({ 
+      'members.userId': userId,
+      'settings.isArchived': false 
+    })
+    .populate('members.userId', 'name avatar')
+    .populate('createdBy', 'name avatar')
+    .lean();
+
+    return rooms;
+  }
+
+  async searchMessages(roomId, query, page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    
+    const messages = await Message.find({
+      roomId,
+      message: { $regex: query, $options: 'i' },
+      deleted: false,
+    })
+    .sort({ timestamp: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate('senderId', 'name avatar')
+    .lean();
+
+    return messages;
+  }
+}
+
+module.exports = new ChatService();
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Missing Authentication:**
+   - **Bad:** Not authenticating socket connections.
+   - **Good:** Always authenticate with JWT tokens.
+
+2. **Memory Leaks:**
+   - **Bad:** Not cleaning up event listeners on disconnect.
+   - **Good:** Properly clean up on disconnect events.
+
+3. **No Room Validation:**
+   - **Bad:** Allowing users to join any room.
+   - **Good:** Validate room access permissions.
+
+4. **Blocking Event Loop:**
+   - **Bad:** Heavy computations in event handlers.
+   - **Good:** Use async/await and offload heavy tasks.
+
+5. **Missing Error Handling:**
+   - **Bad:** Not handling connection errors.
+   - **Good:** Implement proper error handling and reconnection logic.
+
+## 🧪 Testing Strategy
+
+```javascript
+// tests/socket.test.js
+const { Server } = require('socket.io');
+const Client = require('socket.io-client');
+const jwt = require('jsonwebtoken');
+
+describe('Socket.io Tests', () => {
+  let io, serverSocket, clientSocket;
+
+  beforeAll((done) => {
+    const httpServer = require('http').createServer();
+    io = new Server(httpServer);
+    httpServer.listen(() => {
+      const port = httpServer.address().port;
+      clientSocket = new Client(`http://localhost:${port}`, {
+        auth: {
+          token: jwt.sign({ userId: 'test-user' }, 'test-secret'),
+        },
+      });
+      
+      io.on('connection', (socket) => {
+        serverSocket = socket;
+      });
+      
+      clientSocket.on('connect', done);
+    });
+  });
+
+  afterAll(() => {
+    io.close();
+    clientSocket.close();
+  });
+
+  test('should authenticate user', (done) => {
+    expect(serverSocket.data.userId).toBe('test-user');
+    done();
+  });
+
+  test('should join room', (done) => {
+    clientSocket.emit('join_room', { roomId: 'test-room' });
+    
+    serverSocket.on('join_room', (data) => {
+      expect(data.roomId).toBe('test-room');
+      done();
+    });
+  });
+
+  test('should send message', (done) => {
+    const messageData = {
+      roomId: 'test-room',
+      message: 'Hello World',
+    };
+
+    clientSocket.emit('send_message', messageData);
+    
+    serverSocket.on('send_message', (data) => {
+      expect(data.message).toBe('Hello World');
+      done();
+    });
+  });
+});
+```
+
+## 📦 Environment Variables
+
+```env
+# Socket.io Configuration
+SOCKET_CORS_ORIGIN=http://localhost:3000
+SOCKET_TRANSPORTS=websocket,polling
+
+# JWT Configuration
+JWT_SECRET=your-super-secret-jwt-key
+JWT_EXPIRES_IN=7d
+
+# Redis Configuration (for scaling)
+REDIS_URL=redis://localhost:6379
+REDIS_PASSWORD=
+```
+
+## 📦 Package.json Scripts
+
+```json
+{
+  "scripts": {
+    "dev": "nodemon src/app.js",
+    "start": "node src/app.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  }
+}
+```

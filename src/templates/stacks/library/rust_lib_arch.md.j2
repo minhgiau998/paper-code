@@ -1,0 +1,64 @@
+# Rust Library Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a reusable **Rust Crate**.
+It is designed to be **safe**, **performant**, and **modular**.
+It follows the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/) to ensure an idiomatic experience for consumers.
+
+## 📂 Directory Structure
+
+We use the standard Cargo layout with an emphasis on `examples/` and `tests/`.
+
+```text
+root/
+├── Cargo.toml           # Manifest & Feature definitions
+├── src/
+│   ├── lib.rs           # The Public Facade (Re-exports)
+│   ├── error.rs         # Centralized Error definitions
+│   ├── core/            # Internal business logic
+│   └── utils/           # Private helpers
+├── examples/            # Runnable examples for users
+│   └── simple_usage.rs
+├── tests/               # Integration tests (Black-box testing)
+│   └── integration_test.rs
+├── benches/             # Criterion benchmarks (Optional)
+└── README.md
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. The Public Facade (`lib.rs`)
+- `lib.rs` should primarily contain `pub use` statements.
+- **Goal:** Flatten the API hierarchy.
+- **Example:** Users should import `my_crate::Client`, not `my_crate::core::client::Client`.
+
+```rust
+// src/lib.rs
+mod core;
+mod utils;
+
+pub use core::client::Client;
+pub use core::config::Config;
+```
+
+### 2. Feature Flags
+We heavily utilize `[features]` in `Cargo.toml` to minimize compile times and binary size for users.
+- **Core:** The default build should contain minimal dependencies.
+- **Add-ons:** Heavy features (e.g., `serde`, `tokio`, `tls`) must be behind feature flags.
+
+### 3. Error Handling (`thiserror`)
+- Libraries must provide structured, matching-friendly errors.
+- We use **`thiserror`** to define a custom `Error` enum.
+- **Rule:** Never return `Box<dyn Error>` or `anyhow::Result` in the public API. Users need to match on specific error variants.
+
+{% if "Tokio" in libraries %}
+### 4. Async Runtime Agnosticism
+- Ideally, the library should be runtime-agnostic.
+- If strictly bound to **Tokio**, expose it via a feature flag so users can ensure runtime compatibility.
+{% endif %}
+
+## 📦 Publishing & Versioning
+- **SemVer:** Strictly adhered to. Breaking changes to the Public API require a Major version bump.
+- **Crate Metadata:** `Cargo.toml` must include `description`, `license`, `repository`, and `documentation` links before publishing to crates.io.
+- **CI:** CI must run `cargo test` and `cargo doc` to ensure documentation builds correctly.

@@ -1,0 +1,87 @@
+# Electron Coding Standards
+
+## 📝 Naming Conventions
+
+- **IPC Channels:** `domain:action` (kebab-case).
+  - e.g., `file:read-text`, `user:login`.
+- **IPC Handlers:** `handle` + PascalCase.
+  - e.g., `handleFileRead`.
+- **Exposed API:** `camelCase` keys in the `contextBridge`.
+
+## ⚡ Modern Electron Rules (Critical)
+
+### 1. Security First
+**Rule:** NEVER enable `nodeIntegration`.
+**Rule:** NEVER disable `webSecurity` (CORS protection) unless strictly necessary for local development proxies.
+
+### 2. IPC Pattern (Invoke/Handle)
+**Rule:** Use `invoke` and `handle` for request/response logic.
+Avoid `ipcRenderer.send` unless it is a "Fire and Forget" event (like logging).
+
+```typescript
+// ❌ Bad (Legacy Callback Style)
+// Renderer
+ipcRenderer.send('get-data');
+ipcRenderer.on('get-data-reply', (e, data) => { ... });
+
+// ✅ Good (Modern Async Style)
+// Renderer
+const data = await window.api.getData();
+
+// Preload
+contextBridge.exposeInMainWorld('api', {
+  getData: () => ipcRenderer.invoke('data:get')
+});
+
+// Main
+ipcMain.handle('data:get', async () => {
+  return await db.getData();
+});
+```
+
+### 3. No Node.js in Renderer
+**Rule:** Do not import `fs`, `path`, or `child_process` inside `src/renderer`.
+- If you see `import fs from 'fs'` in a `.tsx` or `.vue` file, it is WRONG.
+- Move that logic to `src/main/services/` and expose it via IPC.
+
+## 🛡️ Typing the Bridge (TypeScript)
+
+**Rule:** You MUST define the `Window` interface extension to provide IntelliSense in the Renderer.
+
+```typescript
+// src/preload/index.d.ts
+export interface IElectronAPI {
+  readFile: (path: string) => Promise<string>;
+  onUpdateAvailable: (callback: () => void) => void;
+}
+
+declare global {
+  interface Window {
+    api: IElectronAPI;
+  }
+}
+```
+
+## 🏗️ Performance Guidelines
+
+### 1. Blocking the Main Process
+**Rule:** The Main Process runs on a single thread (Node.js Event Loop).
+- Do not perform heavy CPU operations (image resizing, video encoding) on the Main Thread.
+- Use **Worker Threads** or utility processes for heavy lifting to keep the app responsive.
+
+### 2. Large IPC Payloads
+- Avoid sending huge JSON objects or binary buffers via IPC if possible.
+- For files, pass the **file path** string, and let the Main process read it directly.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **The `remote` Module:** It is deprecated and removed. Do not try to use it.
+2.  **Sync IPC (`sendSync`):** Never use synchronous IPC. It freezes the Renderer (UI) until the Main process replies.
+3.  **Direct Direct Database Access in Renderer:** Do not try to use `sqlite3` or `better-sqlite3` directly in the frontend. It must live in the Main Process.
+
+## 🧪 Testing
+
+- **E2E:** Use **Playwright** (configured for Electron) or **WebdriverIO**.
+- **Unit:**
+  - Main Process: Standard `Vitest`/`Jest`.
+  - Renderer: Use the testing library suitable for your frontend stack (React/Vue).

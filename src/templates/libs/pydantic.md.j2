@@ -1,0 +1,778 @@
+# Pydantic Documentation
+
+> **Purpose:** Data validation using Python type annotations.
+
+## 📦 Installation
+
+```bash
+pip install pydantic
+# Optional dependencies
+pip install pydantic[email]    # Email validation
+pip install pydantic[typing]   # Extended typing support
+```
+
+## 🛠️ Basic Models
+
+**Strategy:** Use Pydantic models for data validation, serialization, and API schemas.
+
+### 1. Base Model (`src/models/base.py`)
+
+```python
+from typing import Any, Dict, Optional
+from pydantic import BaseModel, Field, validator
+from datetime import datetime
+from enum import Enum
+
+class BaseSchema(BaseModel):
+    """Base schema with common fields."""
+    
+    class Config:
+        # Allow population by field name
+        allow_population_by_field_name = True
+        
+        # Validate assignment on update
+        validate_assignment = True
+        
+        # Use enum values instead of enum objects
+        use_enum_values = True
+        
+        # Extra fields are forbidden
+        extra = "forbid"
+
+class TimestampMixin(BaseModel):
+    """Mixin for timestamp fields."""
+    
+    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None,
+        }
+
+class PaginationParams(BaseModel):
+    """Pagination parameters."""
+    
+    page: int = Field(1, ge=1, description="Page number (starting from 1)")
+    limit: int = Field(10, ge=1, le=100, description="Items per page")
+    
+    @property
+    def skip(self) -> int:
+        """Calculate skip offset."""
+        return (self.page - 1) * self.limit
+    
+    @validator('limit')
+    def validate_limit(cls, v):
+        """Validate limit doesn't exceed maximum."""
+        return min(v, 100)
+
+class PaginatedResponse(BaseModel):
+    """Paginated response wrapper."""
+    
+    items: list = Field(..., description="List of items")
+    total: int = Field(..., ge=0, description="Total number of items")
+    page: int = Field(..., ge=1, description="Current page number")
+    limit: int = Field(..., ge=1, description="Items per page")
+    pages: int = Field(..., ge=0, description="Total number of pages")
+    
+    @validator('pages', always=True)
+    def calculate_pages(cls, v, values):
+        """Calculate total pages."""
+        total = values.get('total', 0)
+        limit = values.get('limit', 10)
+        return (total + limit - 1) // limit if total > 0 else 0
+```
+
+### 2. User Models (`src/models/user.py`)
+
+```python
+from typing import Optional, List
+from pydantic import BaseModel, Field, EmailStr, validator
+from datetime import datetime
+from enum import Enum
+
+from src.models.base import BaseSchema, TimestampMixin
+
+class UserRole(str, Enum):
+    USER = "user"
+    ADMIN = "admin"
+    MODERATOR = "moderator"
+
+class UserBase(BaseSchema):
+    """Base user schema."""
+    
+    name: str = Field(..., min_length=2, max_length=100, description="User's full name")
+    email: EmailStr = Field(..., description="User's email address")
+    bio: Optional[str] = Field(None, max_length=500, description="User's biography")
+    phone: Optional[str] = Field(None, regex=r'^\+?1?\d{9,15}$', description="Phone number")
+    
+    @validator('name')
+    def validate_name(cls, v):
+        """Validate name doesn't contain special characters."""
+        if not v.replace(' ', '').isalnum():
+            raise ValueError('Name can only contain letters, numbers, and spaces')
+        return v.strip().title()
+
+class UserCreate(UserBase):
+    """User creation schema."""
+    
+    password: str = Field(..., min_length=8, max_length=128, description="User's password")
+    confirm_password: str = Field(..., description="Password confirmation")
+    
+    @validator('confirm_password')
+    def passwords_match(cls, v, values):
+        """Validate passwords match."""
+        if 'password' in values and v != values['password']:
+            raise ValueError('Passwords do not match')
+        return v
+    
+    @validator('password')
+    def validate_password_strength(cls, v):
+        """Validate password strength."""
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
+        
+        has_upper = any(c.isupper() for c in v)
+        has_lower = any(c.islower() for c in v)
+        has_digit = any(c.isdigit() for c in v)
+        
+        if not (has_upper and has_lower and has_digit):
+            raise ValueError('Password must contain uppercase, lowercase, and digit')
+        
+        return v
+
+class UserUpdate(BaseSchema):
+    """User update schema."""
+    
+    name: Optional[str] = Field(None, min_length=2, max_length=100)
+    bio: Optional[str] = Field(None, max_length=500)
+    phone: Optional[str] = Field(None, regex=r'^\+?1?\d{9,15}$')
+    
+    @validator('name')
+    def validate_name(cls, v):
+        """Validate name if provided."""
+        if v is not None:
+            if not v.replace(' ', '').isalnum():
+                raise ValueError('Name can only contain letters, numbers, and spaces')
+            return v.strip().title()
+        return v
+
+class UserResponse(UserBase, TimestampMixin):
+    """User response schema."""
+    
+    id: int = Field(..., description="User ID")
+    role: UserRole = Field(..., description="User role")
+    is_active: bool = Field(..., description="Whether user is active")
+    is_verified: bool = Field(..., description="Whether user is verified")
+    last_login: Optional[datetime] = Field(None, description="Last login timestamp")
+    post_count: Optional[int] = Field(0, description="Number of posts created")
+    
+    class Config:
+        # Use enum values
+        use_enum_values = True
+        # JSON encoders for datetime
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None,
+        }
+
+class UserLogin(BaseSchema):
+    """User login schema."""
+    
+    email: EmailStr = Field(..., description="Email address")
+    password: str = Field(..., description="Password")
+    remember_me: bool = Field(False, description="Remember me option")
+
+class UserPasswordChange(BaseSchema):
+    """Password change schema."""
+    
+    current_password: str = Field(..., description="Current password")
+    new_password: str = Field(..., min_length=8, max_length=128, description="New password")
+    confirm_password: str = Field(..., description="Password confirmation")
+    
+    @validator('confirm_password')
+    def passwords_match(cls, v, values):
+        """Validate passwords match."""
+        if 'new_password' in values and v != values['new_password']:
+            raise ValueError('Passwords do not match')
+        return v
+    
+    @validator('new_password')
+    def validate_password_strength(cls, v):
+        """Validate password strength."""
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
+        
+        has_upper = any(c.isupper() for c in v)
+        has_lower = any(c.islower() for c in v)
+        has_digit = any(c.isdigit() for c in v)
+        
+        if not (has_upper and has_lower and has_digit):
+            raise ValueError('Password must contain uppercase, lowercase, and digit')
+        
+        return v
+
+class UserListResponse(BaseModel):
+    """User list response schema."""
+    
+    users: List[UserResponse] = Field(..., description="List of users")
+    total: int = Field(..., ge=0, description="Total number of users")
+    page: int = Field(..., ge=1, description="Current page")
+    limit: int = Field(..., ge=1, description="Items per page")
+    pages: int = Field(..., ge=0, description="Total pages")
+```
+
+### 3. Post Models (`src/models/post.py`)
+
+```python
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field, validator
+from datetime import datetime
+from enum import Enum
+
+from src.models.base import BaseSchema, TimestampMixin
+
+class PostStatus(str, Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
+class PostBase(BaseSchema):
+    """Base post schema."""
+    
+    title: str = Field(..., min_length=5, max_length=200, description="Post title")
+    content: str = Field(..., min_length=10, description="Post content")
+    excerpt: Optional[str] = Field(None, max_length=300, description="Post excerpt")
+    tags: Optional[List[str]] = Field(default_factory=list, description="Post tags")
+    is_featured: bool = Field(False, description="Whether post is featured")
+    
+    @validator('title')
+    def validate_title(cls, v):
+        """Validate title."""
+        return v.strip()
+    
+    @validator('content')
+    def validate_content(cls, v):
+        """Validate content."""
+        if len(v.strip()) < 10:
+            raise ValueError('Content must be at least 10 characters long')
+        return v.strip()
+    
+    @validator('excerpt')
+    def generate_excerpt_if_missing(cls, v, values):
+        """Generate excerpt from content if not provided."""
+        if v is None and 'content' in values:
+            content = values['content']
+            return content[:150] + '...' if len(content) > 150 else content
+        return v
+    
+    @validator('tags')
+    def validate_tags(cls, v):
+        """Validate tags."""
+        if v:
+            # Remove duplicates and convert to lowercase
+            unique_tags = list(set(tag.lower().strip() for tag in v if tag.strip()))
+            # Limit to 10 tags
+            return unique_tags[:10]
+        return []
+
+class PostCreate(PostBase):
+    """Post creation schema."""
+    
+    status: PostStatus = Field(PostStatus.DRAFT, description="Post status")
+    
+    @validator('status')
+    def validate_status_for_creation(cls, v):
+        """Validate status for new posts."""
+        if v == PostStatus.ARCHIVED:
+            raise ValueError('New posts cannot be archived')
+        return v
+
+class PostUpdate(BaseSchema):
+    """Post update schema."""
+    
+    title: Optional[str] = Field(None, min_length=5, max_length=200)
+    content: Optional[str] = Field(None, min_length=10)
+    excerpt: Optional[str] = Field(None, max_length=300)
+    tags: Optional[List[str]] = None
+    is_featured: Optional[bool] = None
+    status: Optional[PostStatus] = None
+    
+    @validator('title')
+    def validate_title(cls, v):
+        """Validate title if provided."""
+        if v is not None:
+            return v.strip()
+        return v
+    
+    @validator('content')
+    def validate_content(cls, v):
+        """Validate content if provided."""
+        if v is not None:
+            if len(v.strip()) < 10:
+                raise ValueError('Content must be at least 10 characters long')
+            return v.strip()
+        return v
+    
+    @validator('tags')
+    def validate_tags(cls, v):
+        """Validate tags if provided."""
+        if v is not None:
+            unique_tags = list(set(tag.lower().strip() for tag in v if tag.strip()))
+            return unique_tags[:10]
+        return v
+
+class PostResponse(PostBase, TimestampMixin):
+    """Post response schema."""
+    
+    id: int = Field(..., description="Post ID")
+    slug: Optional[str] = Field(None, description="Post slug")
+    status: PostStatus = Field(..., description="Post status")
+    author_id: int = Field(..., description="Author ID")
+    view_count: int = Field(0, description="Number of views")
+    published_at: Optional[datetime] = Field(None, description="Publication date")
+    comment_count: int = Field(0, description="Number of comments")
+    reading_time: int = Field(1, description="Estimated reading time in minutes")
+    
+    class Config:
+        use_enum_values = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None,
+        }
+
+class PostListResponse(BaseModel):
+    """Post list response schema."""
+    
+    posts: List[PostResponse] = Field(..., description="List of posts")
+    total: int = Field(..., ge=0, description="Total number of posts")
+    page: int = Field(..., ge=1, description="Current page")
+    limit: int = Field(..., ge=1, description="Items per page")
+    pages: int = Field(..., ge=0, description="Total pages")
+
+class PostSearchRequest(BaseSchema):
+    """Post search request schema."""
+    
+    query: str = Field(..., min_length=2, description="Search query")
+    tags: Optional[List[str]] = Field(None, description="Filter by tags")
+    status: Optional[PostStatus] = Field(PostStatus.PUBLISHED, description="Filter by status")
+    author_id: Optional[int] = Field(None, description="Filter by author")
+    page: int = Field(1, ge=1, description="Page number")
+    limit: int = Field(10, ge=1, le=100, description="Items per page")
+```
+
+### 4. Comment Models (`src/models/comment.py`)
+
+```python
+from typing import Optional
+from pydantic import BaseModel, Field, validator
+from datetime import datetime
+
+from src.models.base import BaseSchema, TimestampMixin
+
+class CommentBase(BaseSchema):
+    """Base comment schema."""
+    
+    content: str = Field(..., min_length=3, max_length=1000, description="Comment content")
+    parent_id: Optional[int] = Field(None, description="Parent comment ID for replies")
+    
+    @validator('content')
+    def validate_content(cls, v):
+        """Validate comment content."""
+        if len(v.strip()) < 3:
+            raise ValueError('Comment must be at least 3 characters long')
+        return v.strip()
+
+class CommentCreate(CommentBase):
+    """Comment creation schema."""
+    
+    post_id: int = Field(..., description="Post ID")
+
+class CommentUpdate(BaseSchema):
+    """Comment update schema."""
+    
+    content: Optional[str] = Field(None, min_length=3, max_length=1000)
+    
+    @validator('content')
+    def validate_content(cls, v):
+        """Validate content if provided."""
+        if v is not None:
+            if len(v.strip()) < 3:
+                raise ValueError('Comment must be at least 3 characters long')
+            return v.strip()
+        return v
+
+class CommentResponse(CommentBase, TimestampMixin):
+    """Comment response schema."""
+    
+    id: int = Field(..., description="Comment ID")
+    post_id: int = Field(..., description="Post ID")
+    author_id: int = Field(..., description="Author ID")
+    is_approved: bool = Field(True, description="Whether comment is approved")
+    reply_count: int = Field(0, description="Number of replies")
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None,
+        }
+```
+
+## 🔧 Custom Validators
+
+### 1. Custom Validators (`src/validators/custom.py`)
+
+```python
+import re
+from typing import Any
+from pydantic import validator, Field
+
+def validate_username(username: str) -> str:
+    """Validate username format."""
+    if not re.match(r'^[a-zA-Z0-9_]{3,20}$', username):
+        raise ValueError('Username must be 3-20 characters long and contain only letters, numbers, and underscores')
+    return username.lower()
+
+def validate_slug(slug: str) -> str:
+    """Validate slug format."""
+    if not re.match(r'^[a-z0-9-]+$', slug):
+        raise ValueError('Slug can only contain lowercase letters, numbers, and hyphens')
+    return slug
+
+def validate_color_hex(color: str) -> str:
+    """Validate hex color code."""
+    if not re.match(r'^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$', color):
+        raise ValueError('Color must be a valid hex color code')
+    return color
+
+def validate_url(url: str) -> str:
+    """Validate URL format."""
+    url_pattern = re.compile(
+        r'^https?://'  # http:// or https://
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
+        r'localhost|'  # localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+        r'(?::\d+)?'  # optional port
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    
+    if not url_pattern.match(url):
+        raise ValueError('Invalid URL format')
+    return url
+
+class CustomValidators:
+    """Mixin class with custom validators."""
+    
+    @validator('username')
+    def validate_username_field(cls, v):
+        """Validate username field."""
+        return validate_username(v)
+    
+    @validator('slug')
+    def validate_slug_field(cls, v):
+        """Validate slug field."""
+        return validate_slug(v)
+    
+    @validator('color')
+    def validate_color_field(cls, v):
+        """Validate color field."""
+        return validate_color_hex(v)
+    
+    @validator('website')
+    def validate_website_field(cls, v):
+        """Validate website field."""
+        return validate_url(v)
+```
+
+## 🔄 Data Conversion
+
+### 1. Data Converters (`src/converters/data.py`)
+
+```python
+from typing import Any, Dict, List, Optional
+from datetime import datetime
+from pydantic import BaseModel
+
+def model_to_dict(model: BaseModel, exclude_none: bool = True) -> Dict[str, Any]:
+    """Convert Pydantic model to dictionary."""
+    return model.dict(exclude_none=exclude_none)
+
+def models_to_list(models: List[BaseModel], exclude_none: bool = True) -> List[Dict[str, Any]]:
+    """Convert list of Pydantic models to list of dictionaries."""
+    return [model.dict(exclude_none=exclude_none) for model in models]
+
+def safe_datetime_parse(date_string: str) -> Optional[datetime]:
+    """Safely parse datetime string."""
+    try:
+        return datetime.fromisoformat(date_string.replace('Z', '+00:00'))
+    except (ValueError, AttributeError):
+        return None
+
+def sanitize_string(value: str, max_length: Optional[int] = None) -> str:
+    """Sanitize string value."""
+    if not isinstance(value, str):
+        return str(value)
+    
+    # Remove extra whitespace
+    sanitized = ' '.join(value.split())
+    
+    # Truncate if max_length is specified
+    if max_length and len(sanitized) > max_length:
+        sanitized = sanitized[:max_length].rstrip()
+    
+    return sanitized
+
+def sanitize_list(value: Any) -> List[str]:
+    """Sanitize list values."""
+    if not isinstance(value, list):
+        return []
+    
+    return [str(item).strip() for item in value if item and str(item).strip()]
+
+class DataConverter:
+    """Utility class for data conversion."""
+    
+    @staticmethod
+    def to_user_dict(user_model: BaseModel) -> Dict[str, Any]:
+        """Convert user model to safe dictionary."""
+        data = model_to_dict(user_model)
+        # Remove sensitive fields
+        data.pop('password', None)
+        return data
+    
+    @staticmethod
+    def to_post_dict(post_model: BaseModel) -> Dict[str, Any]:
+        """Convert post model to dictionary."""
+        data = model_to_dict(post_model)
+        # Ensure tags is a list
+        if 'tags' in data and not isinstance(data['tags'], list):
+            data['tags'] = []
+        return data
+    
+    @staticmethod
+    def prepare_for_db(model: BaseModel) -> Dict[str, Any]:
+        """Prepare model data for database insertion."""
+        data = model_to_dict(model, exclude_none=True)
+        
+        # Convert datetime objects to ISO format
+        for key, value in data.items():
+            if isinstance(value, datetime):
+                data[key] = value.isoformat()
+            elif isinstance(value, list):
+                data[key] = [item.isoformat() if isinstance(item, datetime) else item for item in value]
+        
+        return data
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Missing Validation:**
+   - **Bad:** Not validating input data.
+   - **Good:** Always use Pydantic models for input validation.
+
+2. **Complex Validators:**
+   - **Bad:** Writing complex validation logic in validators.
+   - **Good:** Keep validators simple and focused.
+
+3. **Ignoring Type Hints:**
+   - **Bad:** Not using proper type hints.
+   - **Good:** Use proper type hints for all fields.
+
+4. **Overly Permissive Models:**
+   - **Bad:** Using `extra = "allow"` without good reason.
+   - **Good:** Use `extra = "forbid"` to catch unexpected fields.
+
+5. **Mixing Concerns:**
+   - **Bad:** Putting business logic in Pydantic models.
+   - **Good:** Keep models focused on validation and serialization.
+
+## 🧪 Testing Strategy
+
+{% if "Pytest" in libraries %}
+Testing Pydantic models:
+
+```python
+# tests/test_user_models.py
+import pytest
+from pydantic import ValidationError
+
+from src.models.user import UserCreate, UserUpdate, UserRole
+
+def test_user_create_valid():
+    """Test valid user creation."""
+    user_data = {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "password": "Password123",
+        "confirm_password": "Password123",
+    }
+    
+    user = UserCreate(**user_data)
+    assert user.name == "John Doe"
+    assert user.email == "john@example.com"
+    assert user.role == UserRole.USER
+
+def test_user_create_invalid_email():
+    """Test invalid email."""
+    user_data = {
+        "name": "John Doe",
+        "email": "invalid-email",
+        "password": "Password123",
+        "confirm_password": "Password123",
+    }
+    
+    with pytest.raises(ValidationError):
+        UserCreate(**user_data)
+
+def test_user_create_password_mismatch():
+    """Test password mismatch."""
+    user_data = {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "password": "Password123",
+        "confirm_password": "Different123",
+    }
+    
+    with pytest.raises(ValidationError) as exc_info:
+        UserCreate(**user_data)
+    
+    assert "Passwords do not match" in str(exc_info.value)
+
+def test_user_create_weak_password():
+    """Test weak password."""
+    user_data = {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "password": "weak",
+        "confirm_password": "weak",
+    }
+    
+    with pytest.raises(ValidationError) as exc_info:
+        UserCreate(**user_data)
+    
+    assert "Password must be at least 8 characters long" in str(exc_info.value)
+
+def test_user_update_partial():
+    """Test partial user update."""
+    update_data = {
+        "name": "Jane Doe",
+        "bio": "Software developer",
+    }
+    
+    user_update = UserUpdate(**update_data)
+    assert user_update.name == "Jane Doe"
+    assert user_update.bio == "Software developer"
+    assert user_update.phone is None
+
+def test_user_serialization():
+    """Test user model serialization."""
+    user_data = {
+        "name": "John Doe",
+        "email": "john@example.com",
+        "password": "Password123",
+        "confirm_password": "Password123",
+    }
+    
+    user = UserCreate(**user_data)
+    user_dict = user.dict()
+    
+    assert "name" in user_dict
+    assert "email" in user_dict
+    assert "password" in user_dict
+    assert "confirm_password" not in user_dict  # Not included in dict by default
+```
+{% endif %}
+
+## 📦 FastAPI Integration
+
+### 1. FastAPI Dependencies (`src/dependencies/auth.py`)
+
+```python
+from typing import Generator
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
+
+from src.config.database import get_db
+from src.models.user import UserResponse
+
+security = HTTPBearer()
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+) -> UserResponse:
+    """Get current authenticated user."""
+    # Your authentication logic here
+    # This is just an example
+    token = credentials.credentials
+    
+    try:
+        # Verify token and get user
+        user = verify_token(token, db)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+            )
+        return user
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+        )
+
+def verify_token(token: str, db: Session) -> UserResponse:
+    """Verify JWT token and return user."""
+    # Implement your token verification logic
+    # This is just a placeholder
+    pass
+```
+
+### 2. FastAPI Routes (`src/routes/users.py`)
+
+```python
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from src.config.database import get_db
+from src.models.user import (
+    UserCreate, UserUpdate, UserResponse, UserListResponse,
+    PaginationParams
+)
+from src.dependencies.auth import get_current_user
+
+router = APIRouter(prefix="/users", tags=["users"])
+
+@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    user_data: UserCreate,
+    db: Session = Depends(get_db)
+):
+    """Create a new user."""
+    # Your user creation logic here
+    pass
+
+@router.get("/", response_model=UserListResponse)
+async def get_users(
+    pagination: PaginationParams = Depends(),
+    db: Session = Depends(get_db)
+):
+    """Get list of users."""
+    # Your user listing logic here
+    pass
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_info(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get current user information."""
+    return current_user
+
+@router.put("/me", response_model=UserResponse)
+async def update_current_user(
+    user_update: UserUpdate,
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update current user information."""
+    # Your user update logic here
+    pass
+```

@@ -1,0 +1,49 @@
+# Testing Strategy
+
+This document outlines the testing strategy for **{{ project_name }}**.
+
+## 🧪 Test Stack
+
+{% if "React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack %}
+- **Unit Testing**: Jest / Vitest
+- **Component Testing**: React Testing Library / Vue Test Utils
+- **E2E Testing**: Cypress / Playwright
+{% elif "FastAPI" in tech_stack or "Django" in tech_stack or "Python" in tech_stack %}
+- **Runner**: Pytest
+- **Coverage**: pytest-cov
+{% elif "Go" in tech_stack %}
+- **Runner**: Go standard library `testing`
+- **Assertions**: Testify
+{% else %}
+- **Framework**: Standard testing tools for {{ tech_stack }}
+{% endif %}
+
+## 🏃‍♂️ Running Tests
+
+### Run All Tests
+{% if "Node" in tech_stack or "React" in tech_stack or "Vue" in tech_stack %}
+```bash
+npm test
+# or
+npm run test:ci
+```
+{% elif "Python" in tech_stack or "FastAPI" in tech_stack %}
+```bash
+pytest
+```
+{% elif "Go" in tech_stack %}
+```bash
+go test ./...
+```
+{% elif "Rust" in tech_stack %}
+```bash
+cargo test
+```
+{% else %}
+Refer to the `package.json` or `Makefile` for specific commands.
+{% endif %}
+
+### Writing New Tests
+1. Locate the `tests/` directory or `__tests__` folder.
+2. Follow the naming convention `*.test.js` or `test_*.py`.
+3. Ensure you mock external API calls (do not hit real production APIs).

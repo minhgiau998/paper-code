@@ -1,0 +1,73 @@
+# Angular Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built using **Modern Angular** (v17+).
+- **Standalone Components**: We strictly utilize Standalone Components, Directives, and Pipes. `NgModule` is considered legacy and should not be used for new features.
+- **Signals**: We leverage Angular Signals for fine-grained reactivity and state management, reducing reliance on `Zone.js` and complex RxJS chains for synchronous state.
+
+## 📂 Directory Structure
+
+```text
+src/
+├── app/
+│   ├── core/                # Singleton services, Interceptors, Guards
+│   │   ├── auth/            # Auth logic
+│   │   └── interceptors/    # HTTP Interceptors
+│   ├── shared/              # Reusable UI components (Buttons, Cards)
+│   │   ├── ui/              # Dumb/Presentational components
+│   │   └── utils/           # Helper functions
+│   ├── features/            # Business features (Domain Modules)
+│   │   ├── dashboard/
+│   │   │   ├── dashboard.component.ts
+│   │   │   └── dashboard.routes.ts
+│   │   └── profile/
+│   ├── layout/              # Shell components (Header, Sidebar)
+│   ├── app.config.ts        # Global Application Config (Providers)
+│   ├── app.routes.ts        # Root Routing
+│   └── app.component.ts     # Root Component
+├── assets/                  # Static assets
+├── environments/            # Environment configurations
+└── main.ts                  # Bootstrapping logic
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Standalone API
+- All components must have `standalone: true`.
+- Dependencies are imported directly in the `imports` array of the `@Component` decorator.
+- Lazy loading is handled via `loadComponent` in the router.
+
+### 2. Reactive State (Signals vs RxJS)
+- **Local State:** Use `signal()`, `computed()`, and `effect()`.
+- **Async/Events:** Use **RxJS** (`Observable`) for streams (HTTP calls, WebSocket, time-based events).
+- **Interop:** Use `toSignal()` to convert Observables to Signals for easier template consumption.
+
+{% if "NgRx" in libraries %}
+### 3. Global State (NgRx)
+- We use **NgRx Store** for complex shared state.
+- **Actions:** Define strict action groups (`createActionGroup`).
+- **Effects:** Use functional effects (`createEffect`).
+- **Signal Store:** Prefer **NgRx Signal Store** for lighter-weight feature state if available.
+{% else %}
+### 3. Service-based State
+- Use the **Service-with-Signals** pattern.
+- Create a singleton service (`providedIn: 'root'`) holding a `writableSignal` (private) and expose a `computed` (read-only) signal.
+{% endif %}
+
+### 4. Smart vs. Dumb Components
+- **Smart (Container):** Communicates with Services/Store. Handles data fetching. Passes data down via inputs.
+- **Dumb (UI):** Purely presentational. Receives data via `input()` (Signal Inputs) and emits events via `output()`.
+
+## 🎨 Styling Architecture
+{% if "TailwindCSS" in libraries %}
+- **Tailwind CSS** is used for styling.
+- Avoid using `encapsulation: ViewEncapsulation.None` unless necessary.
+- Use `@apply` sparingly in component SCSS/CSS files; prefer utility classes in HTML.
+{% elif "Angular Material" in libraries %}
+- Use **Angular Material** components.
+- Custom theming is handled in `styles.scss` using the Material theming API.
+{% else %}
+- Component styles are strictly encapsulated (Shadow DOM emulation).
+- Global styles are in `styles.scss`.
+{% endif %}

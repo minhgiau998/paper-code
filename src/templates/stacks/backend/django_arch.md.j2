@@ -1,0 +1,72 @@
+# Django Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built using **Django 5+**.
+{% if "Django REST Framework" in libraries %}
+It acts primarily as a backend API using **Django REST Framework (DRF)**.
+{% else %}
+It follows the standard MTV (Model-Template-View) pattern with server-side rendering.
+{% endif %}
+
+We deviate from the default "startproject" structure to a more scalable, domain-driven layout using a dedicated `apps/` directory and split settings.
+
+## 📂 Directory Structure
+
+```text
+root/
+├── manage.py            # CLI entry point
+├── config/              # Project configuration (formerly 'project_name')
+│   ├── settings/        # Split settings
+│   │   ├── base.py      # Common settings
+│   │   ├── local.py     # Dev settings
+│   │   └── production.py
+│   ├── urls.py          # Root URLconf
+│   ├── wsgi.py
+│   └── asgi.py          # Async entry point
+├── apps/                # Domain Logic (Local Apps)
+│   ├── common/          # Shared utilities/models
+│   ├── users/           # User domain
+│   │   ├── api/         # DRF Views/Serializers
+│   │   ├── models.py
+│   │   └── services.py  # Business Logic
+│   └── core/
+├── requirements/        # Dependency management
+└── tests/               # Global test suite
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. The "Apps" Directory
+- All local Django applications live inside the `apps/` folder.
+- This keeps the root directory clean and separates business logic from configuration.
+- Update `sys.path` in `manage.py` and `config/settings/base.py` to recognize `apps/`.
+
+### 2. Service Layer (Business Logic)
+We prefer the **Service Layer** pattern over putting too much logic in Models ("Fat Models") or Views.
+- **Views/ViewSets:** Handle HTTP request/response, permission checks, and data serialization.
+- **Services (`services.py`):** Pure Python functions/classes that handle the actual business rules (e.g., `create_user`, `process_payment`).
+- **Models:** Define schema and simple data-integrity methods.
+
+{% if "Django REST Framework" in libraries %}
+### 3. API Architecture (DRF)
+- **ViewSets:** Prefer `ModelViewSet` or `GenericViewSet` for standard CRUD to reduce boilerplate.
+- **Serializers:** strictly used for Input Validation and Output Formatting.
+- **Routers:** Use `DefaultRouter` or `SimpleRouter` for automatic URL wiring.
+{% endif %}
+
+{% if "Celery" in libraries %}
+### 4. Asynchronous Tasks (Celery)
+- Use **Celery** for long-running tasks (Email, Reports, Image Processing).
+- Define tasks in `apps/<app_name>/tasks.py`.
+- **Do not** execute heavy queries or external API calls inside the HTTP request-response cycle.
+{% endif %}
+
+### 5. Settings Management
+- **Never** use a single `settings.py` for everything.
+- Use environment variables (via `python-dotenv` or `django-environ`) to load secrets in `config/settings/base.py`.
+
+## 🔒 Security Architecture
+- **User Model:** Always use a custom user model (`AUTH_USER_MODEL`) defined in `apps/users`.
+- **Secret Key:** Never commit the secret key. Load it from `.env`.
+- **CORS:** Explicitly whitelist origins if building an API.

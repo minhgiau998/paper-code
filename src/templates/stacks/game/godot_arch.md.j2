@@ -1,0 +1,66 @@
+# Godot Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built using **Godot 4.x**.
+It follows a **Component-Based Architecture**, favoring composition (attaching Node behaviors) over deep inheritance trees.
+
+{% if "C#" in libraries %}
+**Language Stack:** Hybrid (C# for performance-critical systems, GDScript for UI/Gameplay glue).
+{% else %}
+**Language Stack:** GDScript 2.0 (Strictly Typed).
+{% endif %}
+
+## 📂 Directory Structure
+
+We avoid the "default" flat structure. All source assets are organized by **Category**.
+
+```text
+res://
+├── assets/              # Raw imports (Textures, Audio, Fonts)
+│   ├── audio/
+│   ├── sprites/
+│   └── fonts/
+├── src/                 # Game Logic & Scenes
+│   ├── autoload/        # Global Singletons (GameManager, AudioController)
+│   ├── components/      # Reusable Behaviors (Health, Hitbox, Velocity)
+│   ├── actors/          # Game Entities (Player, Enemies, NPCs)
+│   ├── levels/          # Game World Scenes
+│   ├── ui/              # User Interface Scenes
+│   ├── resources/       # Custom Resources (ItemData, Stats)
+│   └── utils/           # Helper scripts
+└── test/                # Unit Tests (GdUnit4)
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Composition (Components)
+We treat Nodes as **Components**. Instead of a "Player" class extending "Entity" extending "PhysicsBody", we compose behaviors:
+- `CharacterBody2D` (Root)
+  - `HealthComponent` (Node)
+  - `InputComponent` (Node)
+  - `HitboxComponent` (Area2D)
+
+**Rule:** Logic should ideally live in these small, reusable components rather than one massive script on the root.
+
+### 2. Signal Bus (Event Bus)
+To decouple systems (e.g., UI needs to know when Player takes damage), we use a global **Signal Bus**.
+- **File:** `src/autoload/SignalBus.gd` (Autoload name: `SignalBus`).
+- **Usage:** Actors emit signals to `SignalBus`. UI listens to `SignalBus`.
+- **Benefit:** The Player object doesn't need to know the HUD exists.
+
+### 3. Resource-Driven Data
+We do not hardcode stats (Health: 100, Speed: 50) in scripts.
+- Use **Custom Resources** (`extends Resource`).
+- Create `.tres` files for Items, Enemy Stats, and Level Data.
+- This allows designers to tweak balance in the Inspector without touching code.
+
+{% if "Godot Steam" in libraries %}
+### 4. Integration
+- Steam integration logic is encapsulated in `src/autoload/SteamManager.gd`.
+- It handles initialization and callbacks, emitting signals to the rest of the game.
+{% endif %}
+
+## 💾 State Management
+- **Persistent Data:** Save/Load logic is handled by a dedicated `SaveManager` autoload.
+- **Runtime Data:** Global state (Score, Inventory) is kept in `GameManager` or dedicated Resources, not in the Scene Tree.

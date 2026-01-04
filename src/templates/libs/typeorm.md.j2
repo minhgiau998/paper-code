@@ -1,0 +1,813 @@
+# TypeORM Documentation
+
+> **Purpose:** Modern ORM for TypeScript and JavaScript (ES7, ES6, ES5). Supports MySQL, PostgreSQL, MariaDB, SQLite, MS SQL Server, Oracle, SAP Hana, WebSQL databases.
+
+## 📦 Installation
+
+```bash
+npm install typeorm reflect-metadata
+npm install -D @types/node typescript ts-node
+# Database drivers (choose one)
+npm install pg          # PostgreSQL
+npm install mysql2      # MySQL
+npm install sqlite3     # SQLite
+npm install mssql       # MS SQL Server
+```
+
+## 🛠️ Database Configuration
+
+**Strategy:** Use DataSource pattern with environment-based configuration.
+
+### 1. Database Configuration (`src/config/database.ts`)
+
+```typescript
+import { DataSource } from 'typeorm';
+import { User } from '../entities/User';
+import { Post } from '../entities/Post';
+import { Comment } from '../entities/Comment';
+
+export const AppDataSource = new DataSource({
+  type: 'postgres', // or 'mysql', 'sqlite', 'mssql'
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  username: process.env.DB_USERNAME || 'postgres',
+  password: process.env.DB_PASSWORD || 'password',
+  database: process.env.DB_NAME || 'myapp',
+  
+  // Entity registration
+  entities: [User, Post, Comment],
+  
+  // Migration configuration
+  migrations: ['src/migrations/*.ts'],
+  migrationsTableName: 'migrations',
+  
+  // Subscriber configuration
+  subscribers: ['src/subscribers/*.ts'],
+  
+  // Synchronization (only for development)
+  synchronize: process.env.NODE_ENV === 'development',
+  
+  // Logging
+  logging: process.env.NODE_ENV === 'development',
+  
+  // Connection pool
+  extra: {
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  },
+});
+
+// Initialize database connection
+export const initializeDatabase = async (): Promise<void> => {
+  try {
+    await AppDataSource.initialize();
+    console.log('Database connection established successfully');
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    process.exit(1);
+  }
+};
+```
+
+### 2. Database Usage in Application
+
+```typescript
+// src/server.ts
+import express from 'express';
+import { initializeDatabase } from './config/database';
+
+const app = express();
+
+// Initialize database
+initializeDatabase().then(() => {
+  // Start server after database is ready
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+});
+```
+
+## 📝 Entity Definition
+
+**Strategy:** Use decorators for entity definition with proper relationships and validation.
+
+### 1. User Entity (`src/entities/User.ts`)
+
+```typescript
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
+import { Post } from './Post';
+import { Comment } from './Comment';
+
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+}
+
+@Entity('users')
+@Index(['email'], { unique: true })
+export class User {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  name: string;
+
+  @Column({ type: 'varchar', length: 255, unique: true })
+  email: string;
+
+  @Column({ type: 'varchar', length: 255, select: false })
+  password: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  avatar?: string;
+
+  @Column({
+    type: 'enum',
+    enum: UserRole,
+    default: UserRole.USER,
+  })
+  role: UserRole;
+
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastLogin?: Date;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  // Relationships
+  @OneToMany(() => Post, post => post.author)
+  posts: Post[];
+
+  @OneToMany(() => Comment, comment => comment.author)
+  comments: Comment[];
+
+  // Virtual properties
+  get fullName(): string {
+    return this.name;
+  }
+
+  // Instance methods
+  toJSON() {
+    const { password, ...result } = this;
+    return result;
+  }
+}
+```
+
+### 2. Post Entity (`src/entities/Post.ts`)
+
+```typescript
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
+import { User } from './User';
+import { Comment } from './Comment';
+
+export enum PostStatus {
+  DRAFT = 'draft',
+  PUBLISHED = 'published',
+  ARCHIVED = 'archived',
+}
+
+@Entity('posts')
+@Index(['author', 'createdAt'])
+@Index(['status'])
+export class Post {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 200 })
+  title: string;
+
+  @Column({ type: 'text' })
+  content: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  slug?: string;
+
+  @Column({
+    type: 'enum',
+    enum: PostStatus,
+    default: PostStatus.DRAFT,
+  })
+  status: PostStatus;
+
+  @Column({ type: 'simple-array', nullable: true })
+  tags?: string[];
+
+  @Column({ type: 'int', default: 0 })
+  viewCount: number;
+
+  @Column({ type: 'jsonb', nullable: true })
+  metadata?: Record<string, any>;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  // Relationships
+  @ManyToOne(() => User, user => user.posts, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'authorId' })
+  author: User;
+
+  @Column({ type: 'uuid' })
+  authorId: string;
+
+  @OneToMany(() => Comment, comment => comment.post)
+  comments: Comment[];
+
+  // Virtual properties
+  get excerpt(): string {
+    return this.content.substring(0, 150) + '...';
+  }
+
+  // Instance methods
+  isPublished(): boolean {
+    return this.status === PostStatus.PUBLISHED;
+  }
+}
+```
+
+### 3. Comment Entity (`src/entities/Comment.ts`)
+
+```typescript
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { User } from './User';
+import { Post } from './Post';
+
+@Entity('comments')
+export class Comment {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'text' })
+  content: string;
+
+  @Column({ type: 'boolean', default: true })
+  isApproved: boolean;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+
+  // Relationships
+  @ManyToOne(() => User, user => user.comments, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'authorId' })
+  author: User;
+
+  @Column({ type: 'uuid' })
+  authorId: string;
+
+  @ManyToOne(() => Post, post => post.comments, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'postId' })
+  post: Post;
+
+  @Column({ type: 'uuid' })
+  postId: string;
+
+  // Self-referencing relationship for replies
+  @ManyToOne(() => Comment, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'parentId' })
+  parent?: Comment;
+
+  @Column({ type: 'uuid', nullable: true })
+  parentId?: string;
+}
+```
+
+## 🔍 Repository Pattern
+
+### 1. Base Repository (`src/repositories/BaseRepository.ts`)
+
+```typescript
+import { DataSource, Repository, EntityTarget, FindManyOptions, FindOneOptions } from 'typeorm';
+
+export abstract class BaseRepository<T> {
+  protected repository: Repository<T>;
+
+  constructor(
+    dataSource: DataSource,
+    entity: EntityTarget<T>
+  ) {
+    this.repository = dataSource.getRepository(entity);
+  }
+
+  async create(data: Partial<T>): Promise<T> {
+    const entity = this.repository.create(data);
+    return await this.repository.save(entity);
+  }
+
+  async findOne(options: FindOneOptions<T>): Promise<T | null> {
+    return await this.repository.findOne(options);
+  }
+
+  async findMany(options?: FindManyOptions<T>): Promise<T[]> {
+    return await this.repository.find(options);
+  }
+
+  async update(id: string | number, data: Partial<T>): Promise<T | null> {
+    await this.repository.update(id, data);
+    return await this.repository.findOne({ where: { id } as any });
+  }
+
+  async delete(id: string | number): Promise<void> {
+    await this.repository.delete(id);
+  }
+
+  async count(options?: FindManyOptions<T>): Promise<number> {
+    return await this.repository.count(options);
+  }
+
+  async exists(options: FindOneOptions<T>): Promise<boolean> {
+    const count = await this.repository.count(options);
+    return count > 0;
+  }
+}
+```
+
+### 2. User Repository (`src/repositories/UserRepository.ts`)
+
+```typescript
+import { DataSource } from 'typeorm';
+import { BaseRepository } from './BaseRepository';
+import { User, UserRole } from '../entities/User';
+
+export class UserRepository extends BaseRepository<User> {
+  constructor(dataSource: DataSource) {
+    super(dataSource, User);
+  }
+
+  async findByEmail(email: string): Promise<User | null> {
+    return await this.findOne({
+      where: { email },
+      select: ['id', 'name', 'email', 'password', 'role', 'isActive'],
+    });
+  }
+
+  async findActiveUsers(limit: number = 10, offset: number = 0): Promise<User[]> {
+    return await this.findMany({
+      where: { isActive: true },
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: offset,
+    });
+  }
+
+  async findUsersByRole(role: UserRole): Promise<User[]> {
+    return await this.findMany({
+      where: { role, isActive: true },
+      order: { name: 'ASC' },
+    });
+  }
+
+  async searchUsers(query: string): Promise<User[]> {
+    return await this.findMany({
+      where: [
+        { name: { $ilike: `%${query}%` }, isActive: true },
+        { email: { $ilike: `%${query}%` }, isActive: true },
+      ],
+      order: { name: 'ASC' },
+    });
+  }
+
+  async updateUserLastLogin(userId: string): Promise<void> {
+    await this.repository.update(userId, { lastLogin: new Date() });
+  }
+
+  async softDeleteUser(userId: string): Promise<void> {
+    await this.repository.update(userId, { isActive: false });
+  }
+
+  async getUserStats(): Promise<{
+    total: number;
+    active: number;
+    admins: number;
+  }> {
+    const [total, active, admins] = await Promise.all([
+      this.count(),
+      this.count({ where: { isActive: true } }),
+      this.count({ where: { role: UserRole.ADMIN, isActive: true } }),
+    ]);
+
+    return { total, active, admins };
+  }
+}
+```
+
+### 3. Post Repository (`src/repositories/PostRepository.ts`)
+
+```typescript
+import { DataSource } from 'typeorm';
+import { BaseRepository } from './BaseRepository';
+import { Post, PostStatus } from '../entities/Post';
+
+export class PostRepository extends BaseRepository<Post> {
+  constructor(dataSource: DataSource) {
+    super(dataSource, Post);
+  }
+
+  async findPublishedPosts(
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{
+    posts: Post[];
+    total: number;
+    pages: number;
+  }> {
+    const skip = (page - 1) * limit;
+
+    const [posts, total] = await Promise.all([
+      this.findMany({
+        where: { status: PostStatus.PUBLISHED },
+        relations: ['author'],
+        order: { createdAt: 'DESC' },
+        take: limit,
+        skip: skip,
+      }),
+      this.count({ where: { status: PostStatus.PUBLISHED } }),
+    ]);
+
+    return {
+      posts,
+      total,
+      pages: Math.ceil(total / limit),
+    };
+  }
+
+  async findPostsByAuthor(
+    authorId: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{
+    posts: Post[];
+    total: number;
+    pages: number;
+  }> {
+    const skip = (page - 1) * limit;
+
+    const [posts, total] = await Promise.all([
+      this.findMany({
+        where: { authorId, status: PostStatus.PUBLISHED },
+        relations: ['author'],
+        order: { createdAt: 'DESC' },
+        take: limit,
+        skip: skip,
+      }),
+      this.count({ where: { authorId, status: PostStatus.PUBLISHED } }),
+    ]);
+
+    return {
+      posts,
+      total,
+      pages: Math.ceil(total / limit),
+    };
+  }
+
+  async searchPosts(query: string): Promise<Post[]> {
+    return await this.findMany({
+      where: [
+        { title: { $ilike: `%${query}%` }, status: PostStatus.PUBLISHED },
+        { content: { $ilike: `%${query}%` }, status: PostStatus.PUBLISHED },
+      ],
+      relations: ['author'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findPostsByTag(tag: string): Promise<Post[]> {
+    return await this.findMany({
+      where: { 
+        tags: { $contains: [tag] },
+        status: PostStatus.PUBLISHED 
+      },
+      relations: ['author'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getPopularPosts(limit: number = 5): Promise<Post[]> {
+    return await this.findMany({
+      where: { status: PostStatus.PUBLISHED },
+      relations: ['author'],
+      order: { viewCount: 'DESC' },
+      take: limit,
+    });
+  }
+
+  async incrementViewCount(postId: string): Promise<void> {
+    await this.repository.increment({ id: postId }, 'viewCount', 1);
+  }
+
+  async getPostStats(): Promise<{
+    total: number;
+    published: number;
+    draft: number;
+    archived: number;
+  }> {
+    const [total, published, draft, archived] = await Promise.all([
+      this.count(),
+      this.count({ where: { status: PostStatus.PUBLISHED } }),
+      this.count({ where: { status: PostStatus.DRAFT } }),
+      this.count({ where: { status: PostStatus.ARCHIVED } }),
+    ]);
+
+    return { total, published, draft, archived };
+  }
+}
+```
+
+## 🔄 Service Layer
+
+### 1. User Service (`src/services/UserService.ts`)
+
+```typescript
+import { AppDataSource } from '../config/database';
+import { UserRepository } from '../repositories/UserRepository';
+import { User, UserRole } from '../entities/User';
+import bcrypt from 'bcryptjs';
+
+export class UserService {
+  private userRepository: UserRepository;
+
+  constructor() {
+    this.userRepository = new UserRepository(AppDataSource);
+  }
+
+  async createUser(userData: {
+    name: string;
+    email: string;
+    password: string;
+    role?: UserRole;
+  }): Promise<User> {
+    // Check if user already exists
+    const existingUser = await this.userRepository.findByEmail(userData.email);
+    if (existingUser) {
+      throw new Error('User with this email already exists');
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(12);
+    const hashedPassword = await bcrypt.hash(userData.password, salt);
+
+    const user = await this.userRepository.create({
+      ...userData,
+      password: hashedPassword,
+      role: userData.role || UserRole.USER,
+    });
+
+    return user;
+  }
+
+  async authenticateUser(email: string, password: string): Promise<User | null> {
+    const user = await this.userRepository.findByEmail(email);
+    if (!user || !user.isActive) {
+      return null;
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return null;
+    }
+
+    // Update last login
+    await this.userRepository.updateUserLastLogin(user.id);
+    
+    return user;
+  }
+
+  async getUserById(id: string): Promise<User | null> {
+    return await this.userRepository.findOne({
+      where: { id, isActive: true },
+      relations: ['posts', 'comments'],
+    });
+  }
+
+  async updateUser(id: string, updateData: Partial<User>): Promise<User | null> {
+    // Don't allow password update through this method
+    if (updateData.password) {
+      delete updateData.password;
+    }
+
+    return await this.userRepository.update(id, updateData);
+  }
+
+  async changePassword(id: string, newPassword: string): Promise<void> {
+    const salt = await bcrypt.genSalt(12);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    
+    await this.userRepository.update(id, { password: hashedPassword });
+  }
+
+  async deactivateUser(id: string): Promise<void> {
+    await this.userRepository.softDeleteUser(id);
+  }
+
+  async getActiveUsers(page: number = 1, limit: number = 10): Promise<{
+    users: User[];
+    total: number;
+    pages: number;
+  }> {
+    const users = await this.userRepository.findActiveUsers(limit, (page - 1) * limit);
+    const total = await this.userRepository.count({ where: { isActive: true } });
+    
+    return {
+      users,
+      total,
+      pages: Math.ceil(total / limit),
+    };
+  }
+}
+```
+
+## 🔄 Transactions
+
+### 1. Transaction Service (`src/services/TransactionService.ts`)
+
+```typescript
+import { AppDataSource } from '../config/database';
+import { UserRepository } from '../repositories/UserRepository';
+import { PostRepository } from '../repositories/PostRepository';
+import { User } from '../entities/User';
+import { Post } from '../entities/Post';
+
+export class TransactionService {
+  private userRepository: UserRepository;
+  private postRepository: PostRepository;
+
+  constructor() {
+    this.userRepository = new UserRepository(AppDataSource);
+    this.postRepository = new UserRepository(AppDataSource);
+  }
+
+  async createPostWithAuthorUpdate(
+    postData: {
+      title: string;
+      content: string;
+      authorId: string;
+    }
+  ): Promise<Post> {
+    const queryRunner = AppDataSource.createQueryRunner();
+    
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Create post
+      const post = await queryRunner.manager.save(Post, postData);
+
+      // Update user's last activity (you could add a lastActivity field)
+      await queryRunner.manager.update(User, postData.authorId, {
+        lastLogin: new Date(),
+      });
+
+      await queryRunner.commitTransaction();
+      return post;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async transferPostOwnership(
+    postId: string,
+    fromUserId: string,
+    toUserId: string
+  ): Promise<void> {
+    const queryRunner = AppDataSource.createQueryRunner();
+    
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Verify post belongs to fromUserId
+      const post = await queryRunner.manager.findOne(Post, {
+        where: { id: postId, authorId: fromUserId },
+      });
+
+      if (!post) {
+        throw new Error('Post not found or unauthorized');
+      }
+
+      // Transfer ownership
+      await queryRunner.manager.update(Post, postId, {
+        authorId: toUserId,
+      });
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+}
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Missing Relations:**
+   - **Bad:** Not defining proper relationships between entities.
+   - **Good:** Always define relationships with proper cascade options.
+
+2. **N+1 Query Problem:**
+   - **Bad:** Loading related entities in loops.
+   - **Good:** Use `relations` option or eager loading.
+
+3. **Ignoring Transactions:**
+   - **Bad:** Performing multiple operations without transactions.
+   - **Good:** Use QueryRunner for complex operations.
+
+4. **Large Transactions:**
+   - **Bad:** Keeping transactions open for too long.
+   - **Good:** Keep transactions short and focused.
+
+5. **Missing Indexes:**
+   - **Bad:** Not creating indexes for frequently queried fields.
+   - **Good:** Use `@Index` decorator for performance optimization.
+
+## 🧪 Testing Strategy
+
+{% if "Jest" in libraries %}
+Testing TypeORM entities and repositories:
+
+```typescript
+// tests/repositories/UserRepository.test.ts
+import { DataSource } from 'typeorm';
+import { UserRepository } from '../../src/repositories/UserRepository';
+import { User } from '../../src/entities/User';
+import { createTestDataSource } from '../utils/testDataSource';
+
+describe('UserRepository', () => {
+  let dataSource: DataSource;
+  let userRepository: UserRepository;
+
+  beforeAll(async () => {
+    dataSource = await createTestDataSource();
+    userRepository = new UserRepository(dataSource);
+  });
+
+  afterAll(async () => {
+    await dataSource.destroy();
+  });
+
+  beforeEach(async () => {
+    await dataSource.getRepository(User).clear();
+  });
+
+  test('Should create a user', async () => {
+    const userData = {
+      name: 'Test User',
+      email: 'test@example.com',
+      password: 'password123',
+    };
+
+    const user = await userRepository.create(userData);
+    expect(user.email).toBe(userData.email);
+    expect(user.name).toBe(userData.name);
+  });
+
+  test('Should find user by email', async () => {
+    const userData = {
+      name: 'Test User',
+      email: 'test@example.com',
+      password: 'password123',
+    };
+
+    await userRepository.create(userData);
+    const foundUser = await userRepository.findByEmail('test@example.com');
+    
+    expect(foundUser).toBeTruthy();
+    expect(foundUser?.email).toBe(userData.email);
+  });
+});
+```
+{% endif %}
+
+## 📦 Environment Variables
+
+```env
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=password
+DB_NAME=myapp
+
+# TypeORM Configuration
+NODE_ENV=development
+TYPEORM_SYNCHRONIZE=true
+TYPEORM_LOGGING=true
+```

@@ -1,0 +1,71 @@
+# Vue.js Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a **Single Page Application (SPA)** built with **Vue 3** and **Vite**.
+It utilizes the **Composition API** with `<script setup>` syntax for better performance, TypeScript support, and logic reuse.
+
+## 📂 Directory Structure
+
+```text
+src/
+├── assets/              # Static assets (images, css, fonts)
+├── components/          # Shared/Global UI Components
+│   ├── ui/              # Base UI elements (Buttons, Inputs)
+│   └── layout/          # Structural components (Navbar, Footer)
+├── composables/         # Reusable logic (Custom Hooks)
+│   ├── useTheme.ts
+│   └── useAuth.ts
+├── layouts/             # Page layouts (Default, Auth, Dashboard)
+├── router/              # Vue Router configuration
+│   └── index.ts
+{% if "Pinia" in libraries %}
+├── stores/              # Global State Management (Pinia)
+│   ├── user.ts
+│   └── counter.ts
+{% endif %}
+├── types/               # TypeScript Interfaces/Types
+├── views/               # Page components mapped to Routes
+│   ├── HomeView.vue
+│   └── LoginView.vue
+├── App.vue              # Root Component
+└── main.ts              # Entry Point
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Script Setup (`<script setup>`)
+We strictly use the **`<script setup>`** syntax. It provides better runtime performance and cleaner code compared to the standard Composition API `setup()` function or the Options API.
+
+### 2. Composables (Logic Reuse)
+Business logic is extracted into **Composables** (files inside `src/composables/` starting with `use...`).
+- **Do not** use Mixins (they are deprecated/harmful in Vue 3).
+- Composables should return reactive state (`ref`, `computed`) and functions.
+
+{% if "Pinia" in libraries %}
+### 3. State Management (Pinia)
+We use **Pinia** for global state.
+- **Store Definition:** Use the "Setup Stores" syntax (similar to standard components) rather than Option Stores.
+- **Persistence:** If needed, use plugins like `pinia-plugin-persistedstate`.
+{% endif %}
+
+{% if "Axios" in libraries %}
+### 4. API Layer
+- HTTP requests are handled via a configured **Axios** instance (usually in `src/utils/http.ts` or `src/api/client.ts`).
+- Service modules in `src/api/` import the client to perform requests.
+- **Views** call **Composables** or **Stores**, which in turn call the **API**. Views should not call Axios directly.
+{% endif %}
+
+### 5. Layout System
+We use a layout system to wrap pages.
+- `App.vue` handles the layout switching logic (using `<component :is="layout">` or standard Router Layouts).
+- Pages define their layout via route meta fields.
+
+## 🎨 Styling Architecture
+{% if "TailwindCSS" in libraries %}
+- **Tailwind CSS** is used for utility-first styling.
+- Avoid writing custom CSS in `<style>` blocks unless creating complex animations.
+{% else %}
+- **Scoped CSS** (`<style scoped>`) is strictly enforced to prevent style leakage.
+- Use **SCSS/Sass** pre-processing if configured.
+{% endif %}

@@ -1,0 +1,68 @@
+# TypeScript Library Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a reusable **TypeScript Library**.
+It's designed for **maximum compatibility**, **tree-shakability**, and excellent **Developer Experience (DX)**.
+
+## 📂 Directory Structure
+
+We follow the standard structure for published NPM packages.
+
+```text
+root/
+├── src/                 # Library Source Code
+│   ├── index.ts         # Public API Entry Point (exports)
+│   ├── core/            # Core logic (data structures, algorithms)
+│   ├── utils/           # Helper functions
+│   └── internal/        # Implementation details (private modules)
+├── tests/               # Unit & Integration Tests
+│   ├── __setup__.ts     # Test setup (mocking)
+│   └── my-feature.test.ts
+├── types/               # Global Type Definitions (if any)
+├── scripts/             # Build/Publishing scripts
+├── .gitignore
+├── tsconfig.json        # Main TS config
+├── tsconfig.build.json  # Build-specific TS config
+├── package.json         # NPM metadata & build scripts
+└── README.md
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Public API (`src/index.ts`)
+- **Purpose:** This is the *only* file consumers should import from.
+- **Rule:** Exports only stable, well-defined functions, classes, and types. Avoid exporting internal implementation details.
+- **Example:**
+  ```typescript
+  // src/index.ts
+  export { default as doSomething } from './core/doSomething';
+  export type { Options } from './core/types';
+  ```
+
+### 2. Modularity
+- Break down logic into small, focused modules within `src/`.
+- Use **Private Modules** (`./internal/`) that are not exported from `src/index.ts`.
+- **Benefit:** Allows bundlers (Rollup, esbuild) to tree-shake unused code effectively.
+
+### 3. Bundling & Formats
+- We bundle the library into multiple formats for maximum compatibility:
+  - **ESM (`.mjs`):** For modern Node.js and bundlers.
+  - **CommonJS (`.cjs`):** For older Node.js versions.
+  - **UMD (`.umd.js`):** For direct browser `<script>` tag usage.
+- **Tools:** Use **Rollup** or **esbuild** with appropriate plugins (e.g., `@rollup/plugin-node-resolve`, `@rollup/plugin-typescript`).
+
+### 4. Typing
+- **TypeScript First:** All code is written in TypeScript.
+- **Declaration Files:** Generate `.d.ts` files during the build process. Ensure they accurately reflect the public API.
+
+## 📦 Publishing (NPM)
+
+- **`package.json`:**
+  - `main`: Path to CommonJS entry point.
+  - `module`: Path to ESM entry point.
+  - `types`: Path to declaration files.
+  - `files`: Include `dist/` and `src/index.ts` (for source maps).
+  - `scripts`: `build` (tsc + bundler), `test`, `lint`, `publish`.
+- **Versioning:** Use Semantic Versioning (SemVer).
+- **`npm publish`:** Ensure tests and builds pass before publishing. Use `npm prepublishOnly` for safety checks.

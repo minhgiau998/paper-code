@@ -1,0 +1,848 @@
+# Redis Documentation
+
+> **Purpose:** In-memory data structure store, used as database, cache, and message broker.
+
+## 📦 Installation
+
+```bash
+# Node.js
+npm install redis
+
+# Python
+pip install redis
+
+# Go
+go get github.com/go-redis/redis/v8
+```
+
+## 🛠️ Configuration
+
+**Strategy:** Use Redis for caching, session management, and real-time features.
+
+### 1. Node.js Configuration (`src/config/redis.js`)
+
+```javascript
+const redis = require('redis');
+
+class RedisClient {
+  constructor() {
+    this.client = null;
+    this.isConnected = false;
+  }
+
+  async connect() {
+    try {
+      this.client = redis.createClient({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+        password: process.env.REDIS_PASSWORD || undefined,
+        db: process.env.REDIS_DB || 0,
+        retryDelayOnFailover: 100,
+        enableReadyCheck: true,
+        maxRetriesPerRequest: 3,
+        lazyConnect: true,
+        keepAlive: 30000,
+        family: 4,
+        keyPrefix: process.env.REDIS_KEY_PREFIX || 'app:',
+      });
+
+      // Event listeners
+      this.client.on('connect', () => {
+        console.log('Redis client connected');
+        this.isConnected = true;
+      });
+
+      this.client.on('error', (err) => {
+        console.error('Redis client error:', err);
+        this.isConnected = false;
+      });
+
+      this.client.on('end', () => {
+        console.log('Redis client disconnected');
+        this.isConnected = false;
+      });
+
+      this.client.on('reconnecting', () => {
+        console.log('Redis client reconnecting');
+      });
+
+      await this.client.connect();
+      return this.client;
+    } catch (error) {
+      console.error('Failed to connect to Redis:', error);
+      throw error;
+    }
+  }
+
+  async disconnect() {
+    if (this.client) {
+      await this.client.quit();
+      this.isConnected = false;
+    }
+  }
+
+  getClient() {
+    if (!this.client || !this.isConnected) {
+      throw new Error('Redis client not connected');
+    }
+    return this.client;
+  }
+
+  async ping() {
+    try {
+      const result = await this.getClient().ping();
+      return result === 'PONG';
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async info() {
+    try {
+      return await this.getClient().info();
+    } catch (error) {
+      throw error;
+    }
+  }
+}
+
+// Singleton instance
+const redisClient = new RedisClient();
+
+module.exports = redisClient;
+```
+
+### 2. Python Configuration (`src/config/redis.py`)
+
+```python
+import redis
+import os
+from typing import Optional, Any, Union
+import json
+import pickle
+from datetime import timedelta
+
+class RedisClient:
+    def __init__(self):
+        self.client: Optional[redis.Redis] = None
+        self.is_connected = False
+    
+    async def connect(self):
+        """Connect to Redis server."""
+        try:
+            self.client = redis.Redis(
+                host=os.getenv('REDIS_HOST', 'localhost'),
+                port=int(os.getenv('REDIS_PORT', 6379)),
+                password=os.getenv('REDIS_PASSWORD'),
+                db=int(os.getenv('REDIS_DB', 0)),
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+                retry_on_timeout=True,
+                health_check_interval=30,
+                key_prefix=os.getenv('REDIS_KEY_PREFIX', 'app:'),
+            )
+            
+            # Test connection
+            self.client.ping()
+            self.is_connected = True
+            print("Redis client connected")
+            
+        except Exception as error:
+            print(f"Failed to connect to Redis: {error}")
+            self.is_connected = False
+            raise
+    
+    async def disconnect(self):
+        """Disconnect from Redis server."""
+        if self.client:
+            await self.client.close()
+            self.is_connected = False
+    
+    def get_client(self) -> redis.Redis:
+        """Get Redis client instance."""
+        if not self.client or not self.is_connected:
+            raise RuntimeError("Redis client not connected")
+        return self.client
+    
+    async def ping(self) -> bool:
+        """Test Redis connection."""
+        try:
+            result = await self.get_client().ping()
+            return result is True
+        except Exception:
+            return False
+    
+    async def info(self) -> str:
+        """Get Redis server info."""
+        try:
+            return await self.get_client().info()
+        except Exception as error:
+            raise error
+
+# Singleton instance
+redis_client = RedisClient()
+```
+
+### 3. Go Configuration (`pkg/redis/client.go`)
+
+```go
+package redis
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"time"
+
+	"github.com/go-redis/redis/v8"
+)
+
+type Client struct {
+	rdb *redis.Client
+}
+
+func NewClient() *Client {
+	host := os.Getenv("REDIS_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+
+	port := os.Getenv("REDIS_PORT")
+	if port == "" {
+		port = "6379"
+	}
+
+	password := os.Getenv("REDIS_PASSWORD")
+	db := 0
+	if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
+		if parsed, err := fmt.Sscanf(dbStr, "%d", &db); err != nil {
+			db = 0
+		}
+	}
+
+	keyPrefix := os.Getenv("REDIS_KEY_PREFIX")
+	if keyPrefix == "" {
+		keyPrefix = "app:"
+	}
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:         fmt.Sprintf("%s:%s", host, port),
+		Password:     password,
+		DB:           db,
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
+		PoolSize:     10,
+		MinIdleConns: 5,
+		MaxRetries:   3,
+	})
+
+	return &Client{
+		rdb: rdb,
+	}
+}
+
+func (c *Client) Connect(ctx context.Context) error {
+	_, err := c.rdb.Ping(ctx).Result()
+	if err != nil {
+		return fmt.Errorf("failed to connect to Redis: %w", err)
+	}
+	fmt.Println("Redis client connected")
+	return nil
+}
+
+func (c *Client) Disconnect(ctx context.Context) error {
+	return c.rdb.Close()
+}
+
+func (c *Client) GetClient() *redis.Client {
+	return c.rdb
+}
+
+func (c *Client) Ping(ctx context.Context) (bool, error) {
+	result, err := c.rdb.Ping(ctx).Result()
+	if err != nil {
+		return false, err
+	}
+	return result == "PONG", nil
+}
+
+func (c *Client) Info(ctx context.Context) (string, error) {
+	return c.rdb.Info(ctx).Result()
+}
+
+func (c *Client) buildKey(key string) string {
+	keyPrefix := os.Getenv("REDIS_KEY_PREFIX")
+	if keyPrefix == "" {
+		keyPrefix = "app:"
+	}
+	return keyPrefix + key
+}
+```
+
+## 🔄 Cache Service
+
+### 1. Node.js Cache Service (`src/services/cacheService.js`)
+
+```javascript
+const redisClient = require('../config/redis');
+
+class CacheService {
+  constructor() {
+    this.defaultTTL = 3600; // 1 hour
+  }
+
+  // Basic operations
+  async set(key, value, ttl = this.defaultTTL) {
+    try {
+      const serializedValue = JSON.stringify(value);
+      await redisClient.getClient().setEx(key, ttl, serializedValue);
+      return true;
+    } catch (error) {
+      console.error('Cache set error:', error);
+      return false;
+    }
+  }
+
+  async get(key) {
+    try {
+      const value = await redisClient.getClient().get(key);
+      return value ? JSON.parse(value) : null;
+    } catch (error) {
+      console.error('Cache get error:', error);
+      return null;
+    }
+  }
+
+  async del(key) {
+    try {
+      await redisClient.getClient().del(key);
+      return true;
+    } catch (error) {
+      console.error('Cache delete error:', error);
+      return false;
+    }
+  }
+
+  async exists(key) {
+    try {
+      const result = await redisClient.getClient().exists(key);
+      return result === 1;
+    } catch (error) {
+      console.error('Cache exists error:', error);
+      return false;
+    }
+  }
+
+  async expire(key, ttl) {
+    try {
+      await redisClient.getClient().expire(key, ttl);
+      return true;
+    } catch (error) {
+      console.error('Cache expire error:', error);
+      return false;
+    }
+  }
+
+  async ttl(key) {
+    try {
+      return await redisClient.getClient().ttl(key);
+    } catch (error) {
+      console.error('Cache TTL error:', error);
+      return -1;
+    }
+  }
+
+  // Hash operations
+  async hSet(key, field, value) {
+    try {
+      const serializedValue = JSON.stringify(value);
+      await redisClient.getClient().hSet(key, field, serializedValue);
+      return true;
+    } catch (error) {
+      console.error('Cache hSet error:', error);
+      return false;
+    }
+  }
+
+  async hGet(key, field) {
+    try {
+      const value = await redisClient.getClient().hGet(key, field);
+      return value ? JSON.parse(value) : null;
+    } catch (error) {
+      console.error('Cache hGet error:', error);
+      return null;
+    }
+  }
+
+  async hGetAll(key) {
+    try {
+      const hash = await redisClient.getClient().hGetAll(key);
+      const result = {};
+      
+      for (const [field, value] of Object.entries(hash)) {
+        try {
+          result[field] = JSON.parse(value);
+        } catch {
+          result[field] = value;
+        }
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Cache hGetAll error:', error);
+      return {};
+    }
+  }
+
+  async hDel(key, field) {
+    try {
+      await redisClient.getClient().hDel(key, field);
+      return true;
+    } catch (error) {
+      console.error('Cache hDel error:', error);
+      return false;
+    }
+  }
+
+  // List operations
+  async lPush(key, value) {
+    try {
+      const serializedValue = JSON.stringify(value);
+      await redisClient.getClient().lPush(key, serializedValue);
+      return true;
+    } catch (error) {
+      console.error('Cache lPush error:', error);
+      return false;
+    }
+  }
+
+  async rPush(key, value) {
+    try {
+      const serializedValue = JSON.stringify(value);
+      await redisClient.getClient().rPush(key, serializedValue);
+      return true;
+    } catch (error) {
+      console.error('Cache rPush error:', error);
+      return false;
+    }
+  }
+
+  async lPop(key) {
+    try {
+      const value = await redisClient.getClient().lPop(key);
+      return value ? JSON.parse(value) : null;
+    } catch (error) {
+      console.error('Cache lPop error:', error);
+      return null;
+    }
+  }
+
+  async rPop(key) {
+    try {
+      const value = await redisClient.getClient().rPop(key);
+      return value ? JSON.parse(value) : null;
+    } catch (error) {
+      console.error('Cache rPop error:', error);
+      return null;
+    }
+  }
+
+  async lRange(key, start = 0, stop = -1) {
+    try {
+      const values = await redisClient.getClient().lRange(key, start, stop);
+      return values.map(value => {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return value;
+        }
+      });
+    } catch (error) {
+      console.error('Cache lRange error:', error);
+      return [];
+    }
+  }
+
+  // Set operations
+  async sAdd(key, value) {
+    try {
+      const serializedValue = JSON.stringify(value);
+      await redisClient.getClient().sAdd(key, serializedValue);
+      return true;
+    } catch (error) {
+      console.error('Cache sAdd error:', error);
+      return false;
+    }
+  }
+
+  async sMembers(key) {
+    try {
+      const values = await redisClient.getClient().sMembers(key);
+      return values.map(value => {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return value;
+        }
+      });
+    } catch (error) {
+      console.error('Cache sMembers error:', error);
+      return [];
+    }
+  }
+
+  async sRem(key, value) {
+    try {
+      const serializedValue = JSON.stringify(value);
+      await redisClient.getClient().sRem(key, serializedValue);
+      return true;
+    } catch (error) {
+      console.error('Cache sRem error:', error);
+      return false;
+    }
+  }
+
+  // Utility methods
+  async clear(pattern = '*') {
+    try {
+      const keys = await redisClient.getClient().keys(pattern);
+      if (keys.length > 0) {
+        await redisClient.getClient().del(keys);
+      }
+      return keys.length;
+    } catch (error) {
+      console.error('Cache clear error:', error);
+      return 0;
+    }
+  }
+
+  async getKeys(pattern = '*') {
+    try {
+      return await redisClient.getClient().keys(pattern);
+    } catch (error) {
+      console.error('Cache getKeys error:', error);
+      return [];
+    }
+  }
+
+  // Cache with automatic fallback
+  async getOrSet(key, fetchFunction, ttl = this.defaultTTL) {
+    try {
+      // Try to get from cache first
+      let cached = await this.get(key);
+      
+      if (cached !== null) {
+        return cached;
+      }
+      
+      // Cache miss, fetch data
+      const data = await fetchFunction();
+      
+      // Set in cache
+      await this.set(key, data, ttl);
+      
+      return data;
+    } catch (error) {
+      console.error('Cache getOrSet error:', error);
+      // Fallback to direct fetch
+      return await fetchFunction();
+    }
+  }
+
+  // Cache invalidation
+  async invalidatePattern(pattern) {
+    try {
+      const keys = await redisClient.getClient().keys(pattern);
+      if (keys.length > 0) {
+        await redisClient.getClient().del(keys);
+      }
+      return keys.length;
+    } catch (error) {
+      console.error('Cache invalidatePattern error:', error);
+      return 0;
+    }
+  }
+}
+
+module.exports = new CacheService();
+```
+
+### 2. Session Management (`src/services/sessionService.js`)
+
+```javascript
+const crypto = require('crypto');
+const cacheService = require('./cacheService');
+
+class SessionService {
+  constructor() {
+    this.sessionTTL = 86400; // 24 hours
+    this.sessionPrefix = 'session:';
+  }
+
+  generateSessionId() {
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  async createSession(userId, userData = {}) {
+    try {
+      const sessionId = this.generateSessionId();
+      const sessionKey = this.sessionPrefix + sessionId;
+      
+      const sessionData = {
+        userId,
+        userData,
+        createdAt: new Date().toISOString(),
+        lastAccessed: new Date().toISOString(),
+      };
+      
+      await cacheService.set(sessionKey, sessionData, this.sessionTTL);
+      
+      return sessionId;
+    } catch (error) {
+      console.error('Session creation error:', error);
+      throw error;
+    }
+  }
+
+  async getSession(sessionId) {
+    try {
+      const sessionKey = this.sessionPrefix + sessionId;
+      const session = await cacheService.get(sessionKey);
+      
+      if (session) {
+        // Update last accessed time
+        session.lastAccessed = new Date().toISOString();
+        await cacheService.set(sessionKey, session, this.sessionTTL);
+      }
+      
+      return session;
+    } catch (error) {
+      console.error('Session get error:', error);
+      return null;
+    }
+  }
+
+  async updateSession(sessionId, userData) {
+    try {
+      const sessionKey = this.sessionPrefix + sessionId;
+      const session = await cacheService.get(sessionKey);
+      
+      if (session) {
+        session.userData = { ...session.userData, ...userData };
+        session.lastAccessed = new Date().toISOString();
+        await cacheService.set(sessionKey, session, this.sessionTTL);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Session update error:', error);
+      return false;
+    }
+  }
+
+  async destroySession(sessionId) {
+    try {
+      const sessionKey = this.sessionPrefix + sessionId;
+      await cacheService.del(sessionKey);
+      return true;
+    } catch (error) {
+      console.error('Session destroy error:', error);
+      return false;
+    }
+  }
+
+  async getUserSessions(userId) {
+    try {
+      const pattern = this.sessionPrefix + '*';
+      const keys = await cacheService.getKeys(pattern);
+      const userSessions = [];
+      
+      for (const key of keys) {
+        const session = await cacheService.get(key);
+        if (session && session.userId === userId) {
+          userSessions.push({
+            sessionId: key.replace(this.sessionPrefix, ''),
+            ...session,
+          });
+        }
+      }
+      
+      return userSessions;
+    } catch (error) {
+      console.error('Get user sessions error:', error);
+      return [];
+    }
+  }
+
+  async destroyAllUserSessions(userId) {
+    try {
+      const sessions = await this.getUserSessions(userId);
+      let destroyedCount = 0;
+      
+      for (const session of sessions) {
+        if (await this.destroySession(session.sessionId)) {
+          destroyedCount++;
+        }
+      }
+      
+      return destroyedCount;
+    } catch (error) {
+      console.error('Destroy all user sessions error:', error);
+      return 0;
+    }
+  }
+
+  async cleanupExpiredSessions() {
+    try {
+      const pattern = this.sessionPrefix + '*';
+      const keys = await cacheService.getKeys(pattern);
+      let cleanedCount = 0;
+      
+      for (const key of keys) {
+        const ttl = await cacheService.ttl(key);
+        if (ttl === -1 || ttl === -2) {
+          await cacheService.del(key);
+          cleanedCount++;
+        }
+      }
+      
+      return cleanedCount;
+    } catch (error) {
+      console.error('Session cleanup error:', error);
+      return 0;
+    }
+  }
+}
+
+module.exports = new SessionService();
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **No Connection Pooling:**
+   - **Bad:** Creating new connections for each operation.
+   - **Good:** Use connection pooling and reuse connections.
+
+2. **Blocking Operations:**
+   - **Bad:** Using synchronous Redis operations in async code.
+   - **Good:** Always use async/await with Redis operations.
+
+3. **Large Keys/Values:**
+   - **Bad:** Storing large objects in Redis.
+   - **Good:** Keep keys and values small and efficient.
+
+4. **No Error Handling:**
+   - **Bad:** Not handling Redis connection failures.
+   - **Good:** Implement proper error handling and fallbacks.
+
+5. **Memory Leaks:**
+   - **Bad:** Not setting TTL on keys.
+   - **Good:** Always set appropriate TTL for cached data.
+
+## 🧪 Testing Strategy
+
+```javascript
+// tests/cacheService.test.js
+const CacheService = require('../src/services/cacheService');
+
+describe('CacheService', () => {
+  let cacheService;
+
+  beforeAll(async () => {
+    cacheService = new CacheService();
+    // Connect to test Redis instance
+    await require('../src/config/redis').connect();
+  });
+
+  afterAll(async () => {
+    // Clean up and disconnect
+    await cacheService.clear();
+    await require('../src/config/redis').disconnect();
+  });
+
+  beforeEach(async () => {
+    // Clear cache before each test
+    await cacheService.clear();
+  });
+
+  test('should set and get value', async () => {
+    const key = 'test-key';
+    const value = { name: 'test', value: 123 };
+
+    await cacheService.set(key, value);
+    const result = await cacheService.get(key);
+
+    expect(result).toEqual(value);
+  });
+
+  test('should return null for non-existent key', async () => {
+    const result = await cacheService.get('non-existent-key');
+    expect(result).toBeNull();
+  });
+
+  test('should handle hash operations', async () => {
+    const key = 'test-hash';
+    const field = 'test-field';
+    const value = { data: 'test' };
+
+    await cacheService.hSet(key, field, value);
+    const result = await cacheService.hGet(key, field);
+
+    expect(result).toEqual(value);
+  });
+
+  test('should handle getOrSet pattern', async () => {
+    const key = 'test-get-or-set';
+    const fetchFunction = jest.fn().mockResolvedValue({ data: 'fetched' });
+
+    // First call should fetch
+    const result1 = await cacheService.getOrSet(key, fetchFunction);
+    expect(fetchFunction).toHaveBeenCalledTimes(1);
+    expect(result1).toEqual({ data: 'fetched' });
+
+    // Second call should use cache
+    const result2 = await cacheService.getOrSet(key, fetchFunction);
+    expect(fetchFunction).toHaveBeenCalledTimes(1);
+    expect(result2).toEqual({ data: 'fetched' });
+  });
+});
+```
+
+## 📦 Environment Variables
+
+```env
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
+REDIS_KEY_PREFIX=app:
+
+# Connection Settings
+REDIS_POOL_SIZE=10
+REDIS_MIN_IDLE_CONNS=5
+REDIS_CONNECT_TIMEOUT=5000
+REDIS_READ_TIMEOUT=3000
+REDIS_WRITE_TIMEOUT=3000
+
+# Cache Settings
+CACHE_DEFAULT_TTL=3600
+SESSION_TTL=86400
+```
+
+## 📦 Package.json Scripts
+
+```json
+{
+  "scripts": {
+    "redis:cli": "redis-cli -h localhost -p 6379",
+    "redis:monitor": "redis-cli monitor",
+    "redis:info": "redis-cli info",
+    "redis:flush": "redis-cli flushall",
+    "test:redis": "jest tests/cacheService.test.js"
+  }
+}
+```

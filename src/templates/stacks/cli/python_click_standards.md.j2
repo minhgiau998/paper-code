@@ -1,0 +1,87 @@
+# Python CLI Coding Standards
+
+## 📝 Naming Conventions
+
+- **Commands:** `kebab-case` (in terminal), `snake_case` (in function names).
+  - e.g., `@click.command(name="create-user")` -> `def create_user():`.
+- **Options:** `--kebab-case` (e.g., `--output-dir`).
+- **Files:** `snake_case.py`.
+
+## ⚡ Modern Python & Click Rules (Critical)
+
+### 1. Docstrings as Help
+**Rule:** Write docstrings for every command. Click automatically uses them as the `--help` text.
+```python
+@click.command()
+def sync():
+    """Synchronize local data with the remote server."""
+    # ...
+```
+
+### 2. Output Handling
+**Rule:** Do not use `print()`.
+- **Standard:** Use `click.echo()` for cross-platform unicode support.
+{% if "Rich" in libraries %}
+- **Rich:** Use `rich.print()` or `console.print()` for styled output.
+{% endif %}
+- **Stderr:** For errors, use `click.echo(..., err=True)` or `console.print(..., style="bold red")`.
+
+### 3. Type Hinting (Python 3.10+)
+**Rule:** Use modern type hints in function signatures.
+- Click extracts types for validation (especially if migrating to Typer later), but even in vanilla Click, it documents the code.
+
+```python
+# ✅ Good
+def process_data(input_path: Path, verbose: bool = False) -> None: ...
+```
+
+### 4. Exit Codes
+**Rule:** Use `sys.exit()` or `ctx.exit()` with explicit codes.
+- `0`: Success.
+- `1`: General Error.
+- `2`: Usage Error (Click default).
+- `127`: Command not found.
+
+## 🛡️ Context & State
+
+### 1. No Global State
+**Rule:** Do not rely on module-level globals for configuration.
+- Use the `@click.pass_context` decorator to access `ctx.obj`.
+- This makes unit testing significantly easier because you can inject mock contexts.
+
+```python
+@click.command()
+@click.pass_context
+def info(ctx):
+    config = ctx.obj.get('config') # ✅ Safe access
+    click.echo(f"Version: {config.version}")
+```
+
+### 2. Option handling
+**Rule:** Prefer `click.option` over `click.argument`.
+- Arguments are positional and rigid. Options (`--name`) are flexible and self-documenting.
+- Use `required=True` for mandatory inputs rather than positional arguments if they are complex.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Logic in Commands:** The CLI function should only parse inputs and call a service function.
+    - **Bad:** Writing 100 lines of API fetching logic inside `def cli():`.
+    - **Good:** `api_client.fetch_data(apikey)`.
+2.  **Hardcoded Prompts:** Don't use `input()`. Use `click.prompt()` or `click.confirm()`. These handle `Ctrl+C` and piping correctly.
+3.  **Ignoring Pipes:** If your tool is piped (`mytool | grep ...`), ensure you handle broken pipe errors (`SIGPIPE`) gracefully (Python raises `BrokenPipeError`).
+
+## 🧪 Testing
+
+- **Library:** Use `click.testing.CliRunner`.
+- **Isolation:** Tests should run in an isolated filesystem (`runner.isolated_filesystem()`) when dealing with file creation.
+
+```python
+from click.testing import CliRunner
+from mycli.cli import cli
+
+def test_hello_world():
+    runner = CliRunner()
+    result = runner.invoke(cli, ['hello', '--name', 'Paper'])
+    assert result.exit_code == 0
+    assert 'Paper' in result.output
+```

@@ -1,0 +1,218 @@
+# NgRx Documentation
+
+> **Purpose:** Reactive State Management for Angular (Redux pattern).
+
+## 📦 Installation
+
+```bash
+npm install @ngrx/store @ngrx/effects @ngrx/store-devtools
+# Optional: For SignalStore (Lighter alternative)
+npm install @ngrx/signals
+```
+
+## 🛠️ Configuration (Standalone API)
+
+**Strategy:** We use the Standalone APIs introduced in Angular 15+. Do not use `NgModule` imports (`StoreModule.forRoot`) unless you are on a legacy codebase.
+
+**File:** `src/app/app.config.ts`
+
+```typescript
+import { ApplicationConfig, isDevMode } from '@angular/core';
+import { provideStore } from '@ngrx/store';
+import { provideEffects } from '@ngrx/effects';
+import { provideStoreDevtools } from '@ngrx/store-devtools';
+
+import { authReducer } from './features/auth/state/auth.reducer';
+import * as authEffects from './features/auth/state/auth.effects';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    // 1. Register Global Reducers
+    provideStore({
+      auth: authReducer,
+    }),
+    
+    // 2. Register Functional Effects
+    provideEffects(authEffects),
+
+    // 3. DevTools (Only in Dev)
+    provideStoreDevtools({
+      maxAge: 25,
+      logOnly: !isDevMode(),
+      autoPause: true, 
+      trace: false, 
+      traceLimit: 75, 
+    }),
+  ]
+};
+```
+
+## 💻 Usage Patterns (Functional Style)
+
+### 1. Actions (`createActionGroup`)
+
+**Rule:** Use `createActionGroup`. Do not use individual `createAction` calls.
+- **Source:** Defines where the action comes from (e.g., 'Auth Page', 'User API').
+- **Events:** Defines what happened.
+
+**File:** `src/app/features/auth/state/auth.actions.ts`
+
+```typescript
+import { createActionGroup, emptyProps, props } from '@ngrx/store';
+import { User, LoginCredentials } from '../models/user.model';
+
+export const AuthActions = createActionGroup({
+  source: 'Auth API',
+  events: {
+    'Login': props<{ credentials: LoginCredentials }>(),
+    'Login Success': props<{ user: User }>(),
+    'Login Failure': props<{ error: string }>(),
+    'Logout': emptyProps(),
+  }
+});
+// Usage: AuthActions.login({ credentials })
+```
+
+### 2. Reducer (`createReducer`)
+
+**File:** `src/app/features/auth/state/auth.reducer.ts`
+
+```typescript
+import { createReducer, on } from '@ngrx/store';
+import { AuthActions } from './auth.actions';
+import { User } from '../models/user.model';
+
+export interface AuthState {
+  user: User | null;
+  error: string | null;
+  isLoading: boolean;
+}
+
+const initialState: AuthState = {
+  user: null,
+  error: null,
+  isLoading: false,
+};
+
+export const authReducer = createReducer(
+  initialState,
+  on(AuthActions.login, (state) => ({ ...state, isLoading: true, error: null })),
+  on(AuthActions.loginSuccess, (state, { user }) => ({ ...state, user, isLoading: false })),
+  on(AuthActions.loginFailure, (state, { error }) => ({ ...state, error, isLoading: false })),
+  on(AuthActions.logout, () => initialState)
+);
+```
+
+### 3. Functional Effects (`createEffect`)
+
+**Rule:** Use Functional Effects. Do not use Class-based effects (`@Injectable` with decorators).
+
+**File:** `src/app/features/auth/state/auth.effects.ts`
+
+```typescript
+import { inject } from '@angular/core';
+import { Actions, createEffect, ofType } from '@ngrx/effects';
+import { AuthService } from '../auth.service';
+import { AuthActions } from './auth.actions';
+import { catchError, map, switchMap, of, tap } from 'rxjs';
+import { Router } from '@angular/router';
+
+export const loginEffect$ = createEffect(
+  (actions$ = inject(Actions), authService = inject(AuthService)) => {
+    return actions$.pipe(
+      ofType(AuthActions.login),
+      switchMap(({ credentials }) =>
+        authService.login(credentials).pipe(
+          map((user) => AuthActions.loginSuccess({ user })),
+          catchError((error) => of(AuthActions.loginFailure({ error: error.message })))
+        )
+      )
+    );
+  },
+  { functional: true }
+);
+
+export const redirectAfterLogin$ = createEffect(
+  (actions$ = inject(Actions), router = inject(Router)) => {
+    return actions$.pipe(
+      ofType(AuthActions.loginSuccess),
+      tap(() => router.navigate(['/dashboard']))
+    );
+  },
+  { functional: true, dispatch: false } // dispatch: false for non-action side effects
+);
+```
+
+### 4. Selectors
+
+**Rule:** Always use Selectors to access state. Never access `state` directly in components.
+
+```typescript
+import { createFeatureSelector, createSelector } from '@ngrx/store';
+import { AuthState } from './auth.reducer';
+
+export const selectAuthState = createFeatureSelector<AuthState>('auth');
+
+export const selectIsLoggedIn = createSelector(
+  selectAuthState,
+  (state) => !!state.user
+);
+
+export const selectCurrentUser = createSelector(
+  selectAuthState,
+  (state) => state.user
+);
+```
+
+## ⚡ Modern Alternative: NgRx SignalStore
+
+For strictly local feature state or simpler global state, consider **SignalStore**. It is more concise than the Redux pattern.
+
+```typescript
+import { signalStore, withState, withMethods } from '@ngrx/signals';
+
+export const UserStore = signalStore(
+  { providedIn: 'root' },
+  withState({ users: [] }),
+  withMethods((store) => ({
+    async loadUsers() {
+      // Logic here...
+    },
+  }))
+);
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Switch Statements:**
+    *   **Legacy:** Using `switch (action.type)` in reducers is deprecated. Use `createReducer` and `on`.
+
+2.  **Fat Effects:**
+    *   Effects should orchestrate streams (Action -> Service -> Action).
+    *   Don't put complex business logic or data transformation inside the Effect. Move it to a Service or Utility function.
+
+3.  **Subscribing in Components:**
+    *   **Bad:** `store.select(selectUser).subscribe(...)`
+    *   **Good:** `user$ = store.select(selectUser)` and use `AsyncPipe` in template ({% raw %}`{{ user$ | async }}`{% endraw %}) or `toSignal`.
+
+4.  **Action Reuse:**
+    *   **Bad:** Reusing `loadData` action for both "Initial Page Load" and "Refresh Button".
+    *   **Good:** Create specific actions: `PageOpened` and `RefreshClicked`. This helps debugging in DevTools (Traceability).
+
+## 🧪 Testing
+
+We use **Marble Testing** (`jasmine-marbles` or `rxjs/testing`) for Effects to test time-based streams.
+
+```typescript
+it('should return loginSuccess on success', () => {
+  const action = AuthActions.login({ credentials });
+  const outcome = AuthActions.loginSuccess({ user });
+
+  actions$ = hot('-a', { a: action });
+  const response = cold('-b|', { b: user });
+  authService.login.and.returnValue(response);
+
+  const expected = cold('--c', { c: outcome });
+  expect(loginEffect$(actions$, authService)).toBeObservable(expected);
+});
+```

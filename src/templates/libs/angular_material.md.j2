@@ -1,0 +1,195 @@
+# Angular Material Documentation
+
+> **Purpose:** The official UI Component library for Angular, implementing Google's Material Design 3 specification.
+
+## 📦 Installation
+
+Use the Angular CLI schematics to set up everything automatically (animations, fonts, global styles).
+
+```bash
+ng add @angular/material
+```
+
+## 🛠️ Configuration (Theming & SCSS)
+
+**Strategy:** Use the modern **Material 3 (M3)** SCSS API. Avoid legacy `@include mat.all-component-themes`.
+
+**File:** `src/styles.scss`
+
+```scss
+@use '@angular/material' as mat;
+
+// 1. Define your palette
+$my-primary: mat.m2-define-palette(mat.$m2-indigo-palette);
+$my-accent: mat.m2-define-palette(mat.$m2-pink-palette, A200, A100, A400);
+
+// 2. Define the theme object
+$my-theme: mat.m2-define-light-theme((
+  color: (
+    primary: $my-primary,
+    accent: $my-accent,
+  ),
+  typography: mat.m2-define-typography-config(),
+  density: 0,
+));
+
+// 3. Emit core styles and theme
+@include mat.core();
+@include mat.all-component-themes($my-theme);
+
+// ⚡ Utility: Create CSS variables for usage in your components
+:root {
+  --primary-color: #{mat.get-color-from-palette($my-primary)};
+}
+
+html, body { height: 100%; }
+body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+```
+
+## 💻 Usage Patterns
+
+### 1. Standalone Imports (Strict Rule)
+
+**Rule:** Do not create a giant `MaterialModule`. Import only what you need in the component.
+
+```typescript
+import { Component } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatCardModule } from '@angular/material/card';
+
+@Component({
+  selector: 'app-user-card',
+  standalone: true,
+  // ✅ Good: Tree-shakable imports
+  imports: [MatButtonModule, MatIconModule, MatCardModule],
+  template: `
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>User Profile</mat-card-title>
+      </mat-card-header>
+      <mat-card-actions>
+        <button mat-button color="primary">Edit</button>
+        <button mat-icon-button>
+          <mat-icon>delete</mat-icon>
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  `
+})
+export class UserCardComponent {}
+```
+
+### 2. Dialogs (Injecting Data)
+
+Using `MatDialog` requires careful typing.
+
+```typescript
+import { Component, inject } from '@angular/core';
+import { MatDialog, MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+
+// The Data Interface
+interface DialogData {
+  animal: string;
+}
+
+@Component({ ... })
+export class MyDialog {
+  // ✅ Modern Injection
+  readonly dialogRef = inject(MatDialogRef<MyDialog>);
+  readonly data = inject<DialogData>(MAT_DIALOG_DATA);
+
+  onNoClick(): void {
+    this.dialogRef.close();
+  }
+}
+
+// Opening the dialog
+const dialog = inject(MatDialog);
+dialog.open(MyDialog, {
+  data: { animal: 'panda' },
+});
+```
+
+## 🛡️ Best Practices & Strategies
+
+### 1. Avoiding `::ng-deep`
+**Rule:** `::ng-deep` is deprecated. Do not use it to overwrite Material styles.
+**Strategy:** Use **View Encapsulation: None** selectively or use global styles with specific class names.
+
+```scss
+// styles.scss
+.my-custom-dialog-panel {
+  .mat-mdc-dialog-container {
+    padding: 0; // Override library style
+  }
+}
+```
+```typescript
+// Component
+this.dialog.open(Component, { panelClass: 'my-custom-dialog-panel' });
+```
+
+### 2. Performance (Virtual Scroll)
+For lists with > 50 items, strictly use the **CDK Virtual Scroll**. Rendering 1000 `mat-list-item` nodes will freeze the browser.
+
+```bash
+npm install @angular/cdk
+```
+
+{% raw %}
+```html
+<cdk-virtual-scroll-viewport itemSize="50" class="viewport">
+  <div *cdkVirtualFor="let item of items" class="item">{{item}}</div>
+</cdk-virtual-scroll-viewport>
+```
+{% endraw %}
+
+### 3. Icon Registry
+**Strategy:** Avoid HTTP requests for icons. Register SVG icons manually if you have custom ones.
+
+```typescript
+constructor(matIconRegistry: MatIconRegistry, domSanitizer: DomSanitizer) {
+  matIconRegistry.addSvgIcon(
+    'my_icon',
+    domSanitizer.bypassSecurityTrustResourceUrl('assets/icons/my_icon.svg')
+  );
+}
+```
+
+## 🧪 Testing (Harnesses)
+
+**Critical Strategy:** Use **Component Harnesses**.
+Testing Material components via raw DOM (`querySelector('.mat-select-trigger')`) is brittle because the internal DOM changes between versions. Harnesses provide a stable API.
+
+```typescript
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { MatButtonHarness } from '@angular/material/button/testing';
+import { MatSelectHarness } from '@angular/material/select/testing';
+
+it('should click the button', async () => {
+  const loader = TestbedHarnessEnvironment.loader(fixture);
+  
+  // 1. Get the harness
+  const button = await loader.getHarness(MatButtonHarness.with({ text: 'Save' }));
+  
+  // 2. Interact via API (not DOM)
+  await button.click();
+  expect(await button.isDisabled()).toBe(false);
+});
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Over-Importing:**
+    *   **Bad:** Importing `MatModule` (a custom shared module with 30 exports) into a small component.
+    *   **Good:** Import only `MatButtonModule`.
+
+2.  **Forgetting BrowserAnimationsModule:**
+    *   If components are stuck or ripples don't work, ensure `provideAnimationsAsync()` is in your `app.config.ts`.
+
+3.  **Manual Ripple implementation:**
+    *   Don't write custom CSS for click effects. Use the `matRipple` directive on any element.
+    ```html
+    <div matRipple class="my-box">Click me</div>
+    ```

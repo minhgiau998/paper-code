@@ -1,0 +1,65 @@
+# Python CLI Architecture (Click)
+
+## 🏗️ High-Level Overview
+
+This project is a Command Line Interface built using **Python 3.10+** and the **Click** framework.
+It follows a **Package-Based Architecture**, allowing installation via `pip` with a defined entry point.
+
+## 📂 Directory Structure
+
+We use the `src/` layout to ensure tests run against the installed package, not the local file folder.
+
+```text
+root/
+├── pyproject.toml       # Project metadata & dependencies
+├── src/
+│   └── mycli/           # Package Name
+│       ├── __init__.py
+│       ├── cli.py       # Main Entry Point (@click.group)
+│       ├── config.py    # Configuration loader
+│       ├── context.py   # Context Object Definition
+│       ├── commands/    # Sub-commands organization
+│       │   ├── __init__.py
+│       │   ├── auth.py
+│       │   └── processing.py
+│       └── utils/       # Helpers (Logger, API Client)
+└── tests/               # Pytest Suite
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. The Entry Point (`cli.py`)
+- Defines the main `cli()` function decorated with `@click.group`.
+- Registers sub-commands using `cli.add_command()` or lazy loading.
+- **Entry Point:** Configured in `pyproject.toml` under `[project.scripts]`.
+
+### 2. Context Object (`ctx.obj`)
+We strictly use Click's **Context** system to pass state (Config, DB Connections, API Tokens) down to sub-commands.
+- **Bad:** Global variables `CONFIG = load_config()`.
+- **Good:** Passing a data class to `ctx.obj` in the main group.
+
+```python
+@click.group()
+@click.pass_context
+def cli(ctx):
+    ctx.ensure_object(dict)
+    ctx.obj['config'] = load_config()
+```
+
+### 3. Command Groups
+- Commands are organized by domain in `src/mycli/commands/`.
+- Large groups of commands (e.g., `user create`, `user delete`) should be their own `click.Group`.
+
+{% if "Rich" in libraries %}
+### 4. Rich Output
+- We use the **Rich** library for all terminal output instead of `print()`.
+- **Console:** A global `Console` instance is usually passed via the Context object or a singleton module to ensure consistent styling (themes).
+{% endif %}
+
+## 💾 Configuration
+- Configs are stored in `XDG_CONFIG_HOME` (Linux) or `AppData` (Windows) using `click.get_app_dir()`.
+- We support `.toml` or `.yaml` configuration files.
+
+## 📦 Distribution
+- This project uses `pyproject.toml` (PEP 621) for packaging.
+- Users install the tool via `pipx install git+...` or `pip install .`.

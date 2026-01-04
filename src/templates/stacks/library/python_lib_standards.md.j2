@@ -1,0 +1,95 @@
+# Python Library Coding Standards
+
+## 📝 Naming Conventions
+
+- **Package:** `snake_case` (e.g., `my_awesome_lib`).
+- **Classes:** `PascalCase`.
+- **Functions/Variables:** `snake_case`.
+- **Private Internal:** Prefix with `_` (e.g., `_internal_helper`).
+- **Constants:** `UPPER_SNAKE_CASE`.
+
+## ⚡ Modern Python Library Rules (Critical)
+
+### 1. No `print()` Statements
+**Rule:** NEVER use `print()` in a library.
+- **Why?** It pollutes the end-user's stdout and cannot be disabled easily.
+- **Solution:** Use the `logging` module. Let the user configure the log level and handler.
+```python
+import logging
+logger = logging.getLogger(__name__)
+
+def do_something():
+    logger.debug("Operation started")
+```
+
+### 2. Explicit Exports (`__all__`)
+**Rule:** Use `__all__` in your `__init__.py` to define the public interface.
+- This controls what is imported when a user does `from mylib import *`.
+- It keeps the namespace clean.
+
+### 3. Type Hinting (Strict)
+**Rule:** 100% Type coverage.
+- Libraries **must** be typed. Users rely on IntelliSense.
+- Use `typing.overload` for complex function signatures.
+
+```python
+# ✅ Good
+def fetch(url: str, timeout: float | None = None) -> dict[str, Any]: ...
+```
+
+### 4. Dependency Ranges
+**Rule:** Do not pin exact versions in `install_requires` / `dependencies`.
+- **Bad:** `requests==2.31.0` (Conflicts with other libraries the user might have).
+- **Good:** `requests>=2.31.0` or `requests>=2.0,<3.0`.
+- Only pin exact versions in `requirements-dev.txt` for reproducibility during development.
+
+## 🛡️ Best Practices
+
+### 1. Exceptions
+**Rule:** Define a base exception class for your library.
+- Inherit specific errors from this base.
+- This allows users to catch *all* errors from your library easily.
+
+```python
+class MyLibError(Exception):
+    """Base exception for MyLib"""
+
+class ConnectionError(MyLibError):
+    """Network failure"""
+```
+
+### 2. Mutable Default Arguments
+**Rule:** Never use mutable objects (list, dict) as default arguments.
+```python
+# ❌ Bad (Persists across calls)
+def add_item(item, list=[]): ...
+
+# ✅ Good
+def add_item(item, list=None):
+    if list is None: list = []
+```
+
+### 3. Imports
+**Rule:** Use relative imports inside the package to keep things relocatable, but absolute imports are also acceptable if consistent.
+- **Anti-Pattern:** `from module import *`. Always be explicit.
+
+## 🧪 Testing
+
+- **Framework:** `pytest`.
+- **Coverage:** Aim for 90%+ coverage. Libraries are critical infrastructure; they need higher quality standards than apps.
+- **DocTests:** Use docstring examples. They serve as documentation AND tests.
+  ```python
+  def add(a, b):
+      """
+      Adds two numbers.
+      >>> add(1, 2)
+      3
+      """
+      return a + b
+  ```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Side Effects at Import Time:** Do not run heavy code (DB connections, network calls) at the top level of a module. It slows down import time.
+2.  **Masking Errors:** Do not use bare `except:` clauses. Catch specific exceptions.
+3.  **Global State:** Avoid module-level global variables that change state. If needed, use a Context Manager or a Configuration Object.

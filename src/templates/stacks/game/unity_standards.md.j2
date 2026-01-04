@@ -1,0 +1,84 @@
+# Unity Coding Standards
+
+## 📝 Naming Conventions
+
+- **Scripts/Classes:** PascalCase (e.g., `PlayerController.cs`).
+- **Public/Serialized Fields:** PascalCase (e.g., `MoveSpeed`).
+- **Private Fields:** `_camelCase` (e.g., `_currentHealth`).
+- **Constants:** PascalCase (e.g., `MaxEnemies`).
+- **Interfaces:** Prefix with `I` (e.g., `IDamageable`).
+
+## ⚡ Unity Performance Rules (Critical)
+
+### 1. The "Update" Loop
+**Rule:** Keep `Update()` clean.
+- **Strictly Forbidden:** `GetComponent()`, `Find()`, or `FindObjectOfType()` inside `Update`, `FixedUpdate`, or `LateUpdate`. Cache these in `Awake` or `Start`.
+- **Avoid:** String concatenation (`"Score: " + score`) inside `Update`. It generates garbage every frame. Use `StringBuilder` or update only when values change.
+
+### 2. Physics
+**Rule:** Use `FixedUpdate` for Rigidbody manipulation.
+- **Raycasts:** Use `Physics.RaycastNonAlloc` to avoid allocating new arrays for hit results.
+- **Layers:** Use Integer Layers/Masks, not String names (`CompareTag` is okay, `LayerMask.GetMask` is better cached).
+
+### 3. Serialization
+**Rule:** Prefer `[SerializeField] private` over `public` for Inspector variables.
+- Keep encapsulation intact. If other scripts need access, use a public Property (`get`).
+
+```csharp
+// ❌ Bad (Breaks Encapsulation)
+public float Health;
+
+// ✅ Good
+[SerializeField] private float _health;
+public float Health => _health;
+```
+
+### 4. Null Checking
+**Rule:** Be aware of the "Fake Null" problem.
+- Unity Objects override `== null`. This is expensive.
+- In tight loops, assume objects are valid or use `System.Object.ReferenceEquals` if checking strictly for initialization.
+- Use `TryGetComponent` instead of `GetComponent` + Null Check.
+
+```csharp
+// ✅ Good
+if (TryGetComponent(out Rigidbody rb)) { ... }
+```
+
+## 🛡️ C# & Logic Guidelines
+
+### 1. Coroutines vs Async
+**Rule:** Prefer **UniTask** (if installed) or standard `async/await` over Coroutines.
+- Async functions return values and handle exceptions better.
+- If using Coroutines, cache the `WaitForSeconds` object to avoid allocation.
+
+```csharp
+// ❌ Bad (Allocates every time)
+yield return new WaitForSeconds(1f);
+
+// ✅ Good (Cached)
+private readonly WaitForSeconds _wait = new WaitForSeconds(1f);
+yield return _wait;
+```
+
+### 2. LINQ
+**Rule:** Avoid LINQ (`.Where()`, `.Select()`) in hot paths (Update loop).
+- LINQ creates garbage on iOS/Android (AOT platforms). Use `for` loops for runtime performance.
+
+{% if "Input System" in libraries %}
+### 3. Input Handling
+**Rule:** Event-Driven over Polling.
+- **Bad:** `if (Input.GetKeyDown(...))` in Update.
+- **Good:** Subscribe to `inputAction.performed += OnJump;`.
+{% endif %}
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **God Objects:** Do not create a `GameController` that has 3000 lines of code. Split logic into `ScoreManager`, `SpawnManager`, `GameStateManager`.
+2.  **SendMessage:** NEVER use `SendMessage` or `BroadcastMessage`. It is slow and relies on magic strings. Use Interfaces or Events.
+3.  **Tags for Logic:** Avoid strings for logic `if (tag == "Player")`. Use `TryGetComponent<Player>(out ...)` or Interface implementation checks.
+
+## 🧪 Testing
+
+- **EditMode Tests:** For pure logic (math, data parsing).
+- **PlayMode Tests:** For physics, spawning, and integration.
+- **Tool:** Unity Test Runner (NUnit).

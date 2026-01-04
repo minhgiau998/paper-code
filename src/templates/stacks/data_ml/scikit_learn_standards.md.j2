@@ -1,0 +1,77 @@
+# Scikit-learn Coding Standards
+
+## 📝 Naming Conventions
+
+- **Variables:** `snake_case` (e.g., `X_train`, `y_test`, `clf`).
+- **Transformers:** PascalCase (e.g., `LogTransformer`, `OutlierRemover`).
+- **Pipelines:** `noun_pipeline` (e.g., `preprocessing_pipeline`, `final_model`).
+
+## ⚡ Scikit-learn Best Practices (Critical)
+
+### 1. No Data Leakage
+**Rule:** NEVER call `fit()` on the test set.
+- **Preprocessing:** Apply `fit_transform()` on Training data, and `transform()` ONLY on Test data.
+- **Best Practice:** Just use a `Pipeline` and call `fit()` on X_train. The pipeline handles the safety automatically.
+
+```python
+# ❌ Bad (Leakage: Scaler sees test data)
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X_all) # WRONG!
+X_train, X_test = split(X_scaled)
+
+# ✅ Good
+X_train, X_test = split(X_all)
+pipeline = Pipeline([('scaler', StandardScaler()), ('clf', Model())])
+pipeline.fit(X_train, y_train)
+```
+
+### 2. Reproducibility
+**Rule:** Always set `random_state` for any stochastic algorithm (Splitters, Random Forest, PCA, K-Means).
+- Use a constant defined in `src/config.py` (e.g., `SEED = 42`).
+
+### 3. Pandas Output (sklearn 1.2+)
+**Rule:** Configure pipelines to output Pandas DataFrames instead of Numpy arrays when debugging is needed.
+```python
+sklearn.set_config(transform_output="pandas")
+```
+- This keeps column names intact through the pipeline, making debugging features much easier.
+
+### 4. Serialization
+**Rule:** Use `joblib` over `pickle`.
+- Scikit-learn models often contain large numpy arrays; `joblib` is optimized for this.
+{% if "skops" in libraries %}
+- **Better:** Use **skops** for secure persistence (avoids pickle security risks).
+{% endif %}
+
+## 🛠️ Feature Engineering Rules
+
+### 1. ColumnTransformer
+**Rule:** Use `ColumnTransformer` to apply different processing to different column types.
+- Do not split the dataframe manually into `df_num` and `df_cat` and join them back. Let the transformer handle it.
+
+```python
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', numeric_transformer, numeric_features),
+        ('cat', categorical_transformer, categorical_features)
+    ]
+)
+```
+
+### 2. Imputation
+**Rule:** Never drop NaNs silently.
+- Always have an `Imputer` strategy in the pipeline (Mean, Median, or Constant).
+- In production, missing data is inevitable.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Hardcoded Columns:** Avoid `df.iloc[:, 5]`. Use column names `df['price']`. Features might change order.
+2.  **`get_dummies`:** Do not use `pd.get_dummies()` for ML pipelines. It breaks if the test set has different categories than train.
+    - **Use:** `OneHotEncoder(handle_unknown='ignore')`.
+3.  **Default Metrics:** Don't rely solely on "Accuracy". Always check F1-Score, ROC-AUC, or Precision/Recall, especially for imbalanced datasets.
+
+## 🧪 Testing
+
+- **Pipeline Test:** Ensure the pipeline accepts raw input format and produces a prediction without crashing.
+- **Invariant Test:** Checking that `transform(input)` does not change the number of rows.
+- **Deterministic Test:** Assert that running the pipeline twice on the same data yields the exact same prediction.

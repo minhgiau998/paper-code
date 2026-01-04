@@ -1,0 +1,34 @@
+# Deployment Guide
+
+## 🌍 Environments
+
+- **Development**: Local machine or dev branch.
+- **Staging**: Pre-production environment for final QA.
+- **Production**: Live environment.
+
+## 🚀 Deployment Strategy
+
+### CI/CD Pipeline
+We use (GitHub Actions / GitLab CI) to automate deployment.
+
+**Workflow:**
+1. Push to `main` triggers the build pipeline.
+2. Unit tests and linting checks are run.
+3. If successful, the artifact is built (Docker image / Static assets).
+4. The artifact is deployed to the target provider.
+
+### Specific Instructions for {{ tech_stack }}
+
+{% if "Next.js" in tech_stack or "React" in tech_stack %}
+**Vercel / Netlify:**
+- Connect your repository.
+- Set build command to `npm run build`.
+- Set output directory to `dist` or `.next`.
+{% elif "FastAPI" in tech_stack or "Python" in tech_stack %}
+**Docker / Cloud:**
+- Build the Docker image: `docker build -t app .`
+- Run the container: `docker run -p 8000:8000 app`
+- Use Gunicorn/Uvicorn for production process management.
+{% else %}
+Please refer to the standard deployment practices for **{{ tech_stack }}**.
+{% endif %}

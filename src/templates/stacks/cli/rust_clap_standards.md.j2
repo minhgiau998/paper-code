@@ -1,0 +1,95 @@
+# Rust Coding Standards
+
+## 📝 Naming Conventions
+
+- **Crates/Packages:** `kebab-case`.
+- **Files/Modules:** `snake_case.rs`.
+- **Structs/Enums:** `PascalCase`.
+- **Variables/Functions:** `snake_case`.
+- **Constants:** `UPPER_SNAKE_CASE`.
+
+## ⚡ Rust & Clap Best Practices (Critical)
+
+### 1. Clap Derive API
+**Rule:** Do not use the `App::new()` builder pattern. Use structs.
+
+```rust
+// ❌ Legacy / Builder (Avoid)
+let matches = App::new("prog").arg(...).get_matches();
+
+// ✅ Modern / Derive
+#[derive(Parser)]
+#[command(version, about)]
+struct Cli {
+    #[arg(short, long)]
+    name: String,
+}
+let cli = Cli::parse();
+```
+
+### 2. Error Handling (No Panics)
+**Rule:** **Strictly Forbidden** to use `.unwrap()` or `.expect()` in production code (except in `tests/`).
+- Use the `?` operator to propagate errors.
+{% if "Anyhow" in libraries %}
+- Use `.context()` to add info to errors.
+
+```rust
+// ❌ Bad
+let content = std::fs::read_to_string("file.txt").unwrap();
+
+// ✅ Good
+let content = std::fs::read_to_string("file.txt")
+    .context("Failed to read configuration file")?;
+```
+{% endif %}
+
+### 3. Async Main
+{% if "Tokio" in libraries %}
+**Rule:** Use `#[tokio::main]` for the entry point.
+- Do not use `block_on` manually unless necessary.
+{% endif %}
+
+### 4. Clippy is Law
+**Rule:** The code must pass `cargo clippy --all-targets --all-features` without warnings.
+- If Clippy complains, fix it. Do not `#[allow(...)]` unless you have a documented reason.
+
+## 🎨 User Experience (UX)
+
+{% if "Indicatif" in libraries %}
+### Progress Bars (Indicatif)
+**Rule:** Use `indicatif` for any operation taking > 500ms.
+- **Style:** Use a consistent template for all bars in the app.
+- **Cleanup:** Ensure `.finish()` or `.finish_with_message()` is called even if an error occurs.
+{% endif %}
+
+### Logging
+**Rule:** Do not use `println!` for logging info/errors.
+- Use the `tracing` or `log` crate.
+- `println!` is *only* for the actual output requested by the user (e.g., JSON output of a command).
+- **Stderr:** Logs should go to Stderr, Output to Stdout.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Stringly Typed Errors:** Avoid returning `String` as an error. Use `anyhow::Result` or a proper Enum.
+2.  **Excessive Cloning:** Don't `.clone()` just to make the borrow checker happy. Pass references `&str` where possible.
+3.  **Logic in `main.rs`:** `main.rs` should ideally be less than 50 lines. It should parse args and call a library function.
+
+## 🧪 Testing
+
+### Integration Tests (`assert_cmd`)
+**Rule:** CLIs must be tested from the outside using `assert_cmd`.
+- This treats the binary as a black box (Arguments -> Exit Code + Stdout).
+
+```rust
+// tests/cli.rs
+use assert_cmd::Command;
+
+#[test]
+fn test_help_command() {
+    let mut cmd = Command::cargo_bin("my-app").unwrap();
+    cmd.arg("--help")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Usage:"));
+}
+```

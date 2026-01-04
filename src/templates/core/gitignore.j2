@@ -1,0 +1,64 @@
+# General
+.DS_Store
+.env
+.env.local
+.vscode/
+.idea/
+*.log
+
+# Output & Build
+dist/
+build/
+out/
+coverage/
+
+{% if "Node" in tech_stack or "React" in tech_stack or "Vue" in tech_stack or "Next" in tech_stack or "Svelte" in tech_stack or "Angular" in tech_stack %}
+# Node.js / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.next/
+.nuxt/
+{% endif %}
+
+{% if "Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack or "Flask" in tech_stack %}
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.pytest_cache/
+*.egg-info/
+{% endif %}
+
+{% if "Go" in tech_stack %}
+# Go
+/bin/
+/pkg/
+*.exe
+*.test
+vendor/
+{% endif %}
+
+{% if "Rust" in tech_stack or "Tauri" in tech_stack %}
+# Rust
+/target/
+**/*.rs.bk
+{% endif %}
+
+{% if "Unity" in tech_stack %}
+# Unity
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+{% endif %}
+
+# Documentation generation artifacts
+site/

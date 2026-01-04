@@ -1,0 +1,214 @@
+# Redux Toolkit (RTK) Documentation
+
+> **Purpose:** The official, opinionated, batteries-included toolset for efficient Redux development.
+
+## 📦 Installation
+
+```bash
+npm install @reduxjs/toolkit react-redux
+```
+
+## 🏗️ Architecture Setup
+
+We follow the **Feature-Folder** or **Centralized Store** pattern.
+Key requirement: **Typed Hooks**. Never import `useDispatch` or `useSelector` directly from `react-redux` in your components.
+
+### 1. Configure the Store
+
+**File:** `src/store/store.ts`
+
+```typescript
+import { configureStore } from '@reduxjs/toolkit';
+// Import reducers from your features
+import userReducer from '@/features/auth/userSlice';
+
+export const store = configureStore({
+  reducer: {
+    user: userReducer,
+    // Add other slice reducers here
+  },
+  // Middleware is automatically set up with Thunk + Serializability checks
+});
+
+// 🔑 Infer the `RootState` and `AppDispatch` types from the store itself
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+```
+
+### 2. Create Typed Hooks
+
+**File:** `src/store/hooks.ts`
+
+```typescript
+import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
+import type { RootState, AppDispatch } from './store';
+
+// 🚀 Use throughout your app instead of plain `useDispatch` and `useSelector`
+export const useAppDispatch: () => AppDispatch = useDispatch;
+export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
+```
+
+## 🛠️ Integration Provider
+
+{% if "Next.js" in tech_stack %}
+### Next.js (App Router) Setup
+
+Since Next.js App Router uses Server Components by default, we must create a **Client Component** wrapper for the Provider.
+
+**File:** `src/components/StoreProvider.tsx`
+
+```tsx
+'use client';
+
+import { Provider } from 'react-redux';
+import { store } from '@/store/store';
+
+export default function StoreProvider({ children }: { children: React.ReactNode }) {
+  return <Provider store={store}>{children}</Provider>;
+}
+```
+
+**Usage in Root Layout (`app/layout.tsx`):**
+```tsx
+import StoreProvider from '@/components/StoreProvider';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <StoreProvider>{children}</StoreProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+{% else %}
+### Standard Setup (React / React Native)
+
+**File:** `src/main.tsx` (or `App.tsx`)
+
+```tsx
+import { Provider } from 'react-redux';
+import { store } from '@/store/store';
+
+// Wrap your main app
+<Provider store={store}>
+  <App />
+</Provider>
+```
+{% endif %}
+
+## 💻 Usage Patterns
+
+### 1. Creating a Slice (State Logic)
+
+**File:** `src/features/counter/counterSlice.ts`
+
+```typescript
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+interface CounterState {
+  value: number;
+}
+
+const initialState: CounterState = { value: 0 };
+
+export const counterSlice = createSlice({
+  name: 'counter',
+  initialState,
+  reducers: {
+    // Redux Toolkit allows us to write "mutating" logic in reducers.
+    // It doesn't actually mutate the state because it uses the Immer library.
+    increment: (state) => {
+      state.value += 1;
+    },
+    incrementByAmount: (state, action: PayloadAction<number>) => {
+      state.value += action.payload;
+    },
+  },
+});
+
+export const { increment, incrementByAmount } = counterSlice.actions;
+export default counterSlice.reducer;
+```
+
+### 2. Using State in Components
+
+**Rule:** Always use the typed hooks defined in `src/store/hooks.ts`.
+
+```tsx
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { increment } from '@/features/counter/counterSlice';
+
+export function Counter() {
+  // ✅ Type-safe selection
+  const count = useAppSelector((state) => state.counter.value);
+  const dispatch = useAppDispatch();
+
+  return (
+    <button onClick={() => dispatch(increment())}>
+      Count is {count}
+    </button>
+  );
+}
+```
+
+## ⚡ Advanced: RTK Query (Recommended for Data)
+
+If you are using Redux Toolkit, **do not** use `createAsyncThunk` for standard data fetching. Use **RTK Query** which is built-in.
+
+**File:** `src/services/api.ts`
+
+```typescript
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+
+export const pokemonApi = createApi({
+  reducerPath: 'pokemonApi',
+  baseQuery: fetchBaseQuery({ baseUrl: 'https://pokeapi.co/api/v2/' }),
+  endpoints: (builder) => ({
+    getPokemonByName: builder.query<any, string>({
+      query: (name) => `pokemon/${name}`,
+    }),
+  }),
+});
+
+// Auto-generated hook
+export const { useGetPokemonByNameQuery } = pokemonApi;
+```
+
+**Register in Store:**
+You must add the reducer and middleware to `store.ts`.
+
+```typescript
+// store.ts update
+export const store = configureStore({
+  reducer: {
+    [pokemonApi.reducerPath]: pokemonApi.reducer, // Add API reducer
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware().concat(pokemonApi.middleware), // Add API middleware
+});
+```
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Mutating State Outside Reducers:**
+    *   Immer only works *inside* `createSlice` reducers.
+    *   **Bad:** `state.value = 1` (in a component).
+    *   **Good:** `dispatch(setValue(1))`.
+
+2.  **Storing Non-Serializable Data:**
+    *   **Rule:** Do not put Promises, Functions, Class Instances, or Date objects in the store.
+    *   Store only plain JS objects, arrays, and primitives.
+
+3.  **Using `connect` API:**
+    *   The `connect` Higher-Order Component is legacy. Strictly use **Hooks** (`useAppSelector`, `useAppDispatch`).
+
+4.  **Multiple Stores:**
+    *   Redux is designed to have a **Single Source of Truth**. Do not create multiple stores.
+
+## 📝 Naming Conventions
+- **Slices:** `camelCase` (e.g., `userSlice.ts`).
+- **Actions:** `verbNoun` (e.g., `updateUser`, `fetchData`).
+- **Selector Functions:** Prefix with `select` (e.g., `selectUser`, `selectIsAuthenticated`).

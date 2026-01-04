@@ -1,0 +1,93 @@
+# Node.js Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a **Backend Application** built with **Node.js**.
+{% if "NestJS" in libraries %}
+It utilizes **NestJS**, following a strictly modular, Angular-inspired architecture with Dependency Injection.
+{% elif "Fastify" in libraries %}
+It uses **Fastify** for high-performance processing, structured around a plugin-based architecture.
+{% else %}
+It uses **Express.js** (or standard HTTP), following a classic **Layered Architecture** (Controller-Service-Repository) to separate concerns.
+{% endif %}
+
+We strictly adhere to **ES Modules** (`import`/`export`) and **TypeScript** (if configured) for modern, type-safe development.
+
+## 📂 Directory Structure
+
+{% if "NestJS" in libraries %}
+### NestJS Structure
+```text
+src/
+├── app.module.ts        # Root Module
+├── main.ts              # Entry Point
+├── common/              # Global pipes, guards, filters, decorators
+│   ├── decorators/
+│   ├── filters/
+│   └── guards/
+├── config/              # Configuration (Env variables)
+└── modules/             # Feature Modules (Domain Logic)
+    ├── auth/
+    │   ├── auth.controller.ts
+    │   ├── auth.service.ts
+    │   └── auth.module.ts
+    └── users/
+        ├── dto/         # Data Transfer Objects
+        ├── entities/    # DB Entities
+        └── users.service.ts
+```
+
+{% else %}
+### Layered Structure (Express/Fastify)
+```text
+src/
+├── app.ts               # App setup (Middleware, Routes)
+├── server.ts            # Entry Point (Server Listen)
+├── config/              # Environment config
+├── controllers/         # Request Handlers (Input/Output)
+├── services/            # Business Logic
+├── routes/              # Route Definitions
+├── middleware/          # Custom Middleware (Auth, Logging)
+├── utils/               # Helper functions
+├── types/               # TypeScript Definitions
+{% if "Prisma" in libraries or "TypeORM" in libraries or "Mongoose" in libraries %}
+├── data-access/         # Database Layer (Repositories/DAO)
+│   └── db.client.ts
+{% endif %}
+└── tests/               # Test files
+```
+{% endif %}
+
+## 🧩 Key Architectural Patterns
+
+### 1. Separation of Concerns
+{% if "NestJS" in libraries %}
+- **Modules:** Organize code by feature (Domain), not technical role.
+- **Controllers:** Handle HTTP requests and DTO validation.
+- **Services:** Contain business logic.
+- **Providers/Repositories:** Handle data access.
+{% else %}
+- **Controllers:** Parse the request (`req.body`), call the Service, and send the response (`res.json`). **No business logic here.**
+- **Services:** Pure business logic. Agnostic of HTTP (should not know what `req` or `res` is).
+- **Data Access:** SQL/NoSQL queries live here (or in ORM models).
+{% endif %}
+
+### 2. Error Handling
+- **Global Error Handler:** Never send raw errors to the client. Use a global middleware (Express/Fastify) or Exception Filter (NestJS) to sanitize errors.
+- **Async Handling:**
+  - **Express:** Use `express-async-errors` or wrap handlers to catch rejected Promises.
+  - **NestJS/Fastify:** Built-in async error handling is active.
+
+{% if "Prisma" in libraries or "TypeORM" in libraries or "Mongoose" in libraries %}
+{% raw %}
+### 3. Database Layer
+- Database logic is decoupled from Controllers.
+- We use **{{ libraries | select("in", ["Prisma", "TypeORM", "Mongoose"]) | first | default("ORM") }}** to interact with the database.
+- Database connections are initialized once at startup (`server.ts` or `AppModule`).
+{% endraw %}
+{% endif %}
+
+## 🔒 Security Architecture
+- **Helmet:** Used to set secure HTTP headers.
+- **CORS:** Strictly configured to allow only specific origins.
+- **Rate Limiting:** Applied to prevent abuse (e.g., `express-rate-limit` or `@nestjs/throttler`).

@@ -1,0 +1,96 @@
+# Svelte Coding Standards
+
+## 📝 Naming Conventions
+
+- **Components:** PascalCase (e.g., `UserProfile.svelte`).
+- **Files:** SvelteKit conventions (`+page.svelte`, `+server.ts`).
+- **Stores/State:** camelCase.
+- **Types:** PascalCase.
+
+## ⚡ Svelte 5 Runes (Critical Rules)
+
+### 1. Props Syntax
+**Rule:** Do not use `export let`. Use `$props()`.
+```svelte
+<!-- ❌ Legacy (Svelte 3/4) -->
+<script>
+  export let count = 0;
+</script>
+
+<!-- ✅ Svelte 5 (Runes) -->
+<script lang="ts">
+  let { count = 0 }: { count?: number } = $props();
+</script>
+```
+
+### 2. State & Derived
+**Rule:** Do not use `let` for reactive variables or `$: ` for computed values.
+```svelte
+<!-- ❌ Legacy -->
+<script>
+  let count = 0;
+  $: double = count * 2;
+</script>
+
+<!-- ✅ Svelte 5 -->
+<script>
+  let count = $state(0);
+  let double = $derived(count * 2);
+</script>
+```
+
+### 3. Events
+**Rule:** Do not use `createEventDispatcher`. Use callback props (functions passed down).
+```svelte
+<!-- ✅ Good -->
+<script lang="ts">
+  let { onsubmit }: { onsubmit: (val: string) => void } = $props();
+</script>
+<button onclick={() => onsubmit('hello')}>Submit</button>
+```
+
+### 4. Effects
+**Rule:** Use `$effect` for DOM manipulation or side effects. Note that `$effect` only runs on the client.
+- Avoid using `$effect` to synchronize state (use `$derived` instead).
+
+## 🛡️ SvelteKit Best Practices
+
+### 1. Server-Only Modules
+**Rule:** Code that accesses database credentials or secrets MUST be placed in `$lib/server`.
+- SvelteKit prevents importing `$lib/server` modules into client-side code at build time.
+
+### 2. Form Actions
+**Rule:** Prefer Form Actions over JSON API endpoints for data mutation.
+- Return `fail(400, { missing: true })` for validation errors.
+- Return `{ success: true }` for success.
+
+{% if "Zod" in libraries %}
+### 3. Validation
+**Rule:** Use **Zod** (or generic validator) inside Form Actions.
+```typescript
+// +page.server.ts
+export const actions = {
+  default: async ({ request }) => {
+    const data = await request.formData();
+    const result = schema.safeParse(Object.fromEntries(data));
+    if (!result.success) return fail(400, { errors: result.error.flatten() });
+    // ...
+  }
+}
+```
+{% endif %}
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Reactive Statements (`$:`)**: These are deprecated in favor of `$derived` and `$effect`. Avoid using them.
+2. **`load` Function Side Effects:** `load` functions should be pure (fetching data). Do not mutate DB inside a `GET` request (use Actions instead).
+3. **Manual Subscriptions:** If using RxJS stores, stick to the `$` prefix auto-subscription (`$store`). However, prefer **Svelte 5 Runes** for new state logic.
+
+## 🧪 Testing
+
+{% if "Vitest" in libraries %}
+- **Logic:** Use **Vitest** for unit testing `$state` logic in `.ts` files.
+- **Components:** Use **@testing-library/svelte** (compatible with Svelte 5).
+{% else %}
+- Ensure critical flows (Form Actions) are covered by E2E tests (Playwright).
+{% endif %}

@@ -1,0 +1,84 @@
+# FastAPI Coding Standards
+
+## 📝 Naming Conventions
+
+- **Files:** `snake_case.py` (e.g., `user_service.py`).
+- **Classes:** `PascalCase` (e.g., `UserResponse`).
+- **Variables/Functions:** `snake_case`.
+- **Constants:** `UPPER_SNAKE_CASE` (e.g., `ACCESS_TOKEN_EXPIRE_MINUTES`).
+- **Private Members:** Prefix with `_` (e.g., `_verify_password`).
+
+## ⚡ Modern Python & FastAPI Rules (Critical)
+
+### 1. Type Hinting (Python 3.10+)
+**Rule:** Use modern native type hints. Do not import `List`, `Dict`, `Optional` from `typing`.
+```python
+# ❌ Old (Python 3.8)
+from typing import List, Optional, Union
+def get_items(q: Optional[str] = None) -> List[int]: ...
+
+# ✅ Modern (Python 3.10+)
+def get_items(q: str | None = None) -> list[int]: ...
+```
+
+### 2. Pydantic v2 Syntax
+**Rule:** Strictly use Pydantic v2 APIs.
+- **Use:** `model_validate` (instead of `parse_obj`).
+- **Use:** `model_dump` (instead of `dict`).
+- **Use:** `model_config = ConfigDict(...)` (instead of `class Config:`).
+- **Use:** `@field_validator` (instead of `@validator`).
+
+### 3. Async/Await
+**Rule:** API endpoints that perform I/O (DB, External API) MUST be `async def`.
+- Only use `def` (sync) for CPU-bound tasks or if using a library that strictly requires blocking I/O (rare).
+
+## 💾 Database Guidelines (SQLAlchemy 2.0)
+
+{% if "SQLAlchemy" in libraries %}
+### 1. 2.0 Syntax Only
+**Rule:** Do not use the legacy `session.query()` API. Use the new 2.0 Core-style execution.
+```python
+# ❌ Legacy
+user = session.query(User).filter(User.id == 1).first()
+
+# ✅ Modern 2.0
+stmt = select(User).where(User.id == 1)
+result = await session.execute(stmt)
+user = result.scalars().first()
+```
+
+### 2. Session Management
+**Rule:** Never create a session manually inside a route.
+- Always inject the session via `Depends(get_db)`.
+- This ensures the session is automatically closed after the request.
+
+```python
+@router.get("/users")
+async def read_users(db: AsyncSession = Depends(get_db)):
+    # ...
+```
+{% endif %}
+
+## 🛡️ Error Handling
+
+### 1. HTTP Exceptions
+**Rule:** Raise `HTTPException` for client errors. Do not return dictionary errors manually.
+```python
+if not user:
+    raise HTTPException(status_code=404, detail="User not found")
+```
+
+### 2. Custom Exceptions
+**Rule:** Create custom exception classes for domain errors and add global exception handlers in `main.py` to keep business logic clean.
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Global Mutable State:** Never use global variables for data storage. FastAPI is multi-threaded/multi-process; globals will not work as expected.
+2. **Business Logic in Routers:** Keep routers thin. Move logic to `services/` or CRUD modules.
+3. **Blocking Code:** Calling `time.sleep()` or heavy calculation inside an `async def` function blocks the entire Event Loop.
+   - Use `await asyncio.sleep()` or offload CPU work to `run_in_executor`.
+
+## 🧪 Testing
+
+- **Runner:** `pytest` with `pytest-asyncio`.
+- **Client:** Use `httpx.AsyncClient` for testing async endpoints. `TestClient` (Starlette) is synchronous.

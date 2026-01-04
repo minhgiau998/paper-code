@@ -1,0 +1,79 @@
+# Next.js Coding Standards
+
+## 📝 Naming Conventions
+
+- **Route Folders:** lowercase with dashes (e.g., `app/user-profile/`).
+- **Route Groups:** Wrapped in parentheses (e.g., `app/(marketing)/`).
+- **Components:** PascalCase (e.g., `SubmitButton.tsx`).
+- **Server Actions:** camelCase, suffixed with Action (e.g., `updateUserAction`).
+- **Hooks:** camelCase, prefixed with `use` (e.g., `useScroll`).
+
+## ⚡ Performance & Rendering Rules
+
+### 1. Server Components First
+**Rule:** Do not add `"use client"` to the top of a file unless absolutely necessary.
+- **Good:** Fetching data, rendering static HTML.
+- **Bad:** Adding `"use client"` just to use `console.log` on the browser.
+
+### 2. Metadata API
+**Rule:** Use the Metadata API for SEO tags. Do not manually add `<head>` tags.
+```tsx
+// layout.tsx or page.tsx
+export const metadata: Metadata = {
+  title: 'Dashboard',
+  description: 'User dashboard',
+};
+```
+
+### 3. Image Optimization
+**Rule:** Always use the `<Image />` component from `next/image` instead of `<img>` tags to ensure automatic optimization and CLS prevention.
+
+## 🛡️ Security & Data Handling
+
+### 1. Environment Variables
+- **Public:** Prefix with `NEXT_PUBLIC_` only if the variable is needed in the browser.
+- **Private:** Keep API keys and secrets without the prefix; they will only be available on the server.
+
+### 2. Server Actions
+- Always validate input inside Server Actions before processing.
+{% if "Zod" in libraries %}
+- **Mandatory:** Use **Zod** schema validation for all Server Action inputs.
+```ts
+const schema = z.object({ email: z.string().email() });
+// ... inside action ...
+const result = schema.safeParse(formData);
+```
+{% endif %}
+
+### 3. Route Handlers
+- If creating API endpoints (`app/api/...`), always wrap logic in `try/catch` and return strict JSON responses with proper status codes.
+
+## 🧩 Component Guidelines
+
+### 1. Composition
+Pass Client Components as `children` to Server Components to avoid "Client Component Waterfalls".
+
+```tsx
+// ✅ Good: wrapper is client, but inner content can be server
+<ClientWrapper>
+  <ServerContent />
+</ClientWrapper>
+```
+
+{% if "TailwindCSS" in libraries %}
+### 2. Styling (Tailwind)
+- Do not use `@apply` in CSS files. Keep classes in the markup.
+- Avoid dynamic class string concatenation; use `clsx` or `tailwind-merge`.
+{% endif %}
+
+## 🧪 Testing
+
+- **Unit Tests:** Test utilities and hooks using Jest/Vitest.
+- **Component Tests:** Test UI using React Testing Library.
+- **E2E Tests:** Use Playwright/Cypress to test user flows (Login -> Dashboard -> Logout).
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **`getServerSideProps` / `getStaticProps`:** These are legacy Page Router APIs. **Do not use them** in the `app/` directory.
+2. **Fetching in `useEffect`:** Avoid fetching data in `useEffect` for initial page load. Use Server Components instead.
+3. **Leaking Secrets:** Never pass strict backend environment variables to Client Components via props.

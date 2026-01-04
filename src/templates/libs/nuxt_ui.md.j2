@@ -1,0 +1,163 @@
+# Nuxt UI Documentation
+
+> **Purpose:** A UI Library module specifically designed for Nuxt 3. It is fully typed, accessible (based on Headless UI), and customizable via configuration.
+
+## 📦 Installation
+
+```bash
+npm install @nuxt/ui
+```
+
+## 🛠️ Configuration
+
+**Strategy:** We separate **Module Registration** (System) from **Theme Configuration** (Design).
+
+### 1. Register Module (`nuxt.config.ts`)
+
+```typescript
+export default defineNuxtConfig({
+  modules: ['@nuxt/ui'],
+  // ⚡ Optimization: Force specific icon sets to prevent loading thousands of icons
+  ui: {
+    icons: ['heroicons', 'simple-icons']
+  }
+})
+```
+
+### 2. Global Theming (`app.config.ts`)
+
+**Rule:** Do not override default styles in CSS. Use `app.config.ts` to set global defaults for components.
+
+```typescript
+export default defineAppConfig({
+  ui: {
+    primary: 'green', // Default primary color for all components
+    gray: 'cool',     // Default gray shade
+    
+    // Component-specific overrides
+    button: {
+      default: {
+        size: 'md',
+        variant: 'solid'
+      },
+      rounded: 'rounded-full' // Applies to all buttons
+    },
+    input: {
+      default: {
+        size: 'md'
+      }
+    }
+  }
+})
+```
+
+## 💻 Usage Patterns
+
+### 1. Component Usage
+Nuxt UI components are auto-imported. You do not need to import them.
+
+```vue
+<template>
+  <UContainer>
+    <UCard>
+      <template #header>
+        <h1 class="text-xl font-bold">Welcome</h1>
+      </template>
+
+      <div class="space-y-4">
+        <!-- Input with Icon -->
+        <UInput 
+          icon="i-heroicons-envelope" 
+          placeholder="Enter email..." 
+        />
+        
+        <!-- Button with Primary Color -->
+        <UButton label="Sign In" block />
+      </div>
+    </UCard>
+  </UContainer>
+</template>
+```
+
+### 2. The `ui` Prop (Deep Merging)
+
+**Critical Pattern:** To style specific parts of a component (e.g., the input field inside the wrapper), use the `ui` prop. This uses `tailwind-merge` internally.
+
+```vue
+<!-- ❌ Bad: Trying to force classes on the wrapper -->
+<UInput class="bg-red-500" /> 
+
+<!-- ✅ Good: Targeting the input element specifically -->
+<UInput 
+  :ui="{ 
+    color: { 
+      white: { 
+        outline: 'bg-red-500 shadow-none' 
+      } 
+    } 
+  }" 
+/>
+```
+
+### 3. Icon System
+**Rule:** Use the format `i-{collection}-{name}`.
+- **Heroicons:** `i-heroicons-home`
+- **Logos:** `i-simple-icons-github`
+
+```vue
+<UButton icon="i-heroicons-arrow-right-20-solid" label="Next" />
+```
+
+## 🛡️ Best Practices & Strategies
+
+### 1. Form Integration
+Nuxt UI integrates seamlessly with **Zod** for validation.
+
+```vue
+<script setup lang="ts">
+import { z } from 'zod'
+
+const schema = z.object({
+  email: z.string().email('Invalid email'),
+  password: z.string().min(8, 'Must be at least 8 characters')
+})
+
+const state = reactive({
+  email: undefined,
+  password: undefined
+})
+
+async function onSubmit (event: FormSubmitEvent<any>) {
+  // event.data is type-safe
+  console.log(event.data)
+}
+</script>
+
+<template>
+  <UForm :schema="schema" :state="state" @submit="onSubmit">
+    <UFormGroup label="Email" name="email">
+      <UInput v-model="state.email" />
+    </UFormGroup>
+
+    <UButton type="submit">Submit</UButton>
+  </UForm>
+</template>
+```
+
+### 2. Color Palette Strategy
+**Strategy:** Nuxt UI relies on Tailwind colors. To add custom brand colors:
+1.  Define them in `tailwind.config.ts`.
+2.  Reference them in `app.config.ts` as the `primary` color.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Manual SVG Imports:**
+    *   **Bad:** `import { HomeIcon } from '@heroicons/vue/24/solid'`.
+    *   **Good:** Just use the string `icon="i-heroicons-home"`. The build tool (UnoCSS/Tailwind) optimizes this automatically.
+
+2.  **Overwriting CSS manually:**
+    *   Avoid writing `<style scoped>` to target `.u-button`. The internal DOM structure of Nuxt UI components might change in updates. Always use the `ui` prop or `app.config.ts`.
+
+3.  **Ignoring Dark Mode:**
+    *   Nuxt UI is Dark Mode first.
+    *   **Rule:** When defining custom colors in Tailwind, always provide the dark variant logic, or use the semantic colors (`gray-50`, `gray-900`) provided by the library which handle this automatically.

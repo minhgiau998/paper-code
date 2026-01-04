@@ -1,0 +1,56 @@
+# Tauri Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a high-performance desktop application built with **Tauri v2**.
+- **Frontend:** A standard web application ({{ libraries | select("in", ["React", "Vue", "Svelte", "Next.js"]) | first | default("Web Tech") }}) running in the system's native WebView (WebView2 on Windows, WebKit on macOS/Linux).
+- **Backend:** A **Rust** binary that handles system operations, file access, and heavy computation.
+
+## 📂 Directory Structure
+
+The project is divided into two distinct worlds:
+
+```text
+root/
+├── src/                 # 🟢 Frontend (UI)
+│   ├── components/
+│   ├── App.tsx          # UI Entry Point
+│   └── main.tsx
+├── src-tauri/           # 🔴 Backend (Rust Core)
+│   ├── src/
+│   │   ├── commands/    # IPC Command Handlers
+│   │   ├── state/       # Application State (DB, Config)
+│   │   ├── lib.rs       # Library Entry (Shared with Mobile)
+│   │   └── main.rs      # Binary Entry Point
+│   ├── capabilities/    # Tauri v2 Permissions (ACL)
+│   ├── tauri.conf.json  # Project Configuration
+│   └── Cargo.toml       # Rust Dependencies
+└── package.json         # Frontend Dependencies
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. The Command Pattern (IPC)
+Communication between Frontend and Backend is done exclusively via **Commands**.
+- **Frontend:** Invokes a command using `@tauri-apps/api`.
+- **Backend:** Exposes a function annotated with `#[tauri::command]`.
+- **Data:** Arguments and Return values are serialized via JSON (Serde).
+
+### 2. Brownfield Approach
+The Frontend should be as "dumb" as possible regarding the system.
+- **Bad:** Calculating heavy logic in JavaScript.
+- **Good:** Passing data to Rust, calculating it there, and returning the result.
+- **Benefit:** keeps the JS bundle small and leverages Rust's performance/safety.
+
+### 3. State Management
+- **Frontend State:** Manages UI state (e.g., is the modal open?).
+- **Backend State (`tauri::State`):** Manages System state (Database connections, Hardware handles).
+  - Rust state is thread-safe and injected into Commands automatically.
+
+### 4. Security (Isolation)
+- **CSP:** A strict Content Security Policy is enforced in `tauri.conf.json`.
+- **ACL (Capabilities):** We strictly define what API modules (fs, dialog, http) the frontend can access via `src-tauri/capabilities/`. Default is "deny all".
+
+## 🛠️ Build Pipeline
+1. **Dev:** `tauri dev` starts the Vite server (Frontend) and compiles the Rust binary (Backend). They talk via a local proxy.
+2. **Build:** `tauri build` compiles the Frontend to static HTML/JS/CSS, then the Rust binary embeds these assets directly into the final executable.

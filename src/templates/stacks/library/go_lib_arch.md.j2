@@ -1,0 +1,59 @@
+# Go Library Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a reusable **Go Module** designed for high performance and strict compatibility.
+It adheres to **Semantic Import Versioning** and follows the **"Accept Interfaces, Return Structs"** principle.
+
+## 📂 Directory Structure
+
+We use a flat structure for the public API and `internal/` for implementation details.
+
+```text
+root/
+├── internal/            # 🔒 Private logic (Compiler-enforced privacy)
+│   └── util/
+├── pkg/                 # (Avoid unless necessary) Legacy pattern. Prefer root.
+├── examples/            # Runnable examples for consumers
+│   └── simple/
+│       └── main.go
+├── library_name.go      # Main API entry point
+├── library_name_test.go # Tests & Examples
+├── options.go           # Functional Options configuration
+├── go.mod               # Dependencies
+└── README.md
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Root-Level API
+- The primary public API lives in the root directory (e.g., `package mylib`).
+- **Goal:** Users should import `github.com/user/mylib`, not `github.com/user/mylib/pkg/something`.
+- **Privacy:** Anything that is not part of the public contract **MUST** be placed in `internal/`.
+
+### 2. Functional Options Pattern
+For configuration, we avoid "Constructor Telescoping" (constructors with many arguments).
+- We use the **Functional Options** pattern.
+- This allows the API to be extensible without breaking backward compatibility.
+
+```go
+// Usage
+client := mylib.New(
+    mylib.WithTimeout(10 * time.Second),
+    mylib.WithLogger(logger),
+)
+```
+
+### 3. Concurrency Model
+- **Synchronous by Default:** The library functions should generally be synchronous.
+- **Caller Control:** Let the consumer decide when to run logic in a goroutine.
+- **Context:** If a function performs I/O or takes time, it **MUST** accept `context.Context` as the first argument.
+
+### 4. Generics (Go 1.18+)
+- We prefer **Generics** (`[T any]`) over `interface{}`/`any` for data structures and algorithms.
+- This provides type safety at compile time and better performance (no reflection).
+
+## 📦 Versioning Strategy
+- **v0/v1:** Root directory `go.mod`.
+- **v2+:** Strict subdirectory structure or `v2` suffix in `go.mod` (e.g., `module github.com/user/mylib/v2`).
+- **Commits:** Follow Conventional Commits to automate SemVer releases.

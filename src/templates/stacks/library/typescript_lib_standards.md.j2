@@ -1,0 +1,79 @@
+# TypeScript Library Coding Standards
+
+## 📝 Naming Conventions
+
+- **Files:** `kebab-case` (e.g., `my-feature.ts`).
+- **Public API Exports:** `camelCase` or `PascalCase` depending on type (functions/classes).
+- **Internal Functions/Variables:** `camelCase`.
+- **Types/Interfaces:** `PascalCase` (e.g., `MyOptions`, `ApiResponse`).
+- **Constants:** `UPPER_SNAKE_CASE`.
+
+## ⚡ TypeScript & API Design Rules (Critical)
+
+### 1. Strict Type Safety
+**Rule:** `noImplicitAny: true`, `strictNullChecks: true` MUST be enabled in `tsconfig.json`.
+- **Avoid `any`:** Use specific types or `unknown` where appropriate.
+- **Union Types:** Prefer union types (`string | number`) over `any`.
+
+### 2. Public API Design
+**Rule:** The public API (`src/index.ts`) is immutable. Do not change it in patch releases.
+- **Backward Compatibility:** Maintain backward compatibility as much as possible.
+- **Breaking Changes:** Major version bumps for breaking changes (e.g., v1.0.0 -> v2.0.0).
+
+### 3. Function Signatures
+**Rule:** Use descriptive parameter names and explicit return types.
+```typescript
+/**
+ * Fetches data from the specified URL.
+ * @param url - The URL to fetch from.
+ * @param options - Optional fetch configuration.
+ * @returns A Promise resolving to the response data.
+ */
+export async function fetchData<T = any>(url: string, options?: RequestInit): Promise<T>;
+```
+
+### 4. Error Handling
+**Rule:** Use standard `Error` objects.
+- Avoid custom error classes unless they carry unique structured data.
+- Use `try/catch` blocks.
+
+## 🛠️ Code Quality & Maintainability
+
+### 1. Readability
+**Rule:** Follow [Google's TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html) or a similar established standard.
+- Consistent formatting (use Prettier).
+- Meaningful variable names.
+
+### 2. Modularity
+**Rule:** Keep files small and focused on a single responsibility.
+- If a file exceeds ~200 lines, consider splitting it.
+
+### 3. Documentation (JSDoc)
+**Rule:** Document all exported functions, classes, and types using JSDoc.
+- This enables IntelliSense for consumers.
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **Global State:** Never use global variables for configuration or state in a library.
+2.  **Side Effects:** Avoid side effects (e.g., logging to console, modifying global state) in utility functions. Pure functions are best.
+3.  **Mutable Defaults:** Do not use mutable defaults like `options = {}` in function signatures.
+    ```typescript
+    export function process(data: any, options?: Record<string, any>) {
+        const opts = { ...{ timeout: 5000 }, ...options }; // ✅ Safe default
+    }
+    ```
+
+## 🧪 Testing
+
+### Unit Tests (`vitest` / `jest`)
+- **Scope:** Test individual functions, classes, and modules in isolation.
+- **Mocking:** Use Jest's mocking features or `vitest`'s spy/mock capabilities.
+
+### Integration Tests
+- **Scope:** Test the public API of your library.
+- **Setup:** Write tests that import from `src/index.ts` and verify behavior.
+
+### Linters & Formatters
+- **ESLint:** Configure ESLint with `eslint-config-prettier` and relevant TypeScript plugins.
+- **Prettier:** Run Prettier to enforce consistent code formatting.
+- **CI:** Run `eslint --max-warnings=0` and `prettier --check` in CI.

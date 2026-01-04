@@ -1,0 +1,33 @@
+# ⚙️ AI Workflows
+
+Use these workflows to ensure consistency when modifying the codebase.
+
+{% if "React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack %}
+## 1. Creating a New UI Component
+1. Create the component file in `components/<Category>/<ComponentName>.(tsx|vue)`.
+2. Define the Props Interface (if TS).
+3. Implement the logic using hooks.
+4. Apply styles (using Tailwind/CSS Modules).
+5. Create a specific test file `components/<Category>/<ComponentName>.test.tsx`.
+6. Export the component in `components/index.ts` (if applicable).
+{% endif %}
+
+{% if "FastAPI" in tech_stack or "Django" in tech_stack %}
+## 1. Adding a New API Endpoint
+1. Define the **Pydantic Schema** (Request/Response) in `schemas/`.
+2. Create the **CRUD logic** in `crud/` or `services/`.
+3. Create the **Route Handler** in `routers/` or `views/`.
+4. Register the router in `main.py` or `urls.py`.
+5. Write a **Unit Test** in `tests/`.
+{% endif %}
+
+## 2. Refactoring Code
+1. Analyze the file to understand dependencies.
+2. Check `tests/` to see what might break.
+3. Apply changes incrementally.
+4. **IMPORTANT**: Run tests after refactoring. If tests fail, fix them immediately.
+
+## 3. Writing Tests
+1. Look at `docs/TESTING.md` to identify the runner.
+2. Mock external services (DB, API) using the project's mocking library.
+3. Cover both "Happy Path" and "Edge Cases".

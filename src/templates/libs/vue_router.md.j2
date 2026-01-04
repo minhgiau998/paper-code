@@ -1,0 +1,217 @@
+# Vue Router Documentation
+
+> **Purpose:** The official router for Vue.js. It deeply integrates with Vue's core to make building Single Page Applications a breeze.
+
+## 📦 Installation
+
+{% if "Nuxt" in tech_stack %}
+> **✅ Built-in:** Vue Router is pre-installed and auto-configured in Nuxt.js. You do not need to install it manually.
+{% else %}
+```bash
+npm install vue-router
+```
+{% endif %}
+
+## 🛠️ Configuration
+
+{% if "Nuxt" in tech_stack %}
+### Nuxt.js (File-System Routing)
+
+Nuxt generates routes automatically based on your file structure in the `pages/` directory.
+
+- **Index:** `pages/index.vue` -> `/`
+- **Dynamic:** `pages/users/[id].vue` -> `/users/:id`
+- **Nested:** `pages/users/profile.vue` -> `/users/profile`
+
+**Middleware (Guards):**
+Do not use `router.beforeEach`. Use Nuxt Middleware.
+
+```typescript
+// middleware/auth.ts
+export default defineNuxtRouteMiddleware((to, from) => {
+  const auth = useAuthStore();
+  if (!auth.isLoggedIn) {
+    return navigateTo('/login');
+  }
+});
+
+// usage in page
+definePageMeta({
+  middleware: 'auth'
+});
+```
+
+{% else %}
+### Vue 3 Standard Setup
+
+**Strategy:** We use **Lazy Loading** by default to ensure small bundle sizes.
+
+**File:** `src/router/index.ts`
+
+```typescript
+import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
+// Import your auth store (Pinia) to use in guards
+import { useAuthStore } from '@/stores/auth';
+
+const routes: Array<RouteRecordRaw> = [
+  {
+    path: '/',
+    name: 'Home',
+    // 🚀 Lazy Load: Splits code into separate chunks
+    component: () => import('@/views/HomeView.vue'),
+  },
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/Auth/LoginView.vue'),
+    meta: { guestOnly: true },
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('@/views/DashboardView.vue'),
+    // 🛡️ Meta field for Auth Guard
+    meta: { requiresAuth: true },
+  },
+  // 404 Catch-all
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('@/views/NotFoundView.vue'),
+  },
+];
+
+const router = createRouter({
+  // Use HTML5 History mode (requires server config)
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes,
+  // 📜 Scroll Behavior: Scroll to top on navigation
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition;
+    return { top: 0 };
+  },
+});
+
+// 🔒 Global Navigation Guard
+router.beforeEach((to, from, next) => {
+  const authStore = useAuthStore();
+  
+  // Check if route requires auth
+  if (to.meta.requiresAuth && !authStore.isLoggedIn) {
+    return next({ name: 'Login', query: { redirect: to.fullPath } });
+  }
+
+  // Check if route is for guests only (e.g., Login page)
+  if (to.meta.guestOnly && authStore.isLoggedIn) {
+    return next({ name: 'Dashboard' });
+  }
+
+  next();
+});
+
+export default router;
+```
+
+**File:** `src/main.ts`
+
+```typescript
+import router from './router';
+app.use(router);
+```
+{% endif %}
+
+## 💻 Usage Patterns (Composition API)
+
+**Rule:** Do not use `this.$router` (Options API). Use the provided composables.
+
+### 1. Navigation (`useRouter`)
+
+Use `useRouter` to change pages programmatically (e.g., after form submission).
+
+```vue
+<script setup lang="ts">
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+
+const handleLogin = async () => {
+  await login();
+  // ✅ Push by Name (Safer than path string)
+  router.push({ name: 'Dashboard' });
+  
+  // or replace history
+  // router.replace({ name: 'Dashboard' });
+};
+</script>
+```
+
+### 2. Accessing Params (`useRoute`)
+
+Use `useRoute` to read current URL parameters.
+
+```vue
+<script setup lang="ts">
+import { useRoute, watch } from 'vue';
+
+const route = useRoute();
+const userId = route.params.id as string;
+
+// ⚠️ Reactivity Warning:
+// If navigating from /users/1 to /users/2, the component is reused.
+// Use a watcher to detect ID changes.
+watch(
+  () => route.params.id,
+  (newId) => {
+    fetchUserData(newId);
+  }
+);
+</script>
+```
+
+## 🛡️ Best Practices & Strategies
+
+### 1. Named Routes
+**Strategy:** Always use `name` instead of `path` when pushing or linking.
+- **Why?** You can change the URL structure in `router/index.ts` (e.g., `/user/:id` -> `/u/:id`) without breaking the entire app code.
+
+```html
+<!-- ❌ Bad (Hardcoded Path) -->
+<RouterLink to="/dashboard/settings">Settings</RouterLink>
+
+<!-- ✅ Good (Named Route) -->
+<RouterLink :to="{ name: 'Settings' }">Settings</RouterLink>
+```
+
+### 2. Typed Meta Fields
+If using TypeScript, you can augment the `RouteMeta` interface to get IntelliSense for your guards.
+
+```typescript
+// src/types/router.d.ts
+import 'vue-router'
+
+declare module 'vue-router' {
+  interface RouteMeta {
+    requiresAuth?: boolean
+    guestOnly?: boolean
+    title?: string // For document title updates
+  }
+}
+```
+
+### 3. Keep Guards Clean
+**Rule:** Do not put complex business logic inside `router.beforeEach`.
+- Move logic to Pinia stores (`authStore.checkPermission()`) or dedicated services.
+- The router guard should only be a gatekeeper (True/False check).
+
+## 🚫 Anti-Patterns to Avoid
+
+1.  **`this.$router`:**
+    *   Legacy Options API. Use `useRouter()`.
+
+2.  **Blocking Guards:**
+    *   Avoid `await`ing slow API calls in `beforeEach` (e.g., loading user profile).
+    *   **Better:** Load the shell of the app, show a spinner, and fetch user data inside the component or a route resolver.
+
+3.  **Missing `next()` or Return:**
+    *   (In Vue Router 4, explicit `return` is preferred over `next()`).
+    *   Always ensure every code path returns a value (path, false, or void).

@@ -1,0 +1,66 @@
+# SvelteKit Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is built using **SvelteKit** (v2+) and **Svelte 5**.
+It leverages **Runes** for reactivity and follows a "Server-First" approach using SvelteKit's loading data and form actions.
+
+## 📂 Directory Structure
+
+```text
+src/
+├── lib/                 # Shared code (aliased as $lib)
+│   ├── components/      # UI Components
+│   │   ├── ui/          # Primitives (Buttons, Inputs)
+│   │   └── layout/      # Headers, Footers
+│   ├── server/          # Server-only logic (Database, Secrets)
+│   │   └── db.ts        # Database connection
+│   ├── state/           # Global state (Svelte 5 classes/runes)
+│   └── utils/           # Helper functions
+├── routes/              # File-system Routing
+│   ├── +layout.svelte   # Root layout
+│   ├── +page.svelte     # Homepage
+│   ├── (app)/           # Route group (Protected)
+│   │   └── dashboard/
+│   │       ├── +page.svelte       # View
+│   │       ├── +page.server.ts    # Server Load & Actions
+│   │       └── +layout.svelte     # Nested layout
+│   └── api/             # API Endpoints
+│       └── +server.ts   # Request handlers (GET, POST)
+├── app.html             # HTML Shell
+├── hooks.server.ts      # Server hooks (Auth, Middleware)
+└── app.d.ts             # TypeScript global types
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Svelte 5 Runes (Reactivity)
+We strictly use **Runes** for all reactivity.
+- **Local State:** `$state(value)`
+- **Derived State:** `$derived(expression)`
+- **Props:** `$props()`
+- **Side Effects:** `$effect(...)`
+
+### 2. Data Loading Strategy
+- **Server Load (`+page.server.ts`):** Default choice. Runs on the server, has access to DB/Env. Passes data to the page via `data` prop.
+- **Universal Load (`+page.ts`):** Use only if data can be fetched on the client (e.g., public APIs) or needs to run during client-side navigation without hitting the server.
+
+### 3. Mutations (Form Actions)
+We do not manually create API endpoints for form submissions.
+- Use **Form Actions** in `+page.server.ts` (`export const actions = { default: ... }`).
+- Use `use:enhance` in the form element to progressively enhance the experience (no page reload).
+
+{% if "TailwindCSS" in libraries %}
+### 4. Styling
+- **Tailwind CSS** is used via PostCSS.
+- Global styles are imported in `src/app.css` (or equivalent).
+- Component-specific styles are allowed via `<style>` blocks but Tailwind utilities are preferred.
+{% else %}
+### 4. Styling
+- **Scoped CSS** is the default. Styles inside `<style>` blocks are automatically scoped to the component.
+- **Global CSS** is handled in `src/app.css`.
+{% endif %}
+
+### 5. Type Safety
+- **App.d.ts:** Defines structure for `Locals`, `PageData`, and `Platform`.
+- **Auto-generated Types:** SvelteKit generates types in `.svelte-kit/types`. Always import `PageServerLoad`, `Actions` from `./$types`.
