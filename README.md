@@ -22,7 +22,7 @@
 
 <div align="center">
 
-![PAPER-CODE Demo](https://i.ibb.co/jk7P1cbj/render1767528746829.gif)
+![PAPER-CODE Demo](https://i.ibb.co/B53nsRRr/render1767533047837.gif)
 
 *Watch PAPER-CODE generate AI-ready documentation in seconds*
 
