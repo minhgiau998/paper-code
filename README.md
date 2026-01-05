@@ -5,6 +5,7 @@
 **The AI-Native Documentation Generator**
 
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python)](https://www.python.org/)
+[![PyPI Version](https://img.shields.io/pypi/v/paper-code?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/paper-code/)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000?style=for-the-badge)](https://github.com/psf/black)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](docs/CONTRIBUTING.md)
@@ -22,7 +23,7 @@
 
 <div align="center">
 
-![PAPER-CODE Demo](https://i.ibb.co/B53nsRRr/render1767533047837.gif)
+![PAPER-CODE Demo](https://i.ibb.co/W4tWtys8/render1767576944566.gif)
 
 *Watch PAPER-CODE generate AI-ready documentation in seconds*
 
@@ -50,6 +51,16 @@ If you ask an AI to "build a feature" without context, it generates generic, leg
 ## 🚀 Installation
 
 Requires **Python 3.10+**.
+
+### 1. Via PyPI (Recommended)
+You can install **PAPER-CODE** directly from PyPI:
+
+```bash
+pip install paper-code
+```
+
+### 2. From Source (For Development)
+If you want to contribute or use the latest development version:
 
 ```bash
 # Clone the repository
