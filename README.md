@@ -25,7 +25,7 @@
 
 ![PAPER-CODE Demo](https://i.ibb.co/W4tWtys8/render1767576944566.gif)
 
-*Watch PAPER-CODE generate AI-ready documentation in seconds*
+_Watch PAPER-CODE generate AI-ready documentation in seconds_
 
 </div>
 
@@ -37,6 +37,7 @@ In the era of AI coding, **Context is King**.
 If you ask an AI to "build a feature" without context, it generates generic, legacy code.
 
 **PAPER-CODE** solves this by bootstrapping a robust documentation structure that serves two masters:
+
 1.  **For AI Agents:** Generates `.cursorrules`, `AI_RULES.md`, and strict coding standards to keep your AI (Cursor/Copilot) from hallucinating or using deprecated syntax.
 2.  **For Humans:** Creates professional `ARCHITECTURE.md`, `CONTRIBUTING.md`, and tech stack guides so your team stays on the same page.
 
@@ -53,13 +54,27 @@ If you ask an AI to "build a feature" without context, it generates generic, leg
 Requires **Python 3.10+**.
 
 ### 1. Via PyPI (Recommended)
+
 You can install **PAPER-CODE** directly from PyPI:
 
 ```bash
 pip install paper-code
 ```
 
+### Upgrade (From PyPI)
+
+To upgrade an existing system-wide or virtualenv installation of `paper-code` from PyPI to the latest released version:
+
+```bash
+# Upgrade to the latest version
+pip install --upgrade paper-code
+
+# Or to install a specific version (e.g., 0.1.0)
+pip install paper-code==0.1.0
+```
+
 ### 2. From Source (For Development)
+
 If you want to contribute or use the latest development version:
 
 ```bash
@@ -74,6 +89,7 @@ pip install -e .
 ## 📖 Usage
 
 ### 1. Interactive Mode (Recommended)
+
 Just run the command and follow the wizard.
 
 ```bash
@@ -81,6 +97,7 @@ paper-code
 ```
 
 **Terminal Output Preview:**
+
 ```text
 🚀 Initializing documentation for: My Awesome Project
 [?] Select Project Type: Frontend
@@ -91,6 +108,7 @@ paper-code
 ```
 
 ### 2. Quick Start (Templates)
+
 Skip the questions if you know what you want.
 
 ```bash
@@ -99,6 +117,7 @@ paper-code --template "FastAPI" --output ./my-api
 ```
 
 ### 3. Batch Mode (For CI/CD)
+
 Generate docs based on a configuration file.
 
 ```bash
@@ -109,16 +128,16 @@ paper-code --config paper.config.json --batch
 
 **PAPER-CODE** isn't just generic markdown. It contains deep, opinionated knowledge for:
 
-| Category | Supported Stacks |
-| :--- | :--- |
-| **Frontend** | React, Vue, Next.js, Nuxt.js, Angular, SvelteKit |
-| **Backend** | Node.js (Express/NestJS/Fastify), FastAPI, Django, Go (Gin) |
-| **Mobile** | React Native (Expo/CLI), Flutter |
-| **Desktop** | Electron, Tauri v2 |
-| **Data & ML** | PyTorch, TensorFlow, Scikit-learn |
-| **Game Dev** | Godot 4, Unity |
-| **CLI** | Node.js (Commander), Python (Click), Go (Cobra), Rust (Clap) |
-| **Libraries** | TypeScript Lib, Python Lib, Go Lib, Rust Lib |
+| Category      | Supported Stacks                                             |
+| :------------ | :----------------------------------------------------------- |
+| **Frontend**  | React, Vue, Next.js, Nuxt.js, Angular, SvelteKit             |
+| **Backend**   | Node.js (Express/NestJS/Fastify), FastAPI, Django, Go (Gin)  |
+| **Mobile**    | React Native (Expo/CLI), Flutter                             |
+| **Desktop**   | Electron, Tauri v2                                           |
+| **Data & ML** | PyTorch, TensorFlow, Scikit-learn                            |
+| **Game Dev**  | Godot 4, Unity                                               |
+| **CLI**       | Node.js (Commander), Python (Click), Go (Cobra), Rust (Clap) |
+| **Libraries** | TypeScript Lib, Python Lib, Go Lib, Rust Lib                 |
 
 ## 📂 Generated Structure
 

@@ -13,7 +13,7 @@ from rich import box
 import pyfiglet
 
 # Version info
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 AUTHOR = "PAPER-CODE Team"
 
 # Initialize Rich console
