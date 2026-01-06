@@ -9,10 +9,10 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 
 # Internal modules
-from src.config import PROJECT_TYPES, TECH_STACKS, LIBRARIES
-from src.generator import DocGenerator
-from src.banner import display_banner, display_success_banner, display_divider
-from src.detector import detect_project_context
+from .config import PROJECT_TYPES, TECH_STACKS, LIBRARIES
+from .generator import DocGenerator
+from .banner import display_banner, display_success_banner, display_divider
+from .detector import detect_project_context
 
 # Initialize Typer app
 app = typer.Typer(
@@ -115,12 +115,32 @@ def main(
     # ---------------------------------------------------------
     detected_suggestions = None
     if not context and not batch:
-        # Only run detection in interactive mode when no config is provided
-        detected_suggestions = detect_project_context(".")
-        if detected_suggestions:
-            typer.secho("🔍 Detected project files! Suggestions will be pre-filled.", fg=typer.colors.GREEN)
+        # Avoid self-detection when developing PAPER-CODE itself.
+        # Check pyproject.toml for the package name to skip detection inside this repo.
+        try:
+            cwd = Path(".").resolve()
+            pyproject = cwd / "pyproject.toml"
+            is_self_repo = False
+            if pyproject.exists():
+                try:
+                    content = pyproject.read_text(encoding='utf-8')
+                    if 'name = "paper-code"' in content or "name = 'paper-code'" in content:
+                        is_self_repo = True
+                except Exception:
+                    is_self_repo = False
+        except Exception:
+            is_self_repo = False
+
+        if not is_self_repo:
+            # Only run detection in interactive mode when no config is provided
+            detected_suggestions = detect_project_context(".")
+            if detected_suggestions:
+                typer.secho("🔍 Detected project files! Suggestions will be pre-filled.", fg=typer.colors.GREEN)
+                if verbose:
+                    typer.echo(f"Detection results: {detected_suggestions}")
+        else:
             if verbose:
-                typer.echo(f"Detection results: {detected_suggestions}")
+                typer.echo("ℹ️  Skipping autodetection because running inside PAPER-CODE repository.")
 
     # ---------------------------------------------------------
     # 3. Batch Mode Validation

@@ -1,0 +1,13 @@
+# Retrofit
+
+Type-safe HTTP client for Android and Kotlin.
+
+Install:
+```gradle
+implementation "com.squareup.retrofit2:retrofit:2.9.0"
+```
+
+Quick example:
+```kotlin
+interface ApiService { @GET("/users") suspend fun users(): List<User> }
+```

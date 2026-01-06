@@ -42,7 +42,7 @@ Before deploying, ensure all required environment variables are set:
 - `NODE_ENV=production`
 - `DATABASE_URL` (if applicable)
 - `API_KEY` (if applicable)
-{% if "Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack %}
+{% elif "Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack %}
 - `DATABASE_URL`
 - `SECRET_KEY`
 - `ALLOWED_HOSTS`

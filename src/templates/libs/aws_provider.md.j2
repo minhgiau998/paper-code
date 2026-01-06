@@ -1,0 +1,17 @@
+# AWS Provider (Terraform)
+
+Terraform AWS Provider configuration and best practices.
+
+Install:
+```hcl
+terraform {
+  required_providers {
+    aws = { source = "hashicorp/aws" version = "~> 4.0" }
+  }
+}
+```
+
+Quick example:
+```hcl
+provider "aws" { region = "us-east-1" }
+```

@@ -1,0 +1,15 @@
+# Room
+
+Room provides an abstraction layer over SQLite to allow fluent database access.
+
+Install:
+```gradle
+implementation "androidx.room:room-runtime:2.5.0"
+kapt "androidx.room:room-compiler:2.5.0"
+```
+
+Quick example:
+```kotlin
+@Dao
+interface UserDao { @Query("SELECT * FROM users") fun all(): List<User> }
+```

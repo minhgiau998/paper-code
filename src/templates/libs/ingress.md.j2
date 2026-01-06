@@ -1,0 +1,22 @@
+# Ingress
+
+Kubernetes Ingress resources for HTTP routing.
+
+Quick example:
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+spec:
+  rules:
+  - host: example.com
+    http:
+      paths:
+      - path: /
+        backend:
+          service:
+            name: my-service
+            port:
+              number: 80
+```

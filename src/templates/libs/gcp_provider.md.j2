@@ -1,0 +1,17 @@
+# GCP Provider (Terraform)
+
+Terraform Google Cloud provider configuration and usage.
+
+Install:
+```hcl
+terraform {
+  required_providers {
+    google = { source = "hashicorp/google" version = "~> 4.0" }
+  }
+}
+```
+
+Quick example:
+```hcl
+provider "google" { project = "my-project" region = "us-central1" }
+```

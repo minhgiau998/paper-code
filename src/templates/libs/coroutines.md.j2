@@ -1,0 +1,13 @@
+# Coroutines
+
+Kotlin Coroutines for asynchronous programming.
+
+Install:
+```gradle
+implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.0"
+```
+
+Quick example:
+```kotlin
+GlobalScope.launch { val result = async { fetch() }.await() }
+```

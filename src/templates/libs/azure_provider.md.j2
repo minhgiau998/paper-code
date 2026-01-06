@@ -1,0 +1,17 @@
+# Azure Provider (Terraform)
+
+Terraform AzureRM provider notes and example.
+
+Install:
+```hcl
+terraform {
+  required_providers {
+    azurerm = { source = "hashicorp/azurerm" version = "~> 3.0" }
+  }
+}
+```
+
+Quick example:
+```hcl
+provider "azurerm" { features = {} }
+```
