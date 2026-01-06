@@ -1,0 +1,131 @@
+# Kotlin Android Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a native **Android** application built with **Kotlin**{% if libraries | default([]) | select("in", ["Jetpack Compose"]) | list | length > 0 %} using **Jetpack Compose** for modern UI development{% endif %}.
+It follows **Clean Architecture** principles with clear separation of concerns.
+
+## 📂 Directory Structure
+
+```text
+app/
+├── src/
+│   ├── main/
+│   │   ├── java/com/yourapp/
+│   │   │   ├── data/              # Data Layer
+│   │   │   │   ├── local/         # Local data sources (Room, SharedPreferences)
+│   │   │   │   │   ├── dao/       # Data Access Objects
+│   │   │   │   │   └── database/  # Room database
+│   │   │   │   ├── remote/        # Remote data sources (API)
+│   │   │   │   │   ├── api/       # Retrofit interfaces
+│   │   │   │   │   └── dto/       # Data Transfer Objects
+│   │   │   │   └── repository/    # Repository implementations
+│   │   │   ├── domain/            # Domain Layer (Business Logic)
+│   │   │   │   ├── model/         # Domain models
+│   │   │   │   ├── usecase/       # Use cases (business logic)
+│   │   │   │   └── repository/    # Repository interfaces
+│   │   │   ├── presentation/      # Presentation Layer
+{% if libraries | default([]) | select("in", ["Jetpack Compose"]) | list | length > 0 %}
+│   │   │   │   ├── ui/            # Compose UI
+│   │   │   │   │   ├── theme/     # Material Theme
+│   │   │   │   │   ├── components/# Reusable composables
+│   │   │   │   │   └── screens/   # Screen composables
+{% else %}
+│   │   │   │   ├── ui/            # Activities, Fragments, ViewModels
+│   │   │   │   │   ├── activities/
+│   │   │   │   │   ├── fragments/
+│   │   │   │   │   └── viewmodels/
+{% endif %}
+│   │   │   │   └── navigation/   # Navigation component
+│   │   │   └── di/                # Dependency Injection (Hilt/Dagger)
+│   │   ├── res/                   # Resources
+│   │   │   ├── layout/            # XML layouts (if not using Compose)
+│   │   │   ├── values/            # Strings, Colors, Dimensions
+│   │   │   └── drawable/          # Images, Icons
+│   │   └── AndroidManifest.xml
+│   └── test/                      # Unit tests
+│       └── java/com/yourapp/
+├── build.gradle.kts               # App-level build config
+└── proguard-rules.pro             # ProGuard rules
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. Clean Architecture
+- **Data Layer:** Handles data sources (local & remote)
+- **Domain Layer:** Contains business logic (use cases)
+- **Presentation Layer:** UI and ViewModels
+
+### 2. Dependency Injection
+{% if libraries | default([]) | select("in", ["Hilt"]) | list | length > 0 %}
+- **Hilt:** We use **Hilt** for dependency injection.
+- **Modules:** Define `@Module` and `@InstallIn` for DI setup.
+- **Scopes:** Use `@Singleton`, `@ActivityScoped`, `@ViewModelScoped`.
+{% else %}
+- Use manual DI or Dagger for dependency injection.
+{% endif %}
+
+### 3. UI Framework
+{% if libraries | default([]) | select("in", ["Jetpack Compose"]) | list | length > 0 %}
+- **Jetpack Compose:** Modern declarative UI toolkit.
+- **Material 3:** Use Material Design 3 components.
+- **State Management:** Use `remember` and `mutableStateOf` for state.
+{% else %}
+- **View System:** Traditional XML layouts with Activities/Fragments.
+- **ViewBinding/DataBinding:** For type-safe view references.
+{% endif %}
+
+### 4. Data Persistence
+{% if libraries | default([]) | select("in", ["Room"]) | list | length > 0 %}
+- **Room Database:** SQLite abstraction layer.
+- **Entities:** Define `@Entity` classes for database tables.
+- **DAO:** Data Access Objects for database operations.
+- **Migrations:** Handle schema changes with Room migrations.
+{% endif %}
+
+### 5. Networking
+{% if libraries | default([]) | select("in", ["Retrofit"]) | list | length > 0 %}
+- **Retrofit:** Type-safe HTTP client.
+- **Interceptors:** Use OkHttp interceptors for logging/auth.
+- **Coroutines:** Use suspend functions for async operations.
+{% endif %}
+
+### 6. Concurrency
+{% if libraries | default([]) | select("in", ["Coroutines"]) | list | length > 0 %}
+- **Kotlin Coroutines:** For asynchronous operations.
+- **Flow:** For reactive data streams.
+- **Dispatchers:** Use appropriate dispatchers (IO, Main, Default).
+{% endif %}
+
+## 🔄 Data Flow
+
+```mermaid
+graph TD
+    A[UI/Composable] --> B[ViewModel]
+    B --> C[UseCase]
+    C --> D[Repository Interface]
+    D --> E[Repository Implementation]
+    E --> F[Data Source]
+    F --> G[API/Local DB]
+    G --> F
+    F --> E
+    E --> D
+    D --> C
+    C --> B
+    B --> A
+```
+
+## 🔒 Security Architecture
+
+1. **ProGuard/R8:** Code obfuscation and minification
+2. **Network Security Config:** Enforce HTTPS
+3. **Encrypted Storage:** Use EncryptedSharedPreferences for sensitive data
+4. **Certificate Pinning:** Implement certificate pinning for API calls
+
+## 🚀 Build & Deployment
+
+- **Build Variants:** Debug, Staging, Production
+- **Signing:** Use signing configs for release builds
+- **Versioning:** Semantic versioning (versionCode, versionName)
+- **CI/CD:** Automated builds and deployments via GitHub Actions or similar
+

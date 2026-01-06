@@ -1,0 +1,109 @@
+# Docker Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project uses **Docker** for containerization, enabling consistent deployments across different environments.
+
+## 📂 Directory Structure
+
+```text
+.
+├── Dockerfile                 # Main application container
+{% if libraries | default([]) | select("in", ["Docker Compose"]) | list | length > 0 %}
+├── docker-compose.yml         # Multi-container orchestration
+├── docker-compose.prod.yml   # Production overrides
+{% endif %}
+├── .dockerignore             # Files to exclude from build context
+├── docker/                   # Docker-related scripts
+│   ├── entrypoint.sh         # Container entrypoint script
+│   └── wait-for-it.sh        # Service dependency waiter
+└── .env.example              # Environment variables template
+```
+
+## 🐳 Container Architecture
+
+### 1. Base Image Strategy
+- **Development:** Use official language runtime images (e.g., `node:22-alpine`, `python:3.12-slim`)
+- **Production:** Prefer minimal base images (`alpine`, `distroless`) to reduce attack surface
+- **Multi-stage Builds:** Separate build and runtime stages to minimize final image size
+
+### 2. Layer Caching
+- Order Dockerfile instructions from least to most frequently changing
+- Copy dependency files (`package.json`, `requirements.txt`) before source code
+- Use `.dockerignore` to exclude unnecessary files from build context
+
+{% if libraries | default([]) | select("in", ["Multi-stage Builds"]) | list | length > 0 %}
+### 3. Multi-stage Builds
+```dockerfile
+# Stage 1: Build
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Stage 2: Runtime
+FROM node:22-alpine
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+CMD ["node", "dist/index.js"]
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Docker Compose"]) | list | length > 0 %}
+## 🎼 Docker Compose Architecture
+
+### Service Definitions
+- **Application Service:** Main application container
+- **Database Service:** PostgreSQL, MySQL, or MongoDB
+- **Cache Service:** Redis (if needed)
+- **Reverse Proxy:** Nginx (optional, for production)
+
+### Network Strategy
+- Use named networks for service isolation
+- Default bridge network for simple setups
+- Custom networks for complex multi-service architectures
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Health Checks"]) | list | length > 0 %}
+## 🏥 Health Checks
+
+### Container Health Monitoring
+- Implement `HEALTHCHECK` in Dockerfile
+- Use application health endpoints (`/health`, `/ready`)
+- Configure restart policies (`restart: unless-stopped`)
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+```
+{% endif %}
+
+## 🔒 Security Best Practices
+
+1. **Non-root User:** Run containers as non-root user
+2. **Secrets Management:** Use Docker secrets or environment variables (never hardcode)
+3. **Image Scanning:** Regularly scan images for vulnerabilities
+4. **Minimal Base Images:** Use `alpine` or `distroless` for smaller attack surface
+5. **Layer Updates:** Keep base images and dependencies updated
+
+## 📊 Build & Deployment Flow
+
+```mermaid
+graph TD
+    A[Source Code] --> B[Dockerfile]
+    B --> C[Build Image]
+    C --> D[Tag Image]
+    D --> E[Push to Registry]
+    E --> F[Deploy to Environment]
+    F --> G[Container Runtime]
+```
+
+## 🚀 Deployment Environments
+
+- **Development:** `docker-compose up` for local development
+- **Staging:** Tagged images deployed to staging environment
+- **Production:** Immutable images with version tags, deployed via CI/CD
+

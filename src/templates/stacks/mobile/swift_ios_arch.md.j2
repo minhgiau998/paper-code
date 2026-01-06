@@ -1,0 +1,147 @@
+# Swift iOS Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project is a native **iOS** application built with **Swift**{% if libraries | default([]) | select("in", ["SwiftUI"]) | list | length > 0 %} using **SwiftUI** for modern declarative UI{% endif %}.
+It follows **MVVM (Model-View-ViewModel)** architecture with clear separation of concerns.
+
+## 📂 Directory Structure
+
+```text
+MyApp/
+├── MyApp/
+│   ├── App/
+│   │   ├── MyAppApp.swift    # App entry point
+│   │   └── ContentView.swift # Root view
+│   ├── Models/               # Data Models
+│   │   ├── User.swift
+│   │   └── Network/
+│   │       └── APIResponse.swift
+│   ├── ViewModels/           # ViewModels (Business Logic)
+│   │   ├── UserViewModel.swift
+│   │   └── HomeViewModel.swift
+{% if libraries | default([]) | select("in", ["SwiftUI"]) | list | length > 0 %}
+│   ├── Views/                # SwiftUI Views
+│   │   ├── Components/       # Reusable components
+│   │   │   ├── Button.swift
+│   │   │   └── Card.swift
+│   │   ├── Screens/          # Screen views
+│   │   │   ├── HomeView.swift
+│   │   │   └── ProfileView.swift
+│   │   └── Navigation/        # Navigation setup
+{% else %}
+│   ├── Views/                # UIKit Views
+│   │   ├── ViewControllers/
+│   │   ├── Custom Views/
+│   │   └── Storyboards/
+{% endif %}
+│   ├── Services/             # Business Services
+│   │   ├── NetworkService.swift
+│   │   ├── AuthService.swift
+│   │   └── StorageService.swift
+│   ├── Repositories/         # Data Repositories
+│   │   ├── UserRepository.swift
+│   │   └── APIRepository.swift
+{% if libraries | default([]) | select("in", ["Core Data"]) | list | length > 0 %}
+│   ├── Persistence/          # Core Data
+│   │   ├── PersistenceController.swift
+│   │   └── CoreDataStack.swift
+{% endif %}
+│   ├── Utilities/            # Helpers & Extensions
+│   │   ├── Extensions/
+│   │   ├── Constants.swift
+│   │   └── Helpers.swift
+│   └── Resources/
+│       ├── Assets.xcassets
+│       └── Localizable.strings
+├── MyAppTests/               # Unit Tests
+└── MyAppUITests/             # UI Tests
+```
+
+## 🧩 Key Architectural Patterns
+
+### 1. MVVM Architecture
+- **Model:** Data structures and business logic
+- **View:** UI components (SwiftUI or UIKit)
+- **ViewModel:** Mediates between View and Model, handles presentation logic
+
+### 2. Dependency Injection
+- Use protocol-oriented programming for testability
+- Inject dependencies through initializers
+- Use `@EnvironmentObject` for SwiftUI dependency injection
+
+### 3. UI Framework
+{% if libraries | default([]) | select("in", ["SwiftUI"]) | list | length > 0 %}
+- **SwiftUI:** Modern declarative UI framework
+- **State Management:** Use `@State`, `@Binding`, `@ObservedObject`, `@StateObject`
+- **Navigation:** Use `NavigationStack` (iOS 16+) or `NavigationView`
+{% else %}
+- **UIKit:** Traditional imperative UI framework
+- **Storyboards/Programmatic:** Use programmatic UI for better version control
+- **Auto Layout:** Use constraints or SwiftUI-like declarative syntax
+{% endif %}
+
+### 4. Data Persistence
+{% if libraries | default([]) | select("in", ["Core Data"]) | list | length > 0 %}
+- **Core Data:** Apple's object graph and persistence framework
+- **NSManagedObjectContext:** Main context for UI, background context for operations
+- **Migrations:** Handle schema changes with Core Data migrations
+{% else %}
+- **UserDefaults:** For simple key-value storage
+- **File System:** For document storage
+- **Keychain:** For sensitive data (passwords, tokens)
+{% endif %}
+
+### 5. Networking
+{% if libraries | default([]) | select("in", ["Alamofire"]) | list | length > 0 %}
+- **Alamofire:** Elegant HTTP networking library
+- **Request/Response:** Use Codable for JSON parsing
+- **Error Handling:** Comprehensive error handling with Alamofire
+{% else %}
+- **URLSession:** Native networking API
+- **Codable:** For JSON encoding/decoding
+- **Async/Await:** Use modern concurrency for async operations
+{% endif %}
+
+### 6. Reactive Programming
+{% if libraries | default([]) | select("in", ["Combine"]) | list | length > 0 %}
+- **Combine:** Apple's reactive programming framework
+- **Publishers/Subscribers:** Use `@Published` for reactive state
+- **Operators:** Use Combine operators for data transformation
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Swift Package Manager"]) | list | length > 0 %}
+### 7. Dependency Management
+- **Swift Package Manager (SPM):** Native package manager
+- **Package.swift:** Define dependencies in Package.swift
+- **Versioning:** Use semantic versioning for dependencies
+{% endif %}
+
+## 🔄 Data Flow
+
+```mermaid
+graph TD
+    A[View/SwiftUI] --> B[ViewModel]
+    B --> C[Repository]
+    C --> D[Service]
+    D --> E[API/Storage]
+    E --> D
+    D --> C
+    C --> B
+    B --> A
+```
+
+## 🔒 Security Architecture
+
+1. **Keychain Services:** Store sensitive data (tokens, passwords)
+2. **App Transport Security:** Enforce HTTPS connections
+3. **Certificate Pinning:** Implement certificate pinning for API calls
+4. **Code Obfuscation:** Use Swift compiler optimizations
+
+## 🚀 Build & Deployment
+
+- **Build Configurations:** Debug, Staging, Release
+- **Code Signing:** Use Xcode signing capabilities
+- **Versioning:** Semantic versioning (CFBundleShortVersionString, CFBundleVersion)
+- **CI/CD:** Automated builds via Xcode Cloud, GitHub Actions, or similar
+

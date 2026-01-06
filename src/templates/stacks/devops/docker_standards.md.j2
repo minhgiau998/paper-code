@@ -1,0 +1,217 @@
+# Docker Coding Standards
+
+## 📝 Naming Conventions
+
+- **Images:** `project-name:tag` (e.g., `myapp:v1.2.3`, `myapp:latest`)
+- **Containers:** `project-name-service` (e.g., `myapp-api`, `myapp-db`)
+- **Networks:** `project-name-network` (e.g., `myapp-network`)
+- **Volumes:** `project-name-volume` (e.g., `myapp-data`)
+
+## 🐳 Dockerfile Best Practices
+
+### 1. Use Specific Base Image Tags
+**Rule:** Never use `latest` tag in production Dockerfiles.
+```dockerfile
+# ❌ Bad
+FROM node:latest
+
+# ✅ Good
+FROM node:22-alpine
+```
+
+### 2. Leverage Layer Caching
+**Rule:** Copy dependency files before source code.
+```dockerfile
+# ✅ Good - dependencies cached separately
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+```
+
+### 3. Use .dockerignore
+**Rule:** Always include `.dockerignore` to exclude unnecessary files.
+```dockerignore
+node_modules
+.git
+.env
+*.log
+dist
+coverage
+```
+
+### 4. Minimize Layers
+**Rule:** Combine RUN commands to reduce image layers.
+```dockerfile
+# ❌ Bad - multiple layers
+RUN apt-get update
+RUN apt-get install -y curl
+RUN apt-get clean
+
+# ✅ Good - single layer
+RUN apt-get update && \
+    apt-get install -y curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+```
+
+### 5. Non-root User
+**Rule:** Always run containers as non-root user.
+```dockerfile
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+USER nodejs
+```
+
+{% if libraries | default([]) | select("in", ["Multi-stage Builds"]) | list | length > 0 %}
+### 6. Multi-stage Builds
+**Rule:** Use multi-stage builds for production images.
+```dockerfile
+# Build stage
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Runtime stage
+FROM node:22-alpine
+WORKDIR /app
+COPY --from=builder /app/node_modules ./node_modules
+COPY . .
+CMD ["node", "index.js"]
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Docker Compose"]) | list | length > 0 %}
+## 🎼 Docker Compose Standards
+
+### 1. Service Naming
+**Rule:** Use lowercase with hyphens for service names.
+```yaml
+services:
+  api-server:  # ✅ Good
+    image: myapp:latest
+  db:          # ✅ Good
+    image: postgres:15
+```
+
+### 2. Environment Variables
+**Rule:** Use `.env` file for sensitive values, reference in `docker-compose.yml`.
+```yaml
+services:
+  api:
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NODE_ENV=${NODE_ENV:-development}
+```
+
+### 3. Volume Management
+**Rule:** Use named volumes for persistent data.
+```yaml
+volumes:
+  postgres-data:
+    driver: local
+
+services:
+  db:
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+```
+
+### 4. Network Isolation
+**Rule:** Use custom networks for service communication.
+```yaml
+networks:
+  app-network:
+    driver: bridge
+
+services:
+  api:
+    networks:
+      - app-network
+  db:
+    networks:
+      - app-network
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Health Checks"]) | list | length > 0 %}
+## 🏥 Health Check Standards
+
+### 1. Implement Health Endpoints
+**Rule:** Application must expose `/health` and `/ready` endpoints.
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+```
+
+### 2. Restart Policies
+**Rule:** Use `restart: unless-stopped` for production services.
+```yaml
+services:
+  api:
+    restart: unless-stopped
+```
+{% endif %}
+
+## 🔒 Security Standards
+
+### 1. Secrets Management
+**Rule:** Never hardcode secrets in Dockerfiles or docker-compose.yml.
+- Use Docker secrets (Swarm mode)
+- Use environment variables from `.env` file
+- Use external secret managers (AWS Secrets Manager, HashiCorp Vault)
+
+### 2. Image Scanning
+**Rule:** Scan images for vulnerabilities before deployment.
+```bash
+docker scan myapp:latest
+```
+
+### 3. Minimal Base Images
+**Rule:** Prefer `alpine` or `distroless` images.
+```dockerfile
+# ✅ Good
+FROM node:22-alpine
+
+# ❌ Avoid
+FROM ubuntu:latest
+```
+
+## 📦 Build & Tag Standards
+
+### 1. Semantic Versioning
+**Rule:** Tag images with semantic versions.
+```bash
+docker build -t myapp:1.2.3 .
+docker tag myapp:1.2.3 myapp:latest
+```
+
+### 2. Build Context
+**Rule:** Minimize build context size.
+- Use `.dockerignore`
+- Build from subdirectories when possible
+- Exclude large files and directories
+
+## 🚀 Deployment Standards
+
+### 1. Immutable Deployments
+**Rule:** Never modify running containers. Rebuild and redeploy.
+- Tag images with commit SHA or version
+- Use rolling updates for zero-downtime deployments
+
+### 2. Resource Limits
+**Rule:** Set memory and CPU limits.
+```yaml
+services:
+  api:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+```
+

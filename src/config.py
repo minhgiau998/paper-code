@@ -21,6 +21,7 @@ PROJECT_TYPES: List[str] = [
     "Game",
     "CLI",
     "Library",
+    "DevOps",
 ]
 
 # =============================================================================
@@ -46,6 +47,8 @@ TECH_STACKS: Dict[str, List[str]] = {
     "Mobile": [
         "React Native",
         "Flutter",
+        "Kotlin (Android)",
+        "Swift (iOS)",
     ],
     "Desktop": [
         "Electron",
@@ -71,6 +74,11 @@ TECH_STACKS: Dict[str, List[str]] = {
         "Python Lib",
         "Go Lib",
         "Rust Lib",
+    ],
+    "DevOps": [
+        "Docker",
+        "Kubernetes",
+        "Terraform",
     ],
 }
 
@@ -124,6 +132,12 @@ LIBRARIES: Dict[str, List[str]] = {
     ],
     "Flutter": [
         "Bloc", "Riverpod", "Provider", "Dio", "GetX", "Hive"
+    ],
+    "Kotlin (Android)": [
+        "Jetpack Compose", "Room", "Retrofit", "Coroutines", "Hilt", "Kotlinx Serialization"
+    ],
+    "Swift (iOS)": [
+        "SwiftUI", "Combine", "Core Data", "Alamofire", "Swift Package Manager"
     ],
 
     # --- Desktop Stacks ---
@@ -179,6 +193,17 @@ LIBRARIES: Dict[str, List[str]] = {
     ],
     "Rust Lib": [
         "Cargo", "Criterion"
+    ],
+
+    # --- DevOps Stacks ---
+    "Docker": [
+        "Docker Compose", "Multi-stage Builds", "Health Checks"
+    ],
+    "Kubernetes": [
+        "Helm", "Kustomize", "Ingress", "Service Mesh", "Monitoring"
+    ],
+    "Terraform": [
+        "AWS Provider", "Azure Provider", "GCP Provider", "Terraform Cloud", "Modules"
     ],
 }
 

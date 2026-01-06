@@ -1,0 +1,299 @@
+# Kubernetes Coding Standards
+
+## 📝 Naming Conventions
+
+- **Resources:** `kebab-case` (e.g., `my-app-deployment`, `api-service`)
+- **Labels:** `app.kubernetes.io/name`, `app.kubernetes.io/version`
+- **Namespaces:** `kebab-case` (e.g., `production`, `staging`, `development`)
+- **ConfigMaps/Secrets:** `kebab-case` with descriptive names
+
+## ☸️ Resource Definition Standards
+
+### 1. Always Include Labels
+**Rule:** Use standard Kubernetes labels for all resources.
+```yaml
+metadata:
+  labels:
+    app.kubernetes.io/name: my-app
+    app.kubernetes.io/version: "1.2.3"
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: platform
+```
+
+### 2. Resource Requests & Limits
+**Rule:** Always set resource requests and limits.
+```yaml
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+```
+
+### 3. Health Checks
+**Rule:** Implement liveness and readiness probes.
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 5
+```
+
+### 4. Deployment Strategy
+**Rule:** Use RollingUpdate with proper configuration.
+```yaml
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+```
+
+{% if libraries | default([]) | select("in", ["Helm"]) | list | length > 0 %}
+## 📦 Helm Chart Standards
+
+### 1. Chart Structure
+**Rule:** Follow Helm best practices for chart organization.
+```
+myapp/
+├── Chart.yaml          # Chart metadata
+├── values.yaml         # Default values
+├── values-dev.yaml     # Development overrides
+├── values-prod.yaml    # Production overrides
+└── templates/         # Kubernetes manifests
+    ├── deployment.yaml
+    ├── service.yaml
+    └── ingress.yaml
+```
+
+### 2. Template Functions
+**Rule:** Use Helm template functions for dynamic values.
+```yaml
+# ✅ Good
+image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
+
+# ❌ Bad
+image: myapp:latest
+```
+
+### 3. Value Validation
+**Rule:** Document all values in `values.yaml` with descriptions.
+```yaml
+# values.yaml
+image:
+  repository: myapp
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 3
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Kustomize"]) | list | length > 0 %}
+## 🎨 Kustomize Standards
+
+### 1. Base Structure
+**Rule:** Keep base resources generic and reusable.
+```
+base/
+├── kustomization.yaml
+├── deployment.yaml
+├── service.yaml
+└── configmap.yaml
+```
+
+### 2. Overlay Pattern
+**Rule:** Use overlays for environment-specific configurations.
+```
+overlays/
+├── dev/
+│   ├── kustomization.yaml
+│   └── patch-deployment.yaml
+├── staging/
+│   └── kustomization.yaml
+└── prod/
+    └── kustomization.yaml
+```
+
+### 3. Resource Patching
+**Rule:** Use strategic merge patches for modifications.
+```yaml
+# overlays/prod/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+bases:
+  - ../../base
+
+replicas:
+  - name: my-app
+    count: 5
+
+patchesStrategicMerge:
+  - patch-deployment.yaml
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Ingress"]) | list | length > 0 %}
+## 🌐 Ingress Standards
+
+### 1. TLS Configuration
+**Rule:** Always use TLS for production ingress.
+```yaml
+spec:
+  tls:
+    - hosts:
+        - api.example.com
+      secretName: api-tls-cert
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 80
+```
+
+### 2. Path-Based Routing
+**Rule:** Use path-based routing for multiple services.
+```yaml
+rules:
+  - host: example.com
+    http:
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend:
+            service:
+              name: api-service
+        - path: /admin
+          pathType: Prefix
+          backend:
+            service:
+              name: admin-service
+```
+{% endif %}
+
+## 🔒 Security Standards
+
+### 1. RBAC
+**Rule:** Follow principle of least privilege.
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+```
+
+### 2. Network Policies
+**Rule:** Restrict pod-to-pod communication.
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: app-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: my-app
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 3000
+```
+
+### 3. Pod Security Standards
+**Rule:** Use restricted security context.
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+```
+
+## 📊 Monitoring Standards
+
+{% if libraries | default([]) | select("in", ["Monitoring"]) | list | length > 0 %}
+### 1. ServiceMonitor (Prometheus)
+**Rule:** Expose metrics endpoint and create ServiceMonitor.
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: my-app-metrics
+spec:
+  selector:
+    matchLabels:
+      app: my-app
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+```
+{% endif %}
+
+### 2. Resource Monitoring
+**Rule:** Set up alerts for resource usage.
+- CPU usage > 80%
+- Memory usage > 80%
+- Pod restart count > 5
+
+## 🚀 Deployment Standards
+
+### 1. GitOps
+**Rule:** Use GitOps for declarative deployments.
+- Store all manifests in Git
+- Use ArgoCD or Flux for continuous deployment
+- Automate sync from Git to cluster
+
+### 2. Version Tagging
+**Rule:** Tag all resources with version labels.
+```yaml
+metadata:
+  labels:
+    app.kubernetes.io/version: "1.2.3"
+```
+
+### 3. Rollback Strategy
+**Rule:** Always test rollback procedures.
+```bash
+kubectl rollout undo deployment/my-app
+kubectl rollout history deployment/my-app
+```
+

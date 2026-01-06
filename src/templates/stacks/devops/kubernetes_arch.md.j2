@@ -1,0 +1,148 @@
+# Kubernetes Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project uses **Kubernetes (K8s)** for container orchestration, enabling scalable and resilient deployments.
+
+## 📂 Directory Structure
+
+```text
+k8s/
+├── base/                     # Base Kustomize resources
+│   ├── deployment.yaml       # Application deployment
+│   ├── service.yaml          # Service definition
+│   ├── configmap.yaml        # Configuration maps
+│   └── secret.yaml           # Secrets (encrypted)
+{% if libraries | default([]) | select("in", ["Ingress"]) | list | length > 0 %}
+│   └── ingress.yaml          # Ingress rules
+{% endif %}
+{% if libraries | default([]) | select("in", ["Helm"]) | list | length > 0 %}
+├── helm/                     # Helm charts
+│   └── myapp/
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       └── templates/
+{% endif %}
+{% if libraries | default([]) | select("in", ["Kustomize"]) | list | length > 0 %}
+├── overlays/                 # Kustomize overlays
+│   ├── dev/
+│   ├── staging/
+│   └── prod/
+{% endif %}
+└── README.md                 # K8s deployment guide
+```
+
+## ☸️ Kubernetes Architecture
+
+### 1. Core Components
+
+#### Deployment
+- Manages application pods and replicas
+- Handles rolling updates and rollbacks
+- Defines resource limits and requests
+
+#### Service
+- Provides stable network endpoint for pods
+- Load balances traffic across pod replicas
+- Types: ClusterIP, NodePort, LoadBalancer
+
+#### ConfigMap & Secrets
+- **ConfigMap:** Non-sensitive configuration data
+- **Secrets:** Sensitive data (encrypted at rest)
+
+{% if libraries | default([]) | select("in", ["Ingress"]) | list | length > 0 %}
+### 2. Ingress Controller
+- Routes external HTTP/HTTPS traffic to services
+- Supports SSL/TLS termination
+- Path-based and host-based routing
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Helm"]) | list | length > 0 %}
+### 3. Helm Charts
+- Package manager for Kubernetes
+- Template-based resource definitions
+- Version management and rollbacks
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Kustomize"]) | list | length > 0 %}
+### 4. Kustomize
+- Declarative configuration management
+- Environment-specific overlays (dev, staging, prod)
+- Base + overlay pattern for DRY principles
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Service Mesh"]) | list | length > 0 %}
+### 5. Service Mesh
+- Advanced traffic management and observability
+- mTLS between services
+- Circuit breakers and retries
+{% endif %}
+
+## 🔄 Deployment Strategy
+
+### Rolling Updates
+- Zero-downtime deployments
+- Gradual pod replacement
+- Automatic rollback on failure
+
+### Blue-Green Deployment
+- Two identical environments
+- Switch traffic between environments
+- Instant rollback capability
+
+## 📊 Architecture Diagram
+
+```mermaid
+graph TD
+    A[User] --> B[Ingress Controller]
+    B --> C[Service]
+    C --> D[Deployment]
+    D --> E[Pod Replica 1]
+    D --> F[Pod Replica 2]
+    D --> G[Pod Replica 3]
+    E --> H[ConfigMap]
+    F --> H
+    G --> H
+    E --> I[Secrets]
+    F --> I
+    G --> I
+```
+
+{% if libraries | default([]) | select("in", ["Monitoring"]) | list | length > 0 %}
+## 📈 Monitoring & Observability
+
+### Metrics
+- **Prometheus:** Metrics collection
+- **Grafana:** Visualization and dashboards
+
+### Logging
+- **Fluentd/Fluent Bit:** Log aggregation
+- **ELK Stack:** Elasticsearch, Logstash, Kibana
+
+### Tracing
+- **Jaeger:** Distributed tracing
+- **Zipkin:** Request tracing
+{% endif %}
+
+## 🔒 Security Architecture
+
+1. **RBAC:** Role-Based Access Control for API access
+2. **Network Policies:** Control pod-to-pod communication
+3. **Pod Security Standards:** Restricted, Baseline, Privileged
+4. **Secrets Management:** Encrypted at rest, use external secret operators
+5. **Image Security:** Scan container images for vulnerabilities
+
+## 🚀 Scaling Strategy
+
+### Horizontal Pod Autoscaler (HPA)
+- Automatically scale pods based on CPU/memory metrics
+- Custom metrics support (requests per second, queue depth)
+
+### Vertical Pod Autoscaler (VPA)
+- Automatically adjust resource requests and limits
+- Right-sizing recommendations
+
+### Cluster Autoscaler
+- Automatically add/remove nodes based on demand
+- Cloud provider integration
+

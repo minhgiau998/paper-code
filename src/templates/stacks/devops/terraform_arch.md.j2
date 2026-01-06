@@ -1,0 +1,152 @@
+# Terraform Project Architecture
+
+## 🏗️ High-Level Overview
+
+This project uses **Terraform** for Infrastructure as Code (IaC), enabling version-controlled and reproducible infrastructure deployments.
+
+## 📂 Directory Structure
+
+```text
+terraform/
+├── main.tf                 # Main configuration
+├── variables.tf             # Input variables
+├── outputs.tf              # Output values
+├── terraform.tfvars        # Variable values (gitignored)
+├── terraform.tfvars.example # Example variable file
+{% if libraries | default([]) | select("in", ["Modules"]) | list | length > 0 %}
+├── modules/                # Reusable modules
+│   ├── vpc/
+│   ├── ec2/
+│   └── rds/
+{% endif %}
+{% if libraries | default([]) | select("in", ["AWS Provider"]) | list | length > 0 %}
+├── environments/          # Environment-specific configs
+│   ├── dev/
+│   │   ├── main.tf
+│   │   └── terraform.tfvars
+│   ├── staging/
+│   └── prod/
+{% endif %}
+{% if libraries | default([]) | select("in", ["Terraform Cloud"]) | list | length > 0 %}
+├── .terraform.lock.hcl     # Provider lock file
+└── .terraform/             # Provider plugins (gitignored)
+{% endif %}
+```
+
+## 🏛️ Terraform Architecture
+
+### 1. State Management
+- **Local State:** Default `.tfstate` file (not recommended for teams)
+- **Remote State:** Use S3, Terraform Cloud, or other backends
+- **State Locking:** Prevent concurrent modifications (DynamoDB for S3 backend)
+
+### 2. Provider Configuration
+{% if libraries | default([]) | select("in", ["AWS Provider"]) | list | length > 0 %}
+#### AWS Provider
+```hcl
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+```
+{% endif %}
+{% if libraries | default([]) | select("in", ["Azure Provider"]) | list | length > 0 %}
+#### Azure Provider
+```hcl
+provider "azurerm" {
+  features {}
+}
+```
+{% endif %}
+{% if libraries | default([]) | select("in", ["GCP Provider"]) | list | length > 0 %}
+#### GCP Provider
+```hcl
+provider "google" {
+  project = var.gcp_project_id
+  region  = var.gcp_region
+}
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Modules"]) | list | length > 0 %}
+### 3. Module Architecture
+- **Root Module:** Main entry point
+- **Child Modules:** Reusable components (VPC, EC2, RDS)
+- **Module Registry:** Share modules across projects
+
+#### Module Structure
+```
+modules/vpc/
+├── main.tf
+├── variables.tf
+├── outputs.tf
+└── README.md
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Terraform Cloud"]) | list | length > 0 %}
+### 4. Terraform Cloud Integration
+- **Remote Execution:** Run Terraform in cloud
+- **State Management:** Centralized state storage
+- **Collaboration:** Team workspaces and permissions
+- **CI/CD Integration:** Automated plan and apply
+{% endif %}
+
+## 📊 Infrastructure Architecture
+
+```mermaid
+graph TD
+    A[Terraform Code] --> B[terraform plan]
+    B --> C[terraform apply]
+    C --> D[State File]
+    D --> E[Infrastructure]
+    E --> F[Resources Created]
+    F --> G[Outputs]
+```
+
+## 🔄 Workflow
+
+### 1. Planning Phase
+```bash
+terraform init          # Initialize providers
+terraform validate      # Validate configuration
+terraform plan          # Preview changes
+```
+
+### 2. Execution Phase
+```bash
+terraform apply         # Apply changes
+```
+
+### 3. Destruction Phase
+```bash
+terraform destroy       # Remove infrastructure
+```
+
+## 🔒 Security Best Practices
+
+1. **Secrets Management:** Use AWS Secrets Manager, HashiCorp Vault, or environment variables
+2. **State Encryption:** Encrypt state files at rest
+3. **Access Control:** Use IAM roles and policies
+4. **Variable Validation:** Validate input variables
+5. **Sensitive Outputs:** Mark sensitive outputs appropriately
+
+## 🚀 Environment Management
+
+### Workspace Strategy
+- Use Terraform workspaces for environment separation
+- Or use separate directories per environment
+
+### Variable Strategy
+- Use `.tfvars` files for environment-specific values
+- Never commit sensitive values to Git
+- Use `terraform.tfvars.example` as template
+

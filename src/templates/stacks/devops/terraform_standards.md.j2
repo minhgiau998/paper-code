@@ -1,0 +1,298 @@
+# Terraform Coding Standards
+
+## 📝 Naming Conventions
+
+- **Resources:** `snake_case` with descriptive prefixes (e.g., `aws_s3_bucket_app_data`)
+- **Variables:** `snake_case` (e.g., `instance_type`, `vpc_cidr`)
+- **Outputs:** `snake_case` (e.g., `vpc_id`, `database_endpoint`)
+- **Modules:** `kebab-case` directories (e.g., `modules/vpc/`, `modules/ec2-instance/`)
+- **Files:** `snake_case.tf` (e.g., `main.tf`, `variables.tf`, `outputs.tf`)
+
+## 🏗️ File Organization Standards
+
+### 1. File Structure
+**Rule:** Organize resources logically across files.
+```
+main.tf          # Main resources
+variables.tf     # Input variables
+outputs.tf       # Output values
+providers.tf     # Provider configuration
+data.tf          # Data sources
+locals.tf        # Local values
+```
+
+### 2. Resource Grouping
+**Rule:** Group related resources in the same file.
+```hcl
+# networking.tf
+resource "aws_vpc" "main" { ... }
+resource "aws_subnet" "public" { ... }
+resource "aws_subnet" "private" { ... }
+resource "aws_internet_gateway" "main" { ... }
+```
+
+### 3. Variable Definitions
+**Rule:** Always define variables with descriptions and types.
+```hcl
+variable "instance_type" {
+  description = "EC2 instance type"
+  type        = string
+  default     = "t3.micro"
+  
+  validation {
+    condition     = contains(["t3.micro", "t3.small", "t3.medium"], var.instance_type)
+    error_message = "Instance type must be t3.micro, t3.small, or t3.medium."
+  }
+}
+```
+
+### 4. Output Definitions
+**Rule:** Document all outputs with descriptions.
+```hcl
+output "vpc_id" {
+  description = "ID of the VPC"
+  value       = aws_vpc.main.id
+}
+```
+
+{% if libraries | default([]) | select("in", ["Modules"]) | list | length > 0 %}
+## 📦 Module Standards
+
+### 1. Module Structure
+**Rule:** Every module must have these files.
+```
+module-name/
+├── main.tf          # Main resources
+├── variables.tf     # Input variables
+├── outputs.tf      # Output values
+└── README.md        # Module documentation
+```
+
+### 2. Module Interface
+**Rule:** Define clear input/output contracts.
+```hcl
+# modules/vpc/variables.tf
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}
+
+# modules/vpc/outputs.tf
+output "vpc_id" {
+  description = "VPC ID"
+  value       = aws_vpc.main.id
+}
+```
+
+### 3. Module Usage
+**Rule:** Use version constraints for modules.
+```hcl
+module "vpc" {
+  source = "./modules/vpc"
+  # or
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 5.0"
+  
+  vpc_cidr     = "10.0.0.0/16"
+  environment  = "production"
+}
+```
+{% endif %}
+
+## 🔒 Security Standards
+
+### 1. Sensitive Variables
+**Rule:** Mark sensitive variables appropriately.
+```hcl
+variable "db_password" {
+  description = "Database password"
+  type        = string
+  sensitive   = true
+}
+```
+
+### 2. State File Security
+**Rule:** Use remote state with encryption.
+```hcl
+terraform {
+  backend "s3" {
+    bucket         = "my-terraform-state"
+    key            = "prod/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "terraform-state-lock"
+  }
+}
+```
+
+### 3. IAM Best Practices
+**Rule:** Follow principle of least privilege.
+```hcl
+resource "aws_iam_role" "ec2_role" {
+  name = "ec2-role"
+  
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+      Effect = "Allow"
+    }]
+  })
+}
+```
+
+## 📊 Resource Standards
+
+### 1. Resource Tags
+**Rule:** Always tag resources for organization.
+```hcl
+resource "aws_instance" "app" {
+  # ... other configuration ...
+  
+  tags = {
+    Name        = "app-server"
+    Environment = var.environment
+    Project     = var.project_name
+    ManagedBy   = "Terraform"
+  }
+}
+```
+
+### 2. Use Data Sources
+**Rule:** Use data sources instead of hardcoding values.
+```hcl
+# ✅ Good
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
+resource "aws_subnet" "public" {
+  availability_zone = data.aws_availability_zones.available.names[0]
+}
+
+# ❌ Bad
+resource "aws_subnet" "public" {
+  availability_zone = "us-east-1a"
+}
+```
+
+### 3. Use Locals
+**Rule:** Use locals for computed values and complex expressions.
+```hcl
+locals {
+  common_tags = {
+    Environment = var.environment
+    Project     = var.project_name
+    ManagedBy   = "Terraform"
+  }
+  
+  vpc_cidr = "10.0.0.0/16"
+  subnet_cidrs = [
+    cidrsubnet(local.vpc_cidr, 8, 0),
+    cidrsubnet(local.vpc_cidr, 8, 1),
+    cidrsubnet(local.vpc_cidr, 8, 2)
+  ]
+}
+```
+
+{% if libraries | default([]) | select("in", ["AWS Provider"]) | list | length > 0 %}
+## ☁️ AWS-Specific Standards
+
+### 1. Provider Version
+**Rule:** Pin provider versions.
+```hcl
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+```
+
+### 2. Region Configuration
+**Rule:** Use variables for region configuration.
+```hcl
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+  default     = "us-east-1"
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Terraform Cloud"]) | list | length > 0 %}
+## 🌐 Terraform Cloud Standards
+
+### 1. Workspace Configuration
+**Rule:** Use workspaces for environment separation.
+```bash
+terraform workspace new dev
+terraform workspace select dev
+terraform apply
+```
+
+### 2. Remote Execution
+**Rule:** Configure remote execution in Terraform Cloud.
+```hcl
+terraform {
+  cloud {
+    organization = "my-org"
+    workspaces {
+      name = "production"
+    }
+  }
+}
+```
+{% endif %}
+
+## 🚀 Best Practices
+
+### 1. Version Control
+**Rule:** Always commit `.terraform.lock.hcl` but never commit `.terraform/` directory.
+```gitignore
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+terraform.tfvars
+*.tfvars.backup
+```
+
+### 2. Validation
+**Rule:** Run validation before committing.
+```bash
+terraform fmt -check
+terraform validate
+terraform plan
+```
+
+### 3. Documentation
+**Rule:** Document complex configurations and modules.
+```hcl
+# This VPC configuration creates a public and private subnet
+# in each availability zone for high availability.
+resource "aws_vpc" "main" {
+  # ...
+}
+```
+
+### 4. State Management
+**Rule:** Never manually edit state files. Use `terraform import` for existing resources.
+```bash
+terraform import aws_instance.app i-1234567890abcdef0
+```
+

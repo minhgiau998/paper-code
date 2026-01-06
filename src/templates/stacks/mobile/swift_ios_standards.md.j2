@@ -1,0 +1,400 @@
+# Swift iOS Coding Standards
+
+## 📝 Naming Conventions
+
+- **Types/Classes:** `PascalCase` (e.g., `UserViewModel`, `NetworkService`)
+- **Functions/Variables:** `camelCase` (e.g., `getUserData()`, `userName`)
+- **Constants:** `camelCase` with `static let` (e.g., `static let maxRetryCount = 3`)
+- **Files:** Match type name (e.g., `UserViewModel.swift`)
+- **Enums:** `PascalCase` with cases in `camelCase` (e.g., `enum Status { case loading, success, error }`)
+
+## ⚡ Swift Best Practices
+
+### 1. Optionals
+**Rule:** Handle optionals safely using guard, if let, or nil coalescing.
+```swift
+// ❌ Bad
+let name = user.name  // Force unwrap
+
+// ✅ Good
+guard let name = user.name else { return }
+// or
+let name = user.name ?? "Unknown"
+```
+
+### 2. Immutability
+**Rule:** Prefer `let` over `var`, use immutable collections.
+```swift
+// ✅ Good
+let users: [User] = [user1, user2]
+let dictionary: [String: Int] = ["key": 1]
+
+// ❌ Avoid
+var users = [User]()
+```
+
+### 3. Structs vs Classes
+**Rule:** Prefer structs over classes for value types.
+```swift
+// ✅ Good - Use struct for models
+struct User {
+    let id: String
+    let name: String
+}
+
+// Use class only when reference semantics are needed
+class NetworkManager {
+    // Shared instance
+}
+```
+
+### 4. Protocol-Oriented Programming
+**Rule:** Use protocols for abstraction and testability.
+```swift
+protocol UserRepository {
+    func getUser(id: String) async throws -> User
+}
+
+class APIRepository: UserRepository {
+    func getUser(id: String) async throws -> User {
+        // Implementation
+    }
+}
+```
+
+{% if libraries | default([]) | select("in", ["SwiftUI"]) | list | length > 0 %}
+## 🎨 SwiftUI Standards
+
+### 1. View Structure
+**Rule:** Use `@ViewBuilder` for complex view hierarchies.
+```swift
+struct UserCard: View {
+    let user: User
+    
+    var body: some View {
+        VStack {
+            Text(user.name)
+            Text(user.email)
+        }
+    }
+}
+```
+
+### 2. State Management
+**Rule:** Use appropriate property wrappers for state.
+```swift
+struct CounterView: View {
+    @State private var count = 0
+    @StateObject private var viewModel = CounterViewModel()
+    @ObservedObject var sharedState: SharedState
+    
+    var body: some View {
+        VStack {
+            Text("Count: \(count)")
+            Button("Increment") {
+                count += 1
+            }
+        }
+    }
+}
+```
+
+### 3. ViewModifiers
+**Rule:** Create reusable ViewModifiers for common styling.
+```swift
+struct CardStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding()
+            .background(Color.white)
+            .cornerRadius(10)
+            .shadow(radius: 5)
+    }
+}
+
+extension View {
+    func cardStyle() -> some View {
+        modifier(CardStyle())
+    }
+}
+```
+
+### 4. Navigation
+**Rule:** Use NavigationStack (iOS 16+) for navigation.
+```swift
+NavigationStack {
+    List(users) { user in
+        NavigationLink(value: user) {
+            UserRow(user: user)
+        }
+    }
+    .navigationDestination(for: User.self) { user in
+        UserDetailView(user: user)
+    }
+}
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Combine"]) | list | length > 0 %}
+## 🔄 Combine Standards
+
+### 1. Publishers
+**Rule:** Use `@Published` for reactive state in ViewModels.
+```swift
+class UserViewModel: ObservableObject {
+    @Published var users: [User] = []
+    @Published var isLoading = false
+    @Published var error: Error?
+}
+```
+
+### 2. Subscribers
+**Rule:** Use `sink` or `assign` for subscriptions.
+```swift
+networkService.fetchUsers()
+    .receive(on: DispatchQueue.main)
+    .sink(
+        receiveCompletion: { completion in
+            if case .failure(let error) = completion {
+                self.error = error
+            }
+        },
+        receiveValue: { users in
+            self.users = users
+        }
+    )
+    .store(in: &cancellables)
+```
+
+### 3. Operators
+**Rule:** Use Combine operators for data transformation.
+```swift
+$searchText
+    .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+    .removeDuplicates()
+    .flatMap { query in
+        self.searchService.search(query: query)
+    }
+    .assign(to: &$results)
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Core Data"]) | list | length > 0 %}
+## 💾 Core Data Standards
+
+### 1. NSManagedObjectContext
+**Rule:** Use main context for UI, background context for operations.
+```swift
+let context = PersistenceController.shared.container.viewContext
+
+// Background context
+let backgroundContext = PersistenceController.shared.container.newBackgroundContext()
+backgroundContext.perform {
+    // Background operations
+}
+```
+
+### 2. Fetch Requests
+**Rule:** Use `@FetchRequest` in SwiftUI or `NSFetchRequest` in UIKit.
+```swift
+@FetchRequest(
+    sortDescriptors: [NSSortDescriptor(keyPath: \User.name, ascending: true)],
+    animation: .default
+)
+private var users: FetchedResults<User>
+```
+
+### 3. Saving
+**Rule:** Save context after modifications.
+```swift
+try context.save()
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Alamofire"]) | list | length > 0 %}
+## 🌐 Alamofire Standards
+
+### 1. Request Structure
+**Rule:** Use Codable for request/response models.
+```swift
+struct User: Codable {
+    let id: String
+    let name: String
+    let email: String
+}
+
+func fetchUser(id: String) async throws -> User {
+    return try await AF.request(
+        "https://api.example.com/users/\(id)",
+        method: .get
+    )
+    .serializingDecodable(User.self)
+    .value
+}
+```
+
+### 2. Error Handling
+**Rule:** Handle Alamofire errors appropriately.
+```swift
+do {
+    let user = try await fetchUser(id: "123")
+} catch {
+    if let afError = error as? AFError {
+        switch afError {
+        case .invalidURL:
+            // Handle invalid URL
+        case .responseValidationFailed:
+            // Handle validation failure
+        default:
+            // Handle other errors
+        }
+    }
+}
+```
+{% else %}
+## 🌐 URLSession Standards
+
+### 1. Async/Await
+**Rule:** Use async/await for network requests.
+```swift
+func fetchUser(id: String) async throws -> User {
+    let url = URL(string: "https://api.example.com/users/\(id)")!
+    let (data, _) = try await URLSession.shared.data(from: url)
+    return try JSONDecoder().decode(User.self, from: data)
+}
+```
+
+### 2. Error Handling
+**Rule:** Handle network errors gracefully.
+```swift
+do {
+    let user = try await fetchUser(id: "123")
+} catch {
+    // Handle error
+}
+```
+{% endif %}
+
+## 🏗️ Architecture Standards
+
+### 1. MVVM Pattern
+**Rule:** Separate View, ViewModel, and Model.
+```swift
+// Model
+struct User {
+    let id: String
+    let name: String
+}
+
+// ViewModel
+@MainActor
+class UserViewModel: ObservableObject {
+    @Published var users: [User] = []
+    @Published var isLoading = false
+    
+    private let repository: UserRepository
+    
+    init(repository: UserRepository) {
+        self.repository = repository
+    }
+    
+    func loadUsers() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            users = try await repository.getUsers()
+        } catch {
+            // Handle error
+        }
+    }
+}
+
+// View
+struct UserListView: View {
+    @StateObject private var viewModel = UserViewModel(repository: APIRepository())
+    
+    var body: some View {
+        List(viewModel.users) { user in
+            Text(user.name)
+        }
+        .task {
+            await viewModel.loadUsers()
+        }
+    }
+}
+```
+
+### 2. Repository Pattern
+**Rule:** Use repository pattern to abstract data sources.
+```swift
+protocol UserRepository {
+    func getUsers() async throws -> [User]
+    func getUser(id: String) async throws -> User
+}
+
+class APIRepository: UserRepository {
+    private let networkService: NetworkService
+    
+    init(networkService: NetworkService) {
+        self.networkService = networkService
+    }
+    
+    func getUsers() async throws -> [User] {
+        return try await networkService.fetch(endpoint: "/users")
+    }
+}
+```
+
+### 3. Dependency Injection
+**Rule:** Inject dependencies through initializers.
+```swift
+class UserViewModel {
+    private let repository: UserRepository
+    
+    init(repository: UserRepository) {
+        self.repository = repository
+    }
+}
+
+// Usage
+let viewModel = UserViewModel(repository: APIRepository())
+```
+
+## 🔒 Security Standards
+
+### 1. Keychain Storage
+**Rule:** Store sensitive data in Keychain.
+```swift
+import Security
+
+func saveToken(_ token: String) {
+    let data = token.data(using: .utf8)!
+    let query: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrAccount as String: "authToken",
+        kSecValueData as String: data
+    ]
+    SecItemAdd(query as CFDictionary, nil)
+}
+```
+
+### 2. App Transport Security
+**Rule:** Enforce HTTPS in Info.plist.
+```xml
+<key>NSAppTransportSecurity</key>
+<dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <false/>
+</dict>
+```
+
+### 3. Certificate Pinning
+**Rule:** Implement certificate pinning for API calls.
+```swift
+// Use URLSessionDelegate for certificate pinning
+func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+    // Certificate pinning logic
+}
+```
+

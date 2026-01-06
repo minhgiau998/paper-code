@@ -1,0 +1,365 @@
+# Kotlin Android Coding Standards
+
+## 📝 Naming Conventions
+
+- **Packages:** `lowercase` with dots (e.g., `com.yourapp.feature`)
+- **Classes:** `PascalCase` (e.g., `UserRepository`, `LoginActivity`)
+- **Functions/Variables:** `camelCase` (e.g., `getUserData()`, `userName`)
+- **Constants:** `UPPER_SNAKE_CASE` (e.g., `MAX_RETRY_COUNT`)
+- **Files:** Match class name (e.g., `UserRepository.kt`)
+- **Resources:** `snake_case` (e.g., `activity_main.xml`, `ic_user.png`)
+
+## ⚡ Kotlin Best Practices
+
+### 1. Null Safety
+**Rule:** Always use nullable types explicitly and handle nulls safely.
+```kotlin
+// ❌ Bad
+fun processUser(user: User?) {
+    val name = user.name  // Potential NPE
+}
+
+// ✅ Good
+fun processUser(user: User?) {
+    val name = user?.name ?: "Unknown"
+    user?.let { 
+        // Process user
+    }
+}
+```
+
+### 2. Immutability
+**Rule:** Prefer `val` over `var`, immutable collections.
+```kotlin
+// ✅ Good
+val users: List<User> = listOf(user1, user2)
+val map: Map<String, Int> = mapOf("key" to 1)
+
+// ❌ Avoid
+var users = mutableListOf<User>()
+```
+
+### 3. Data Classes
+**Rule:** Use data classes for models/DTOs.
+```kotlin
+// ✅ Good
+data class User(
+    val id: String,
+    val name: String,
+    val email: String
+)
+```
+
+### 4. Extension Functions
+**Rule:** Use extension functions for utility operations.
+```kotlin
+// ✅ Good
+fun String.isValidEmail(): Boolean {
+    return android.util.Patterns.EMAIL_ADDRESS.matcher(this).matches()
+}
+```
+
+{% if libraries | default([]) | select("in", ["Coroutines"]) | list | length > 0 %}
+## 🔄 Coroutines Standards
+
+### 1. Suspend Functions
+**Rule:** Use suspend functions for async operations.
+```kotlin
+// ✅ Good
+suspend fun fetchUser(id: String): User {
+    return withContext(Dispatchers.IO) {
+        apiService.getUser(id)
+    }
+}
+```
+
+### 2. Coroutine Scopes
+**Rule:** Use appropriate coroutine scopes.
+```kotlin
+// ViewModel
+viewModelScope.launch {
+    // Coroutine code
+}
+
+// Activity/Fragment
+lifecycleScope.launch {
+    // Coroutine code
+}
+```
+
+### 3. Flow Usage
+**Rule:** Use Flow for reactive data streams.
+```kotlin
+fun observeUsers(): Flow<List<User>> = flow {
+    emit(repository.getUsers())
+}.flowOn(Dispatchers.IO)
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Jetpack Compose"]) | list | length > 0 %}
+## 🎨 Jetpack Compose Standards
+
+### 1. Composable Functions
+**Rule:** Use `@Composable` annotation and PascalCase naming.
+```kotlin
+@Composable
+fun UserCard(user: User) {
+    Card {
+        Text(text = user.name)
+    }
+}
+```
+
+### 2. State Management
+**Rule:** Use `remember` and `mutableStateOf` for local state.
+```kotlin
+@Composable
+fun Counter() {
+    var count by remember { mutableStateOf(0) }
+    Button(onClick = { count++ }) {
+        Text("Count: $count")
+    }
+}
+```
+
+### 3. Recomposition
+**Rule:** Minimize recomposition by extracting stable parameters.
+```kotlin
+// ✅ Good - stable parameters
+@Composable
+fun UserList(users: List<User>) {
+    LazyColumn {
+        items(users) { user ->
+            UserCard(user = user)
+        }
+    }
+}
+```
+
+### 4. Material 3
+**Rule:** Use Material 3 components and theming.
+```kotlin
+MaterialTheme(
+    colorScheme = darkColorScheme(),
+    typography = Typography,
+    content = content
+)
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Room"]) | list | length > 0 %}
+## 💾 Room Database Standards
+
+### 1. Entity Definition
+**Rule:** Use `@Entity` annotation with proper indices.
+```kotlin
+@Entity(
+    tableName = "users",
+    indices = [Index(value = ["email"], unique = true)]
+)
+data class UserEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val email: String
+)
+```
+
+### 2. DAO Interface
+**Rule:** Use suspend functions for async operations.
+```kotlin
+@Dao
+interface UserDao {
+    @Query("SELECT * FROM users")
+    suspend fun getAllUsers(): List<UserEntity>
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertUser(user: UserEntity)
+}
+```
+
+### 3. Database Class
+**Rule:** Use `@Database` annotation with version and export schema.
+```kotlin
+@Database(
+    entities = [UserEntity::class],
+    version = 1,
+    exportSchema = true
+)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun userDao(): UserDao
+}
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Retrofit"]) | list | length > 0 %}
+## 🌐 Retrofit Standards
+
+### 1. API Interface
+**Rule:** Use suspend functions and proper annotations.
+```kotlin
+interface ApiService {
+    @GET("users/{id}")
+    suspend fun getUser(@Path("id") id: String): UserDto
+    
+    @POST("users")
+    suspend fun createUser(@Body user: UserDto): UserDto
+}
+```
+
+### 2. DTO Classes
+**Rule:** Use data classes with `@SerializedName` for API responses.
+```kotlin
+data class UserDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("email") val email: String
+)
+```
+
+### 3. Error Handling
+**Rule:** Handle network errors gracefully.
+```kotlin
+try {
+    val user = apiService.getUser(id)
+} catch (e: HttpException) {
+    // Handle HTTP error
+} catch (e: IOException) {
+    // Handle network error
+}
+```
+{% endif %}
+
+{% if libraries | default([]) | select("in", ["Hilt"]) | list | length > 0 %}
+## 💉 Hilt Dependency Injection Standards
+
+### 1. Application Class
+**Rule:** Annotate Application class with `@HiltAndroidApp`.
+```kotlin
+@HiltAndroidApp
+class MyApplication : Application()
+```
+
+### 2. Module Definition
+**Rule:** Use `@Module` and `@InstallIn` annotations.
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object AppModule {
+    @Provides
+    @Singleton
+    fun provideApiService(): ApiService {
+        return Retrofit.Builder()
+            .baseUrl("https://api.example.com/")
+            .build()
+            .create(ApiService::class.java)
+    }
+}
+```
+
+### 3. Injection
+**Rule:** Use `@Inject` for constructor injection.
+```kotlin
+class UserRepository @Inject constructor(
+    private val apiService: ApiService,
+    private val userDao: UserDao
+) {
+    // Repository implementation
+}
+```
+{% endif %}
+
+## 🏗️ Architecture Standards
+
+### 1. Repository Pattern
+**Rule:** Use repository pattern to abstract data sources.
+```kotlin
+interface UserRepository {
+    suspend fun getUser(id: String): Result<User>
+}
+
+class UserRepositoryImpl @Inject constructor(
+    private val apiService: ApiService,
+    private val userDao: UserDao
+) : UserRepository {
+    override suspend fun getUser(id: String): Result<User> {
+        return try {
+            val user = apiService.getUser(id)
+            userDao.insertUser(user.toEntity())
+            Result.success(user.toDomain())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+```
+
+### 2. Use Cases
+**Rule:** Create use cases for business logic.
+```kotlin
+class GetUserUseCase @Inject constructor(
+    private val repository: UserRepository
+) {
+    suspend operator fun invoke(id: String): Result<User> {
+        return repository.getUser(id)
+    }
+}
+```
+
+### 3. ViewModel
+**Rule:** Use ViewModel for UI-related data.
+```kotlin
+@HiltViewModel
+class UserViewModel @Inject constructor(
+    private val getUserUseCase: GetUserUseCase
+) : ViewModel() {
+    private val _uiState = MutableStateFlow<UserUiState>(UserUiState.Loading)
+    val uiState: StateFlow<UserUiState> = _uiState.asStateFlow()
+    
+    fun loadUser(id: String) {
+        viewModelScope.launch {
+            getUserUseCase(id).fold(
+                onSuccess = { user ->
+                    _uiState.value = UserUiState.Success(user)
+                },
+                onFailure = { error ->
+                    _uiState.value = UserUiState.Error(error.message)
+                }
+            )
+        }
+    }
+}
+```
+
+## 🔒 Security Standards
+
+### 1. ProGuard Rules
+**Rule:** Keep necessary classes for reflection.
+```proguard
+-keep class com.yourapp.data.dto.** { *; }
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+```
+
+### 2. Network Security
+**Rule:** Enforce HTTPS in network security config.
+```xml
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>
+```
+
+### 3. Sensitive Data
+**Rule:** Use EncryptedSharedPreferences for sensitive data.
+```kotlin
+val encryptedPrefs = EncryptedSharedPreferences.create(
+    context,
+    "prefs",
+    MasterKey.Builder(context)
+        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+        .build(),
+    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+)
+```
+

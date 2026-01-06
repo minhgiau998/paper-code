@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-06
+
+### 🎨 Rich UI & Branding
+- **Terminal Aesthetics:** Fully integrated `Rich` library for beautiful banners, gradient text, and styled panels.
+- **Interactive Feedback:** Added spinners, progress indicators, and colored success messages for a more premium CLI feel.
+- **Dynamic Dividers:** Improved CLI layout with clear section dividers and formatted banners.
+
+### 🔍 Smart Project Context Detection
+- **Auto-Detection Engine:** Added `detector.py` to automatically identify project types and tech stacks from files like `package.json`, `requirements.txt`, `go.mod`, and `Cargo.toml`.
+- **Pre-filled Prompts:** The interactive wizard now suggests the most likely project configuration, reducing setup time.
+- **Deep Dependency Analysis:** Analyzes dependencies to automatically suggest documentation for specific libraries (e.g., detecting `Prisma` in `package.json`).
+
+### 📂 Expanded Template Ecosystem (Phase 2)
+- **DevOps Stacks:** New documentation templates for Docker (Compose, Multi-stage), Kubernetes (Helm, Kustomize), and Terraform (AWS/Azure/GCP providers).
+- **Mobile Native:** Added specialized coding standards and architecture guides for Kotlin (Android) and Swift (iOS).
+- **Batch Mode Refinement:** Improved reliability of non-interactive document generation via `paper.config.json`.
+
+### ⚙️ Engine Robustness
+- **Modular Detection:** Separated detection logic from the main generator for better maintainability.
+- **Enhanced Path Handling:** Improved robust path resolution for across different operating systems.
+
 ## [0.2.0] - 2026-01-05
 
 ### 🔧 Template Improvements & Robustness

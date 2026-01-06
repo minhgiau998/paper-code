@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paper-code"
-version = "0.2.0"
+version = "0.3.0"
 description = "Interactive Project Documentation Generator for AI-Native Development"
 readme = "README.md"
 authors = [
