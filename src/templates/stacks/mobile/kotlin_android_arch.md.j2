@@ -25,7 +25,7 @@ app/
 │   │   │   │   ├── usecase/       # Use cases (business logic)
 │   │   │   │   └── repository/    # Repository interfaces
 │   │   │   ├── presentation/      # Presentation Layer
-{% if libraries | default([]) | select("in", ["Jetpack Compose"]) | list | length > 0 %}
+{% if "Jetpack Compose" in libraries %}
 │   │   │   │   ├── ui/            # Compose UI
 │   │   │   │   │   ├── theme/     # Material Theme
 │   │   │   │   │   ├── components/# Reusable composables
@@ -57,7 +57,7 @@ app/
 - **Presentation Layer:** UI and ViewModels
 
 ### 2. Dependency Injection
-{% if libraries | default([]) | select("in", ["Hilt"]) | list | length > 0 %}
+{% if "Hilt" in libraries %}
 - **Hilt:** We use **Hilt** for dependency injection.
 - **Modules:** Define `@Module` and `@InstallIn` for DI setup.
 - **Scopes:** Use `@Singleton`, `@ActivityScoped`, `@ViewModelScoped`.
@@ -66,7 +66,7 @@ app/
 {% endif %}
 
 ### 3. UI Framework
-{% if libraries | default([]) | select("in", ["Jetpack Compose"]) | list | length > 0 %}
+{% if "Jetpack Compose" in libraries %}
 - **Jetpack Compose:** Modern declarative UI toolkit.
 - **Material 3:** Use Material Design 3 components.
 - **State Management:** Use `remember` and `mutableStateOf` for state.
@@ -76,7 +76,7 @@ app/
 {% endif %}
 
 ### 4. Data Persistence
-{% if libraries | default([]) | select("in", ["Room"]) | list | length > 0 %}
+{% if "Room" in libraries %}
 - **Room Database:** SQLite abstraction layer.
 - **Entities:** Define `@Entity` classes for database tables.
 - **DAO:** Data Access Objects for database operations.
@@ -84,14 +84,14 @@ app/
 {% endif %}
 
 ### 5. Networking
-{% if libraries | default([]) | select("in", ["Retrofit"]) | list | length > 0 %}
+{% if "Retrofit" in libraries %}
 - **Retrofit:** Type-safe HTTP client.
 - **Interceptors:** Use OkHttp interceptors for logging/auth.
 - **Coroutines:** Use suspend functions for async operations.
 {% endif %}
 
 ### 6. Concurrency
-{% if libraries | default([]) | select("in", ["Coroutines"]) | list | length > 0 %}
+{% if "Coroutines" in libraries %}
 - **Kotlin Coroutines:** For asynchronous operations.
 - **Flow:** For reactive data streams.
 - **Dispatchers:** Use appropriate dispatchers (IO, Main, Default).

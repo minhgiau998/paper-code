@@ -554,7 +554,7 @@ export const User = mongoose.model<IUser>('User', userSchema);
 
 ## 🧪 Testing Strategy
 
-{% if libraries | default([]) | select("in", ["Jest"]) | list | length > 0 %}
+{% if "Jest" in libraries %}
 Fastify provides excellent testing utilities:
 
 ```typescript

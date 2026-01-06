@@ -740,7 +740,7 @@ export class TransactionService {
 
 ## 🧪 Testing Strategy
 
-{% if libraries | default([]) | select("in", ["Jest"]) | list | length > 0 %}
+{% if "Jest" in libraries %}
 Testing TypeORM entities and repositories:
 
 ```typescript

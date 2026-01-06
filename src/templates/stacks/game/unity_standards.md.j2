@@ -64,7 +64,7 @@ yield return _wait;
 **Rule:** Avoid LINQ (`.Where()`, `.Select()`) in hot paths (Update loop).
 - LINQ creates garbage on iOS/Android (AOT platforms). Use `for` loops for runtime performance.
 
-{% if libraries | default([]) | select("in", ["Input System"]) | list | length > 0 %}
+{% if "Input System" in libraries %}
 ### 3. Input Handling
 **Rule:** Event-Driven over Polling.
 - **Bad:** `if (Input.GetKeyDown(...))` in Update.

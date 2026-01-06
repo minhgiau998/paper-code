@@ -2,7 +2,7 @@
 
 Use these workflows to ensure consistency when modifying the codebase.
 
-{% if tech_stack | default("") and ("React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack) %}
+{% if "React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack %}
 ## 1. Creating a New UI Component
 1. Create the component file in `components/<Category>/<ComponentName>.(tsx|vue)`.
 2. Define the Props Interface (if TS).
@@ -12,7 +12,7 @@ Use these workflows to ensure consistency when modifying the codebase.
 6. Export the component in `components/index.ts` (if applicable).
 {% endif %}
 
-{% if tech_stack | default("") and ("FastAPI" in tech_stack or "Django" in tech_stack) %}
+{% if "FastAPI" in tech_stack or "Django" in tech_stack %}
 ## 1. Adding a New API Endpoint
 1. Define the **Pydantic Schema** (Request/Response) in `schemas/`.
 2. Create the **CRUD logic** in `crud/` or `services/`.

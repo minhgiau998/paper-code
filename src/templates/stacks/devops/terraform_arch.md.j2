@@ -13,13 +13,13 @@ terraform/
 ├── outputs.tf              # Output values
 ├── terraform.tfvars        # Variable values (gitignored)
 ├── terraform.tfvars.example # Example variable file
-{% if libraries | default([]) | select("in", ["Modules"]) | list | length > 0 %}
+{% if "Modules" in libraries %}
 ├── modules/                # Reusable modules
 │   ├── vpc/
 │   ├── ec2/
 │   └── rds/
 {% endif %}
-{% if libraries | default([]) | select("in", ["AWS Provider"]) | list | length > 0 %}
+{% if "AWS Provider" in libraries %}
 ├── environments/          # Environment-specific configs
 │   ├── dev/
 │   │   ├── main.tf
@@ -27,7 +27,7 @@ terraform/
 │   ├── staging/
 │   └── prod/
 {% endif %}
-{% if libraries | default([]) | select("in", ["Terraform Cloud"]) | list | length > 0 %}
+{% if "Terraform Cloud" in libraries %}
 ├── .terraform.lock.hcl     # Provider lock file
 └── .terraform/             # Provider plugins (gitignored)
 {% endif %}
@@ -41,7 +41,7 @@ terraform/
 - **State Locking:** Prevent concurrent modifications (DynamoDB for S3 backend)
 
 ### 2. Provider Configuration
-{% if libraries | default([]) | select("in", ["AWS Provider"]) | list | length > 0 %}
+{% if "AWS Provider" in libraries %}
 #### AWS Provider
 ```hcl
 terraform {
@@ -58,7 +58,7 @@ provider "aws" {
 }
 ```
 {% endif %}
-{% if libraries | default([]) | select("in", ["Azure Provider"]) | list | length > 0 %}
+{% if "Azure Provider" in libraries %}
 #### Azure Provider
 ```hcl
 provider "azurerm" {
@@ -66,7 +66,7 @@ provider "azurerm" {
 }
 ```
 {% endif %}
-{% if libraries | default([]) | select("in", ["GCP Provider"]) | list | length > 0 %}
+{% if "GCP Provider" in libraries %}
 #### GCP Provider
 ```hcl
 provider "google" {
@@ -76,7 +76,7 @@ provider "google" {
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Modules"]) | list | length > 0 %}
+{% if "Modules" in libraries %}
 ### 3. Module Architecture
 - **Root Module:** Main entry point
 - **Child Modules:** Reusable components (VPC, EC2, RDS)
@@ -92,7 +92,7 @@ modules/vpc/
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Terraform Cloud"]) | list | length > 0 %}
+{% if "Terraform Cloud" in libraries %}
 ### 4. Terraform Cloud Integration
 - **Remote Execution:** Run Terraform in cloud
 - **State Management:** Centralized state storage

@@ -45,24 +45,24 @@ return switch (state) {
 
 ### 4. API & Serialization
 
-{% if libraries | default([]) | select("in", ["Dio"]) | list | length > 0 %}
+{% if "Dio" in libraries %}
 - **Dio:** Use a singleton Dio instance with Interceptors for Logging and Auth Token injection.
 - **JSON:** Do not write manual `toJson`/`fromJson`.
 {% endif %}
-{% if libraries | default([]) | select("in", ["Freezed", "JsonSerializable"]) | list | length > 0 %}
+{% if "Freezed" in libraries or "JsonSerializable" in libraries %}
 - Use `json_serializable` and/or `freezed`.
 - Command: `dart run build_runner build -d`
 {% endif %}
 
 ## 🛡️ State Management Guidelines
 
-{% if libraries | default([]) | select("in", ["Riverpod"]) | list | length > 0 %}
+{% if "Riverpod" in libraries %}
 ### Riverpod Specifics
 - **Generator:** Prefer the `@riverpod` annotation syntax. It handles `autoDispose` and `family` parameters better than manual providers.
 - **Ref:** Do not pass `ref` to functions. Keep logic inside the Notifier.
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Bloc"]) | list | length > 0 %}
+{% if "Bloc" in libraries %}
 ### BLoC Specifics
 - **One Event, One State Change:** Don't emit multiple states for a single event if possible.
 - **Transformers:** Use `event_transformer` (droppable, restartable) for limiting frequent events (like search inputs).

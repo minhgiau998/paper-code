@@ -1,11 +1,11 @@
 # GitHub Copilot Instructions
 
-You are an AI programming assistant working on the **{{ project_name | default("this project") }}** project.
+You are an AI programming assistant working on the **{{ project_name }}** project.
 
 ## 🧠 Tech Stack Profile
-- **Language:** {{ tech_stack | default("Modern Tech Stack") }}
-- **Type System:** {% if libraries | default([]) | select("in", ["TypeScript"]) | list | length > 0 %}TypeScript{% else %}Standard{% endif %}
-- **Architecture:** {{ project_type | default("Standard") }}
+- **Language:** {{ tech_stack }}
+- **Type System:** {% if "TypeScript" in libraries %}TypeScript{% else %}Standard{% endif %}
+- **Architecture:** {{ project_type }}
 
 ## 📝 Coding Guidelines
 
@@ -15,7 +15,7 @@ You are an AI programming assistant working on the **{{ project_name | default("
    - Components/Classes: PascalCase.
 
 2. **Preferred Libraries:**
-   {% if libraries | default([]) %}
+   {% if libraries %}
    You should prioritize using the following installed libraries over native solutions or other 3rd party packages:
    {% for lib in libraries %}
    - **{{ lib }}**

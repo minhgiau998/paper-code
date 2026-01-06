@@ -40,18 +40,18 @@ Code is grouped by **what it does** (Auth, Profile, Feed), not **what it is** (C
 - **Rule:** A feature should be self-contained. `features/auth` contains its own data, domain, and presentation layers.
 
 ### 2. State Management
-{% if libraries | default([]) | select("in", ["Bloc"]) | list | length > 0 %}
+{% if "Bloc" in libraries %}
 **BLoC Pattern:**
 - We use `flutter_bloc`.
 - **Events:** Defined as `sealed` classes (Dart 3) for exhaustive pattern matching.
 - **States:** Immutable classes (using Equatable or Freezed).
 - **Injection:** Provided via `MultiBlocProvider` or scoped `BlocProvider`.
-{% elif libraries | default([]) | select("in", ["Riverpod"]) | list | length > 0 %}
+{% elif "Riverpod" in libraries %}
 **Riverpod (v2+):**
 - We use `flutter_riverpod` with `riverpod_generator`.
 - **Notifier:** Use `class MyNotifier extends _$MyNotifier` instead of `StateNotifier`.
 - **Providers:** All providers are global but their state is scoped and auto-disposed.
-{% elif libraries | default([]) | select("in", ["GetX"]) | list | length > 0 %}
+{% elif "GetX" in libraries %}
 **GetX:**
 - **Controllers:** Extend `GetxController`.
 - **Bindings:** Use Bindings to inject dependencies lazily.
@@ -62,7 +62,7 @@ Code is grouped by **what it does** (Auth, Profile, Feed), not **what it is** (C
 {% endif %}
 
 ### 3. Navigation
-{% if libraries | default([]) | select("in", ["GetX"]) | list | length > 0 %}
+{% if "GetX" in libraries %}
 - We use **GetX Navigation** (`Get.toNamed`).
 {% else %}
 - We use **GoRouter** (`go_router`) for declarative routing.
@@ -72,7 +72,7 @@ Code is grouped by **what it does** (Auth, Profile, Feed), not **what it is** (C
 ### 4. Data Layer
 - **Repository Pattern:** The Presentation layer never talks to the API directly. It talks to a Repository Interface.
 - **DTOs:** Data Transfer Objects (in `data/models`) parse JSON. Entities (in `domain/entities`) are used in the UI.
-{% if libraries | default([]) | select("in", ["Freezed"]) | list | length > 0 %}
+{% if "Freezed" in libraries %}
 - **Immutability:** Use **Freezed** for generating `copyWith`, `toString`, and equality operators for Models/States.
 {% endif %}
 

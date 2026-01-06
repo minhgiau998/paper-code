@@ -1,4 +1,4 @@
-# Contributing to {{ project_name | default("this project") }}
+# Contributing to {{ project_name }}
 
 Thank you for your interest in contributing! We welcome contributions from everyone.
 
@@ -27,7 +27,6 @@ See **[docs/TESTING.md](TESTING.md)** for instructions on how to run the test su
 ## 📝 Commit Messages
 
 We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
-
 **Format:** `<type>(<scope>): <subject>`
 
 **Types:**
@@ -69,13 +68,13 @@ We follow the [Conventional Commits](https://www.conventionalcommits.org/) speci
 ## 🏗️ Local Development Setup
 
 ### Prerequisites
-{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack or "Next" in tech_stack) %}
+{% if "Node" in tech_stack or "React" in tech_stack or "Next" in tech_stack %}
 - Node.js (LTS version)
 - npm or yarn
-{% elif tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack) %}
+{% elif "Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack %}
 - Python 3.8+
 - pip or poetry
-{% elif tech_stack | default("") and "Go" in tech_stack %}
+{% elif "Go" in tech_stack %}
 - Go 1.20+
 {% endif %}
 

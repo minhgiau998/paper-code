@@ -4,7 +4,7 @@
 
 ## 📦 Installation & Setup
 
-{% if tech_stack | default("") and "React Native" in tech_stack %}
+{% if "React Native" in tech_stack %}
 ### Mobile Setup (NativeWind)
 
 We use **NativeWind**, which allows using Tailwind classes in React Native.
@@ -31,7 +31,7 @@ We use **NativeWind**, which allows using Tailwind classes in React Native.
     };
     ```
 
-{% elif tech_stack | default("") and "Nuxt" in tech_stack %}
+{% elif "Nuxt" in tech_stack %}
 ### Nuxt Module Setup
 
 We use the official **Nuxt Module**.
@@ -58,7 +58,7 @@ We use the official **Nuxt Module**.
     ```
     *(Note: The `-p` flag creates a `postcss.config.js` automatically).*
 
-{% if tech_stack | default("") and "Angular" in tech_stack %}
+{% if "Angular" in tech_stack %}
 > **Angular Note:** If you are using Angular v16+, you might strictly need the build steps defined in your `angular.json` or use the `@ngneat/tailwind` schematic.
 {% endif %}
 {% endif %}
@@ -72,7 +72,7 @@ Ensure your `content` array matches your framework's file structure to enable Tr
 module.exports = {
   content: [
     // ⬇️ Context-Aware Content Paths
-{% if tech_stack | default("") and "Next.js" in tech_stack %}
+{% if "Next.js" in tech_stack %}
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
 {% elif "Vue" in tech_stack or "Nuxt" in tech_stack %}
@@ -134,7 +134,7 @@ export function cn(...inputs: ClassValue[]) {
 ### 1. Component Usage
 Always use the `cn` utility when allowing external classes via props.
 
-{% if tech_stack | default("") and ("React" in tech_stack or "Next.js" in tech_stack) %}
+{% if "React" in tech_stack or "Next.js" in tech_stack %}
 ```tsx
 import { cn } from "@/lib/utils";
 

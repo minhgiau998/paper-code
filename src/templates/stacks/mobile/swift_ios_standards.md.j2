@@ -62,7 +62,7 @@ class APIRepository: UserRepository {
 }
 ```
 
-{% if libraries | default([]) | select("in", ["SwiftUI"]) | list | length > 0 %}
+{% if "SwiftUI" in libraries %}
 ## 🎨 SwiftUI Standards
 
 ### 1. View Structure
@@ -135,7 +135,7 @@ NavigationStack {
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Combine"]) | list | length > 0 %}
+{% if "Combine" in libraries %}
 ## 🔄 Combine Standards
 
 ### 1. Publishers
@@ -179,7 +179,7 @@ $searchText
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Core Data"]) | list | length > 0 %}
+{% if "Core Data" in libraries %}
 ## 💾 Core Data Standards
 
 ### 1. NSManagedObjectContext
@@ -211,7 +211,7 @@ try context.save()
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Alamofire"]) | list | length > 0 %}
+{% if "Alamofire" in libraries %}
 ## 🌐 Alamofire Standards
 
 ### 1. Request Structure

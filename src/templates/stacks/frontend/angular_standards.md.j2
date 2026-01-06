@@ -85,7 +85,7 @@ constructor() {
 ### 2. Interceptors
 - Use **Functional Interceptors** defined in `app.config.ts`. Do not use class-based interceptors (`HTTP_INTERCEPTORS` token).
 
-{% if libraries | default([]) | select("in", ["RxJS"]) | list | length > 0 or (tech_stack | default("") and "Angular" in tech_stack) %}
+{% if "RxJS" in libraries or "Angular" in tech_stack %}
 ### 3. RxJS Best Practices
 - Avoid nested subscriptions. Use **High-order Mapping Operators** (`switchMap`, `concatMap`, `mergeMap`).
 - Use `catchError` to handle errors in streams; do not let the stream die silently.

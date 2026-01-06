@@ -19,7 +19,7 @@ npx prisma init
 **Critical Strategy:** PrismaClient must be instantiated as a **Singleton**.
 Creating multiple instances (e.g., importing `new PrismaClient()` in every file) will exhaust the database connection pool, especially in Serverless (Next.js) or during Hot Module Replacement.
 
-{% if tech_stack | default("") and "NestJS" in tech_stack %}
+{% if "NestJS" in tech_stack %}
 ### NestJS Setup (`PrismaService`)
 
 In NestJS, we wrap the client in an Injectable Service.
@@ -40,7 +40,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
 
 **Usage:** Inject `PrismaService` into your Modules/Services via constructor.
 
-{% elif tech_stack | default("") and "Next.js" in tech_stack %}
+{% elif "Next.js" in tech_stack %}
 ### Next.js / Serverless Setup
 
 We use a global variable to preserve the connection across hot-reloads.

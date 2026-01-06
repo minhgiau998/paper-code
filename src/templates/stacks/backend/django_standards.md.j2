@@ -47,7 +47,7 @@ async def my_view(request):
 
 ## 🛡️ Framework Specifics
 
-{% if libraries | default([]) | select("in", ["Django REST Framework"]) | list | length > 0 %}
+{% if "Django REST Framework" in libraries %}
 ### Django REST Framework (DRF)
 1. **Thick Serializers:** Put validation logic (field-level and object-level) inside Serializers (`validate_<field>`, `validate`).
 2. **Thin Views:** Views should simply delegate to Services or Serializers.

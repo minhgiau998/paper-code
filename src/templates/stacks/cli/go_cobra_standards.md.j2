@@ -56,7 +56,7 @@ var rootCmd = &cobra.Command{
 
 ## 💾 Configuration & Flags
 
-{% if libraries | default([]) | select("in", ["Viper"]) | list | length > 0 %}
+{% if "Viper" in libraries %}
 ### Viper Binding
 **Rule:** Handle errors when binding flags.
 ```go

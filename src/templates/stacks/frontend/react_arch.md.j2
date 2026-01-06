@@ -3,7 +3,7 @@
 ## 🏗️ High-Level Overview
 
 This project is built as a **Single Page Application (SPA)** using React.
-{% if libraries | default([]) | select("in", ["TypeScript", "TypeScript Lib"]) | list | length > 0 %}
+{% if "TypeScript" in libraries or "TypeScript Lib" in libraries %}
 It utilizes **TypeScript** for type safety and scalability.
 {% endif %}
 
@@ -55,7 +55,7 @@ src/
 │   ├── axios.ts         # Axios instance setup
 │   └── utils.ts         # Global utility functions
 ├── context/             # React Context definitions (Global State)
-{% if libraries | default([]) | select("in", ["Redux Toolkit"]) | list | length > 0 %}
+{% if "Redux Toolkit" in libraries %}
 ├── store/               # Redux Store configuration
 {% endif %}
 ├── types/               # Global type definitions
@@ -76,14 +76,14 @@ We favor composition over inheritance.
 - Use **Layout Components** to manage page structures.
 
 ### 3. State Management Strategy
-{% if libraries | default([]) | select("in", ["Redux Toolkit"]) | list | length > 0 %}
+{% if "Redux Toolkit" in libraries %}
 - **Global Server State:** Managed by **Redux Toolkit (RTK Query)** or separate query library.
 - **Global UI State:** Managed by **Redux Slices**.
 - **Local State:** `useState` or `useReducer` for form inputs/toggles.
-{% elif libraries | default([]) | select("in", ["Zustand"]) | list | length > 0 %}
+{% elif "Zustand" in libraries %}
 - **Global State:** Managed by **Zustand** stores. Keep stores small and focused.
 - **Local State:** `useState`.
-{% elif libraries | default([]) | select("in", ["TanStack Query"]) | list | length > 0 %}
+{% elif "TanStack Query" in libraries %}
 - **Server State:** Strictly managed by **TanStack Query**. Do not store API data in global context manually.
 - **Client State:** React Context or `useState`.
 {% else %}
@@ -92,7 +92,7 @@ We favor composition over inheritance.
 {% endif %}
 
 ### 4. Data Fetching
-{% if libraries | default([]) | select("in", ["Axios"]) | list | length > 0 %}
+{% if "Axios" in libraries %}
 - All API calls are abstracted in `src/lib/axios.ts` or feature-specific `api/` folders.
 - Components never call `fetch` or `axios` directly; they call a Hook or Service function.
 {% else %}

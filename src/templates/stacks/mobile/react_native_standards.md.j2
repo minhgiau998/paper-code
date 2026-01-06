@@ -17,7 +17,7 @@
 
 ### 2. Image Optimization
 **Rule:** Avoid using the default `<Image>` for remote images if caching is required.
-{% if libraries | default([]) | select("in", ["Expo"]) | list | length > 0 %}
+{% if "Expo" in libraries %}
 - Use **expo-image** for high-performance caching and blurhash support.
 {% else %}
 - Use **react-native-fast-image** (if available).
@@ -34,7 +34,7 @@
 ```
 
 ### 4. Reanimated 3+
-{% if libraries | default([]) | select("in", ["Reanimated"]) | list | length > 0 %}
+{% if "Reanimated" in libraries %}
 **Rule:** Use `react-native-reanimated` for all animations.
 - Avoid `Animated` API from React Native core for complex animations (it runs on the JS thread).
 - Use `useSharedValue` and `useAnimatedStyle` to offload work to the UI Thread.

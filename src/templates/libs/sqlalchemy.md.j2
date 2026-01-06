@@ -880,7 +880,7 @@ class UserService:
 
 ## 🧪 Testing Strategy
 
-{% if libraries | default([]) | select("in", ["Pytest"]) | list | length > 0 %}
+{% if "Pytest" in libraries %}
 Testing SQLAlchemy models and repositories:
 
 ```python

@@ -2,10 +2,10 @@
 
 ## 🏗️ High-Level Overview
 
-This project is built using **React Native**{% if libraries | default([]) | select("in", ["Expo"]) | list | length > 0 %} (via **Expo SDK**){% endif %}.
+This project is built using **React Native**{% if "Expo" in libraries %} (via **Expo SDK**){% endif %}.
 It follows a **Feature-based Architecture** to ensure scalability and separation of concerns.
 
-{% if libraries | default([]) | select("in", ["Expo"]) | list | length > 0 %}
+{% if "Expo" in libraries %}
 **Workflow:** Managed Workflow (CNG - Continuous Native Generation).
 **Updates:** EAS Update compatible.
 {% else %}
@@ -45,7 +45,7 @@ src/ (or app/)
 ## 🧩 Key Architectural Patterns
 
 ### 1. Navigation Strategy
-{% if libraries | default([]) | select("in", ["Expo Router"]) | list | length > 0 %}
+{% if "Expo Router" in libraries %}
 - **File-system Routing:** We use **Expo Router**.
 - **Location:** Routes are defined in the `app/` directory.
 - **Layouts:** Use `_layout.tsx` for defining stacks/tabs.
@@ -56,10 +56,10 @@ src/ (or app/)
 {% endif %}
 
 ### 2. Styling System
-{% if libraries | default([]) | select("in", ["NativeWind", "TailwindCSS"]) | list | length > 0 %}
+{% if "NativeWind" in libraries or "TailwindCSS" in libraries %}
 - **NativeWind:** We use Tailwind CSS classes via NativeWind.
 - **Rule:** Use `className` property. Avoid `StyleSheet.create` unless you need dynamic values that NativeWind cannot handle.
-{% elif libraries | default([]) | select("in", ["Tamagui"]) | list | length > 0 %}
+{% elif "Tamagui" in libraries %}
 - **Tamagui:** Use the Tamagui compiler for performance. Use `Stack`, `Text`, `YStack` primitives.
 {% else %}
 - **StyleSheet:** We use the standard `StyleSheet.create`.
@@ -67,10 +67,10 @@ src/ (or app/)
 {% endif %}
 
 ### 3. State Management
-{% if libraries | default([]) | select("in", ["Redux Toolkit"]) | list | length > 0 %}
+{% if "Redux Toolkit" in libraries %}
 - **Global:** Redux Toolkit.
 - **Async:** RTK Query for data fetching.
-{% elif libraries | default([]) | select("in", ["Zustand"]) | list | length > 0 %}
+{% elif "Zustand" in libraries %}
 - **Global:** Zustand stores (split by feature).
 {% else %}
 - **Local:** `useState` / `useReducer`.
@@ -78,7 +78,7 @@ src/ (or app/)
 {% endif %}
 
 ### 4. Data Persistence
-{% if libraries | default([]) | select("in", ["MMKV"]) | list | length > 0 %}
+{% if "MMKV" in libraries %}
 - **Storage:** Use **react-native-mmkv** for synchronous, high-performance storage.
 - **AsyncStorage:** Deprecated/Avoid (too slow).
 {% else %}

@@ -88,7 +88,7 @@ bootstrap();
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-{% if libraries | default([]) | select("in", ["TypeORM"]) | list | length > 0 %}
+{% if "TypeORM" in libraries %}
 import { TypeOrmModule } from '@nestjs/typeorm';
 {% endif %}
 import { UsersModule } from './users/users.module';
@@ -99,10 +99,10 @@ import { AuthModule } from './auth/auth.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    {% if libraries | default([]) | select("in", ["Mongoose"]) | list | length > 0 %}
+    {% if "Mongoose" in libraries %}
     MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/nest'),
     {% endif %}
-    {% if libraries | default([]) | select("in", ["TypeORM"]) | list | length > 0 %}
+    {% if "TypeORM" in libraries %}
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DB_HOST || 'localhost',
@@ -448,7 +448,7 @@ export class UsersService {
 
 ## 🧪 Testing Strategy
 
-{% if libraries | default([]) | select("in", ["Jest"]) | list | length > 0 %}
+{% if "Jest" in libraries %}
 NestJS comes with Jest testing utilities:
 
 ```typescript

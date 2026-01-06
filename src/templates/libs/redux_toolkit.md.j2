@@ -50,7 +50,7 @@ export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
 
 ## 🛠️ Integration Provider
 
-{% if tech_stack | default("") and "Next.js" in tech_stack %}
+{% if "Next.js" in tech_stack %}
 ### Next.js (App Router) Setup
 
 Since Next.js App Router uses Server Components by default, we must create a **Client Component** wrapper for the Provider.

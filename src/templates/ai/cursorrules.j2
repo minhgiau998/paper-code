@@ -1,38 +1,38 @@
 # .cursorrules
 
 # ROLE
-You are an expert developer in **{{ tech_stack | default("Modern Tech Stack") }}**.
+You are an expert developer in **{{ tech_stack }}**.
 
 # PROJECT CONTEXT
-Description: {{ description | default("A robust project using modern technologies.") }}
-Project Type: {{ project_type | default("Standard") }}
+Description: {{ description }}
+Project Type: {{ project_type }}
 
 # CRITICAL RULES (Must Follow)
 1. **NO PLACEHOLDERS**: Always write the full code. Never use "// ... rest of code".
 2. **FOLLOW STANDARDS**: Read `docs/CODE_STANDARDS.md` and `docs/ai/AI_RULES.md` before answering complex queries.
 3. **TECH STACK**:
-   - Primary: {{ tech_stack | default("Modern Tech Stack") }}
-   {% if libraries | default([]) %}
+   - Primary: {{ tech_stack }}
+   {% if libraries %}
    - Libraries: {{ libraries | join(", ") }}
    {% endif %}
 
 # CODING STYLE
-{% if libraries | default([]) | select("in", ["TypeScript"]) | list | length > 0 or (tech_stack | default("") and "Next.js" in tech_stack) %}
+{% if "TypeScript" in libraries or "Next.js" in tech_stack %}
 - Use strict **TypeScript**.
 - Prefer Functional Components.
 - Use `const` over `let`.
-{% elif tech_stack | default("") and "Python" in tech_stack %}
+{% elif "Python" in tech_stack %}
 - Use **Snake_case** for variables/functions.
 - Use **Type Hints**.
 - Use list comprehensions where readable.
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["TailwindCSS"]) | list | length > 0 %}
+{% if "TailwindCSS" in libraries %}
 # STYLING
 - Use **Tailwind CSS** classes.
 - Do not create custom CSS unless utility classes fail.
 {% endif %}
 
 # COMMANDS
-- Run Tests: `{% if tech_stack | default("") and "Python" in tech_stack %}pytest{% else %}npm test{% endif %}`
-- Start Dev: `{% if tech_stack | default("") and "Python" in tech_stack %}uvicorn main:app --reload{% else %}npm run dev{% endif %}`
+- Run Tests: `{% if "Python" in tech_stack %}pytest{% else %}npm test{% endif %}`
+- Start Dev: `{% if "Python" in tech_stack %}uvicorn main:app --reload{% else %}npm run dev{% endif %}`

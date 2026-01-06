@@ -63,7 +63,7 @@ RUN addgroup -g 1001 -S nodejs && \
 USER nodejs
 ```
 
-{% if libraries | default([]) | select("in", ["Multi-stage Builds"]) | list | length > 0 %}
+{% if "Multi-stage Builds" in libraries %}
 ### 6. Multi-stage Builds
 **Rule:** Use multi-stage builds for production images.
 ```dockerfile
@@ -82,7 +82,7 @@ CMD ["node", "index.js"]
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Docker Compose"]) | list | length > 0 %}
+{% if "Docker Compose" in libraries %}
 ## 🎼 Docker Compose Standards
 
 ### 1. Service Naming
@@ -135,7 +135,7 @@ services:
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Health Checks"]) | list | length > 0 %}
+{% if "Health Checks" in libraries %}
 ## 🏥 Health Check Standards
 
 ### 1. Implement Health Endpoints

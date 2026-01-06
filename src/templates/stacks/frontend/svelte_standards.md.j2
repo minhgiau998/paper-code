@@ -64,7 +64,7 @@
 - Return `fail(400, { missing: true })` for validation errors.
 - Return `{ success: true }` for success.
 
-{% if libraries | default([]) | select("in", ["Zod"]) | list | length > 0 %}
+{% if "Zod" in libraries %}
 ### 3. Validation
 **Rule:** Use **Zod** (or generic validator) inside Form Actions.
 ```typescript
@@ -88,7 +88,7 @@ export const actions = {
 
 ## 🧪 Testing
 
-{% if libraries | default([]) | select("in", ["Vitest"]) | list | length > 0 %}
+{% if "Vitest" in libraries %}
 - **Logic:** Use **Vitest** for unit testing `$state` logic in `.ts` files.
 - **Components:** Use **@testing-library/svelte** (compatible with Svelte 5).
 {% else %}

@@ -55,7 +55,7 @@ output "vpc_id" {
 }
 ```
 
-{% if libraries | default([]) | select("in", ["Modules"]) | list | length > 0 %}
+{% if "Modules" in libraries %}
 ## 📦 Module Standards
 
 ### 1. Module Structure
@@ -203,7 +203,7 @@ locals {
 }
 ```
 
-{% if libraries | default([]) | select("in", ["AWS Provider"]) | list | length > 0 %}
+{% if "AWS Provider" in libraries %}
 ## ☁️ AWS-Specific Standards
 
 ### 1. Provider Version
@@ -234,7 +234,7 @@ provider "aws" {
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Terraform Cloud"]) | list | length > 0 %}
+{% if "Terraform Cloud" in libraries %}
 ## 🌐 Terraform Cloud Standards
 
 ### 1. Workspace Configuration

@@ -17,15 +17,14 @@ We use (GitHub Actions / GitLab CI) to automate deployment.
 3. If successful, the artifact is built (Docker image / Static assets).
 4. The artifact is deployed to the target provider.
 
-### Specific Instructions for {{ tech_stack | default("the selected technology") }}
+### Specific Instructions for {{ tech_stack }}
 
-{% if tech_stack | default("") and ("Next.js" in tech_stack or "React" in tech_stack) %}
+{% if "Next.js" in tech_stack or "React" in tech_stack %}
 **Vercel / Netlify:**
 - Connect your repository.
 - Set build command to `npm run build`.
 - Set output directory to `dist` or `.next`.
-- Configure environment variables in the platform dashboard.
-{% elif tech_stack | default("") and ("FastAPI" in tech_stack or "Python" in tech_stack) %}
+{% elif "FastAPI" in tech_stack or "Python" in tech_stack %}
 **Docker / Cloud:**
 - Build the Docker image: `docker build -t app .`
 - Run the container: `docker run -p 8000:8000 app`
@@ -39,11 +38,11 @@ Please refer to the standard deployment practices for **{{ tech_stack | default(
 
 Before deploying, ensure all required environment variables are set:
 
-{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack or "Next" in tech_stack) %}
+{% if "Node" in tech_stack or "React" in tech_stack or "Next" in tech_stack %}
 - `NODE_ENV=production`
 - `DATABASE_URL` (if applicable)
 - `API_KEY` (if applicable)
-{% elif tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack) %}
+{% if "Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack %}
 - `DATABASE_URL`
 - `SECRET_KEY`
 - `ALLOWED_HOSTS`
@@ -55,7 +54,7 @@ Before deploying, ensure all required environment variables are set:
 
 ### Dockerfile Example
 
-{% if tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack) %}
+{% if "Python" in tech_stack or "FastAPI" in tech_stack %}
 ```dockerfile
 FROM python:3.11-slim
 
@@ -68,7 +67,7 @@ COPY . .
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
-{% elif tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack) %}
+{% elif "Node" in tech_stack or "React" in tech_stack %}
 ```dockerfile
 FROM node:20-alpine
 

@@ -20,7 +20,7 @@ MyApp/
 │   ├── ViewModels/           # ViewModels (Business Logic)
 │   │   ├── UserViewModel.swift
 │   │   └── HomeViewModel.swift
-{% if libraries | default([]) | select("in", ["SwiftUI"]) | list | length > 0 %}
+{% if "SwiftUI" in libraries %}
 │   ├── Views/                # SwiftUI Views
 │   │   ├── Components/       # Reusable components
 │   │   │   ├── Button.swift
@@ -42,7 +42,7 @@ MyApp/
 │   ├── Repositories/         # Data Repositories
 │   │   ├── UserRepository.swift
 │   │   └── APIRepository.swift
-{% if libraries | default([]) | select("in", ["Core Data"]) | list | length > 0 %}
+{% if "Core Data" in libraries %}
 │   ├── Persistence/          # Core Data
 │   │   ├── PersistenceController.swift
 │   │   └── CoreDataStack.swift
@@ -71,7 +71,7 @@ MyApp/
 - Use `@EnvironmentObject` for SwiftUI dependency injection
 
 ### 3. UI Framework
-{% if libraries | default([]) | select("in", ["SwiftUI"]) | list | length > 0 %}
+{% if "SwiftUI" in libraries %}
 - **SwiftUI:** Modern declarative UI framework
 - **State Management:** Use `@State`, `@Binding`, `@ObservedObject`, `@StateObject`
 - **Navigation:** Use `NavigationStack` (iOS 16+) or `NavigationView`
@@ -82,7 +82,7 @@ MyApp/
 {% endif %}
 
 ### 4. Data Persistence
-{% if libraries | default([]) | select("in", ["Core Data"]) | list | length > 0 %}
+{% if "Core Data" in libraries %}
 - **Core Data:** Apple's object graph and persistence framework
 - **NSManagedObjectContext:** Main context for UI, background context for operations
 - **Migrations:** Handle schema changes with Core Data migrations
@@ -93,7 +93,7 @@ MyApp/
 {% endif %}
 
 ### 5. Networking
-{% if libraries | default([]) | select("in", ["Alamofire"]) | list | length > 0 %}
+{% if "Alamofire" in libraries %}
 - **Alamofire:** Elegant HTTP networking library
 - **Request/Response:** Use Codable for JSON parsing
 - **Error Handling:** Comprehensive error handling with Alamofire
@@ -104,13 +104,13 @@ MyApp/
 {% endif %}
 
 ### 6. Reactive Programming
-{% if libraries | default([]) | select("in", ["Combine"]) | list | length > 0 %}
+{% if "Combine" in libraries %}
 - **Combine:** Apple's reactive programming framework
 - **Publishers/Subscribers:** Use `@Published` for reactive state
 - **Operators:** Use Combine operators for data transformation
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Swift Package Manager"]) | list | length > 0 %}
+{% if "Swift Package Manager" in libraries %}
 ### 7. Dependency Management
 - **Swift Package Manager (SPM):** Native package manager
 - **Package.swift:** Define dependencies in Package.swift

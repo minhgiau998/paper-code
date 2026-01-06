@@ -12,7 +12,7 @@
 
 ### 1. Syntax (Script Setup)
 **Strictly** use the `<script setup>` syntax.
-{% if libraries | default([]) | select("in", ["TypeScript", "TypeScript Lib"]) | list | length > 0 %}
+{% if "TypeScript" in libraries or "TypeScript Lib" in libraries %}
 Use TypeScript generic arguments for props and emits.
 ```vue
 <!-- ✅ Good -->
@@ -57,7 +57,7 @@ User components must always be multi-word to avoid conflicts with HTML elements.
 - Be careful when destructuring `props` or `reactive` objects; you will lose reactivity.
 - Use `toRefs()` if destructuring is necessary.
 
-{% if libraries | default([]) | select("in", ["Pinia"]) | list | length > 0 %}
+{% if "Pinia" in libraries %}
 ### 3. Pinia Usage
 - Don't destructure state from a Pinia store directly.
 - Use `storeToRefs(store)` for state/getters.
@@ -72,7 +72,7 @@ const { login } = authStore; // ✅ Actions are functions
 
 ## 🎨 Styling Guidelines
 
-{% if libraries | default([]) | select("in", ["TailwindCSS"]) | list | length > 0 %}
+{% if "TailwindCSS" in libraries %}
 ### Tailwind CSS
 - Use utility classes inside the `class` attribute.
 - Use `clsx` or string binding for conditional classes.
@@ -94,7 +94,7 @@ const { login } = authStore; // ✅ Actions are functions
 
 ## 🧪 Testing
 
-{% if libraries | default([]) | select("in", ["Vitest"]) | list | length > 0 %}
+{% if "Vitest" in libraries %}
 - Use **Vitest** for unit testing logic and composables.
 - Use **Vue Test Utils** for component mounting.
 - Naming: `Component.spec.ts` or `Component.test.ts`.

@@ -4,14 +4,14 @@ This document outlines the testing strategy for **{{ project_name | default("thi
 
 ## 🧪 Test Stack
 
-{% if tech_stack | default("") and ("React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack) %}
+{% if "React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack %}
 - **Unit Testing**: Jest / Vitest
 - **Component Testing**: React Testing Library / Vue Test Utils
 - **E2E Testing**: Cypress / Playwright
-{% elif tech_stack | default("") and ("FastAPI" in tech_stack or "Django" in tech_stack or "Python" in tech_stack) %}
+{% elif "FastAPI" in tech_stack or "Django" in tech_stack or "Python" in tech_stack %}
 - **Runner**: Pytest
 - **Coverage**: pytest-cov
-{% elif tech_stack | default("") and "Go" in tech_stack %}
+{% elif "Go" in tech_stack %}
 - **Runner**: Go standard library `testing`
 - **Assertions**: Testify
 {% else %}
@@ -21,21 +21,21 @@ This document outlines the testing strategy for **{{ project_name | default("thi
 ## 🏃‍♂️ Running Tests
 
 ### Run All Tests
-{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack or "Vue" in tech_stack) %}
+{% if "React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack %}
 ```bash
 npm test
 # or
 npm run test:ci
 ```
-{% elif tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack) %}
+{% if "Python" in tech_stack or "FastAPI" in tech_stack %}
    ```bash
    pytest
    ```
-{% elif tech_stack | default("") and "Go" in tech_stack %}
+{% elif "Go" in tech_stack %}
    ```bash
    go test ./...
    ```
-{% elif tech_stack | default("") and "Rust" in tech_stack %}
+{% elif "Rust" in tech_stack %}
    ```bash
    cargo test
    ```
@@ -52,15 +52,15 @@ Refer to the `package.json` or `Makefile` for specific commands.
 
 We aim to maintain a minimum test coverage threshold. Run coverage reports:
 
-{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack or "Vue" in tech_stack) %}
+{% if "Node" in tech_stack or "React" in tech_stack or "Vue" in tech_stack %}
 ```bash
 npm run test:coverage
 ```
-{% elif tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack) %}
+{% elif "Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack %}
 ```bash
 pytest --cov=. --cov-report=html
 ```
-{% elif tech_stack | default("") and "Go" in tech_stack %}
+{% elif "Go" in tech_stack %}
 ```bash
 go test -cover ./...
 ```
@@ -79,7 +79,7 @@ go test -cover ./...
 - Clean up test data after each test.
 
 ### E2E Tests
-{% if tech_stack | default("") and ("React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack) %}
+{% if "React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack %}
 - Use Playwright or Cypress for browser automation.
 - Test critical user flows (login, checkout, etc.).
 - Run E2E tests in CI/CD pipeline separately from unit tests.
@@ -96,7 +96,7 @@ go test -cover ./...
 3. **Test data pollution**: Ensure proper cleanup between tests.
 
 ### Debug Commands
-{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack) %}
+{% if "Node" in tech_stack or "React" in tech_stack %}
 ```bash
 # Run tests in watch mode
 npm test -- --watch
@@ -104,7 +104,7 @@ npm test -- --watch
 # Run a specific test file
 npm test -- path/to/test.ts
 ```
-{% elif tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack) %}
+{% elif "Python" in tech_stack or "FastAPI" in tech_stack %}
 ```bash
 # Run with verbose output
 pytest -v

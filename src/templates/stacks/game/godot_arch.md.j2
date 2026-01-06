@@ -5,7 +5,7 @@
 This project is built using **Godot 4.x**.
 It follows a **Component-Based Architecture**, favoring composition (attaching Node behaviors) over deep inheritance trees.
 
-{% if libraries | default([]) | select("in", ["C#"]) | list | length > 0 %}
+{% if "C#" in libraries %}
 **Language Stack:** Hybrid (C# for performance-critical systems, GDScript for UI/Gameplay glue).
 {% else %}
 **Language Stack:** GDScript 2.0 (Strictly Typed).
@@ -55,7 +55,7 @@ We do not hardcode stats (Health: 100, Speed: 50) in scripts.
 - Create `.tres` files for Items, Enemy Stats, and Level Data.
 - This allows designers to tweak balance in the Inspector without touching code.
 
-{% if libraries | default([]) | select("in", ["Godot Steam"]) | list | length > 0 %}
+{% if "Godot Steam" in libraries %}
 ### 4. Integration
 - Steam integration logic is encapsulated in `src/autoload/SteamManager.gd`.
 - It handles initialization and callbacks, emitting signals to the rest of the game.

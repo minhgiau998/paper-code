@@ -9,7 +9,7 @@ This project uses **Docker** for containerization, enabling consistent deploymen
 ```text
 .
 ├── Dockerfile                 # Main application container
-{% if libraries | default([]) | select("in", ["Docker Compose"]) | list | length > 0 %}
+{% if "Docker Compose" in libraries %}
 ├── docker-compose.yml         # Multi-container orchestration
 ├── docker-compose.prod.yml   # Production overrides
 {% endif %}
@@ -32,7 +32,7 @@ This project uses **Docker** for containerization, enabling consistent deploymen
 - Copy dependency files (`package.json`, `requirements.txt`) before source code
 - Use `.dockerignore` to exclude unnecessary files from build context
 
-{% if libraries | default([]) | select("in", ["Multi-stage Builds"]) | list | length > 0 %}
+{% if "Multi-stage Builds" in libraries %}
 ### 3. Multi-stage Builds
 ```dockerfile
 # Stage 1: Build
@@ -52,7 +52,7 @@ CMD ["node", "dist/index.js"]
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Docker Compose"]) | list | length > 0 %}
+{% if "Docker Compose" in libraries %}
 ## 🎼 Docker Compose Architecture
 
 ### Service Definitions
@@ -67,7 +67,7 @@ CMD ["node", "dist/index.js"]
 - Custom networks for complex multi-service architectures
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Health Checks"]) | list | length > 0 %}
+{% if "Health Checks" in libraries %}
 ## 🏥 Health Checks
 
 ### Container Health Monitoring

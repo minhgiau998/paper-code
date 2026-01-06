@@ -45,14 +45,14 @@ The `server/` directory acts as our Backend-for-Frontend (BFF).
 - API routes are defined in `server/api/`.
 - Unlike Next.js, Nitro routes are strictly typed and can return objects directly (no need for `res.json()`).
 
-{% if libraries | default([]) | select("in", ["Pinia"]) | list | length > 0 %}
+{% if "Pinia" in libraries %}
 ### 4. State Management (Pinia)
 - Use the `@pinia/nuxt` module.
 - Stores are defined in `stores/` and are auto-imported.
 - Use **Setup Stores** syntax (`export const useUserStore = defineStore(...)`).
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Nuxt UI"]) | list | length > 0 %}
+{% if "Nuxt UI" in libraries %}
 ### 5. UI Library (Nuxt UI)
 - We use **Nuxt UI** (based on Tailwind).
 - Components are available globally (e.g., `<UButton>`, `<UInput>`).
@@ -60,7 +60,7 @@ The `server/` directory acts as our Backend-for-Frontend (BFF).
 {% endif %}
 
 ## 🎨 Styling Architecture
-{% if libraries | default([]) | select("in", ["TailwindCSS", "Nuxt UI"]) | list | length > 0 %}
+{% if "TailwindCSS" in libraries or "Nuxt UI" in libraries %}
 - **Tailwind CSS** is integrated via `@nuxtjs/tailwindcss`.
 - Use the `class` attribute for utilities.
 - Configuration is in `tailwind.config.ts`.

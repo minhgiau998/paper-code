@@ -598,7 +598,7 @@ export const emailValidator = (email: string): boolean => {
 
 ## 🧪 Testing Strategy
 
-{% if libraries | default([]) | select("in", ["Jest"]) | list | length > 0 %}
+{% if "Jest" in libraries %}
 Testing Mongoose models and services:
 
 ```typescript

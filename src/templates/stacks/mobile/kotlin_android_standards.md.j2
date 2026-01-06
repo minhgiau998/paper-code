@@ -59,7 +59,7 @@ fun String.isValidEmail(): Boolean {
 }
 ```
 
-{% if libraries | default([]) | select("in", ["Coroutines"]) | list | length > 0 %}
+{% if "Coroutines" in libraries %}
 ## 🔄 Coroutines Standards
 
 ### 1. Suspend Functions
@@ -96,7 +96,7 @@ fun observeUsers(): Flow<List<User>> = flow {
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Jetpack Compose"]) | list | length > 0 %}
+{% if "Jetpack Compose" in libraries %}
 ## 🎨 Jetpack Compose Standards
 
 ### 1. Composable Functions
@@ -147,7 +147,7 @@ MaterialTheme(
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Room"]) | list | length > 0 %}
+{% if "Room" in libraries %}
 ## 💾 Room Database Standards
 
 ### 1. Entity Definition
@@ -191,7 +191,7 @@ abstract class AppDatabase : RoomDatabase() {
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Retrofit"]) | list | length > 0 %}
+{% if "Retrofit" in libraries %}
 ## 🌐 Retrofit Standards
 
 ### 1. API Interface
@@ -229,7 +229,7 @@ try {
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Hilt"]) | list | length > 0 %}
+{% if "Hilt" in libraries %}
 ## 💉 Hilt Dependency Injection Standards
 
 ### 1. Application Class

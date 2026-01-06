@@ -1,7 +1,7 @@
 # 🗺️ AI Project Context
 
-## Project Architecture
-This project follows a **{{ project_type | default("standard") }}** architecture pattern.
+## 🏗️ Project Architecture
+This project follows a **{{ project_type }}** architecture pattern.
 
 ### Directory Map
 - `src/` (or `app/`): Main source code.
@@ -12,7 +12,7 @@ This project follows a **{{ project_type | default("standard") }}** architecture
 ## 📚 Library Reference
 The following libraries are integrated. Refer to their specific documentation snippets before generating code:
 
-{% if libraries | default([]) %}
+{% if libraries %}
 {% for lib in libraries %}
 - **{{ lib }}**: See `docs/libs/{{ lib | lower | replace(" ", "") | replace(".", "") }}.md`
 {% endfor %}
@@ -21,22 +21,22 @@ The following libraries are integrated. Refer to their specific documentation sn
 {% endif %}
 
 ## 🔄 Data Flow
-{% if tech_stack | default("") and ("React" in tech_stack or "Next" in tech_stack) %}
+{% if "React" in tech_stack or "Next" in tech_stack %}
 - **UI** triggers actions -> **Hooks** manage side effects -> **API Layer** calls Backend.
-{% elif libraries | default([]) | select("in", ["Redux", "Redux Toolkit"]) | list | length > 0 %}
+{% elif "Redux" in libraries %}
 - **Action** dispatched -> **Reducer** updates Store -> **Selector** updates UI.
-{% elif tech_stack | default("") and "FastAPI" in tech_stack %}
+{% elif "FastAPI" in tech_stack %}
 - **Router** receives request -> **Controller/Service** processes logic -> **Repository** accesses DB -> **Schema** formats response.
 {% else %}
 - Standard MVC/MVVM flow applies.
 {% endif %}
 
 ## 🎨 Design System
-{% if libraries | default([]) | select("in", ["TailwindCSS"]) | list | length > 0 %}
+{% if "TailwindCSS" in libraries %}
 - We use **Tailwind CSS**. 
 - Primary Color: Refer to `tailwind.config.js`.
 - Spacing: Use standard Tailwind spacing (p-4, m-2, etc.).
-{% elif libraries | default([]) | select("in", ["Material", "MUI", "Angular Material"]) | list | length > 0 %}
+{% elif "Material" in libraries or "MUI" in libraries %}
 - We use **Material UI**. Use the `sx` prop or styled components.
 {% else %}
 - Follow existing CSS patterns in the codebase.

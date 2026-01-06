@@ -60,7 +60,7 @@ strategy:
     maxUnavailable: 0
 ```
 
-{% if libraries | default([]) | select("in", ["Helm"]) | list | length > 0 %}
+{% if "Helm" in libraries %}
 ## 📦 Helm Chart Standards
 
 ### 1. Chart Structure
@@ -108,7 +108,7 @@ resources:
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Kustomize"]) | list | length > 0 %}
+{% if "Kustomize" in libraries %}
 ## 🎨 Kustomize Standards
 
 ### 1. Base Structure
@@ -153,7 +153,7 @@ patchesStrategicMerge:
 ```
 {% endif %}
 
-{% if libraries | default([]) | select("in", ["Ingress"]) | list | length > 0 %}
+{% if "Ingress" in libraries %}
 ## 🌐 Ingress Standards
 
 ### 1. TLS Configuration
@@ -249,7 +249,7 @@ securityContext:
 
 ## 📊 Monitoring Standards
 
-{% if libraries | default([]) | select("in", ["Monitoring"]) | list | length > 0 %}
+{% if "Monitoring" in libraries %}
 ### 1. ServiceMonitor (Prometheus)
 **Rule:** Expose metrics endpoint and create ServiceMonitor.
 ```yaml

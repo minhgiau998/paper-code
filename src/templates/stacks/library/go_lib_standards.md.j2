@@ -20,7 +20,7 @@
 **Rule:** Minimize external dependencies in `go.mod`.
 - A library should ideally rely only on the Go Standard Library.
 - Every dependency you add is a potential conflict for the consumer.
-{% if libraries | default([]) | select("in", ["Testify"]) | list | length > 0 %}
+{% if "Testify" in libraries %}
 - **Exception:** Test-only dependencies (like `stretchr/testify`) are acceptable.
 {% endif %}
 
