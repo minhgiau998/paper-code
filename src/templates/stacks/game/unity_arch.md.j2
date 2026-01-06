@@ -49,14 +49,14 @@ Code is split into Assemblies to enforce dependencies:
 - We use a central `ServiceLocator` or `GameManager` (Singleton) for global systems (Audio, SaveSystem).
 - **Rule:** Singletons should strictly be for "Systems", not for Gameplay logic (e.g., Player should not be a Singleton).
 
-{% if "Input System" in libraries %}
+{% if libraries | default([]) | select("in", ["Input System"]) | list | length > 0 %}
 ### 4. Input System
 - We use the **New Input System** package.
 - Input is handled via **Input Actions** assets, not direct polling.
 - Use `PlayerInput` component or generated C# class for type-safe events.
 {% endif %}
 
-{% if "Addressables" in libraries %}
+{% if libraries | default([]) | select("in", ["Addressables"]) | list | length > 0 %}
 ### 5. Asset Management (Addressables)
 - We strictly avoid `Resources.Load`.
 - Assets are marked as **Addressable** and loaded asynchronously.

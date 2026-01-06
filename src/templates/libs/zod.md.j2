@@ -8,7 +8,7 @@
 npm install zod
 ```
 
-{% if "React" in tech_stack or "Next.js" in tech_stack %}
+{% if tech_stack | default("") and ("React" in tech_stack or "Next.js" in tech_stack) %}
 # For Form Integration (Recommended)
 npm install react-hook-form @hookform/resolvers
 {% endif %}
@@ -51,7 +51,7 @@ async function fetchUser(id: string): Promise<User> {
 }
 ```
 
-{% if "React" in tech_stack or "Next.js" in tech_stack %}
+{% if tech_stack | default("") and ("React" in tech_stack or "Next.js" in tech_stack) %}
 ### 3. React Hook Form Integration
 
 Zod is the standard validation engine for React Hook Form.
@@ -93,7 +93,7 @@ export const LoginForm = () => {
 ```
 {% endif %}
 
-{% if "Node.js" in tech_stack or "Express" in tech_stack or "NestJS" in tech_stack %}
+{% if tech_stack | default("") and ("Node.js" in tech_stack or "Express" in tech_stack or "NestJS" in tech_stack) %}
 ### 3. Backend Request Validation
 
 Validate incoming JSON bodies before processing logic.

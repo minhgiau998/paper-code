@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-01-05
+
+### 🔧 Template Improvements & Robustness
+- **Error Handling:** Added `default()` filters to all Jinja2 templates to prevent rendering errors when variables are undefined.
+- **Safe Conditionals:** Replaced all unsafe `{% if "X" in libraries %}` patterns with robust `{% if libraries | default([]) | select("in", ["X"]) | list | length > 0 %}` patterns across 80+ template files.
+- **Version Updates:** Updated recommended versions in CI/CD and documentation:
+  - Node.js: 20.x → 22.x (LTS)
+  - Python: 3.10 → 3.12
+  - Go: 1.21 → 1.22
+
+### 📚 Enhanced Documentation Templates
+- **Core Templates:**
+  - Added "Security Checklist" section to `SECURITY.md` with OWASP Top 10 references.
+  - Enhanced `TESTING.md` with sections on Test Coverage, Mocking Strategies, E2E Best Practices, and Debugging Tests.
+  - Expanded `DEPLOYMENT.md` with Environment Variables, Docker Deployment, Rollback Strategy, and Monitoring & Logging sections.
+  - Improved `CONTRIBUTING.md` with Code Review Process and Local Development Setup sections.
+- **Architecture Docs:**
+  - Added Mermaid data flow diagram to React architecture documentation.
+  - Added Performance Optimization section to React standards.
+  - Enhanced conditional logic for better library detection across all stack templates.
+
+### 🛡️ Quality Assurance
+- **Comprehensive Fixes:** Fixed 76+ unsafe Jinja2 patterns across:
+  - Core templates (README, SECURITY, TESTING, DEPLOYMENT, CONTRIBUTING, etc.)
+  - AI templates (AI_CONTEXT, AI_RULES, cursorrules, copilot-instructions)
+  - Library templates (20+ library docs)
+  - Stack templates (Frontend, Backend, Mobile, CLI, Game, Data/ML, Library)
+  - GitHub templates (CI/CD workflows)
+- **Zero Linting Errors:** All templates pass linting checks and are production-ready.
+
 ## [0.1.0] - 2026-01-04
 
 ### 🚀 Initial Release

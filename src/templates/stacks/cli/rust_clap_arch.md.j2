@@ -37,14 +37,14 @@ We strictly use the **Derive** pattern (`#[derive(Parser)]`) instead of the Buil
 - **`src/commands/`:** Contains the actual business logic. Functions here should return `Result<()>`, not exit the process.
 
 ### 3. Error Handling Strategy
-{% if "Anyhow" in libraries %}
+{% if libraries | default([]) | select("in", ["Anyhow"]) | list | length > 0 %}
 - **Application Layer:** We use **Anyhow** (`anyhow::Result`) in `main.rs` and command handlers for easy error propagation with context.
 - **Library Layer:** If creating a reusable crate, use `thiserror` for structured errors.
 {% else %}
 - We use standard `Result<T, Box<dyn std::error::Error>>` or custom enums.
 {% endif %}
 
-{% if "Tokio" in libraries %}
+{% if libraries | default([]) | select("in", ["Tokio"]) | list | length > 0 %}
 ### 4. Async Runtime (Tokio)
 - The application runs within a `#[tokio::main]` runtime.
 - All I/O operations (HTTP, File) are asynchronous.

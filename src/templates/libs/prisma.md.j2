@@ -19,7 +19,7 @@ npx prisma init
 **Critical Strategy:** PrismaClient must be instantiated as a **Singleton**.
 Creating multiple instances (e.g., importing `new PrismaClient()` in every file) will exhaust the database connection pool, especially in Serverless (Next.js) or during Hot Module Replacement.
 
-{% if "NestJS" in tech_stack %}
+{% if tech_stack | default("") and "NestJS" in tech_stack %}
 ### NestJS Setup (`PrismaService`)
 
 In NestJS, we wrap the client in an Injectable Service.
@@ -40,7 +40,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
 
 **Usage:** Inject `PrismaService` into your Modules/Services via constructor.
 
-{% elif "Next.js" in tech_stack %}
+{% elif tech_stack | default("") and "Next.js" in tech_stack %}
 ### Next.js / Serverless Setup
 
 We use a global variable to preserve the connection across hot-reloads.
@@ -187,3 +187,45 @@ test('should create new user', async () => {
   await expect(createUser(user)).resolves.toEqual(user);
 });
 ```
+
+## 🐛 Common Issues & Troubleshooting
+
+### 1. "PrismaClient is unable to run in this browser environment"
+**Cause:** Trying to use Prisma Client in the browser (e.g., in a React component).
+**Solution:** Prisma Client only works in Node.js environments. Use API routes or server-side code to access the database.
+
+### 2. "Can't reach database server"
+**Cause:** Database connection string is incorrect or database is not running.
+**Solution:** 
+- Check your `DATABASE_URL` in `.env` file
+- Verify database server is running
+- Check network/firewall settings
+
+### 3. "Migration failed" or "Migration already applied"
+**Cause:** Migration state is out of sync.
+**Solution:**
+```bash
+# Reset migrations (dev only)
+npx prisma migrate reset
+
+# Or mark migration as applied without running
+npx prisma migrate resolve --applied <migration_name>
+```
+
+### 4. "Too many database connections"
+**Cause:** Creating multiple PrismaClient instances.
+**Solution:** Always use the singleton pattern shown in the Configuration section above.
+
+### 5. "Field doesn't exist on type"
+**Cause:** Prisma schema and generated types are out of sync.
+**Solution:**
+```bash
+npx prisma generate
+```
+
+### 6. Slow queries
+**Cause:** Missing database indexes or inefficient queries.
+**Solution:**
+- Add indexes to frequently queried fields in `schema.prisma`
+- Use `select` to fetch only needed fields
+- Use `include` or `select` instead of fetching all relations

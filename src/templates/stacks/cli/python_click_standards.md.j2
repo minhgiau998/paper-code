@@ -21,7 +21,7 @@ def sync():
 ### 2. Output Handling
 **Rule:** Do not use `print()`.
 - **Standard:** Use `click.echo()` for cross-platform unicode support.
-{% if "Rich" in libraries %}
+{% if libraries | default([]) | select("in", ["Rich"]) | list | length > 0 %}
 - **Rich:** Use `rich.print()` or `console.print()` for styled output.
 {% endif %}
 - **Stderr:** For errors, use `click.echo(..., err=True)` or `console.print(..., style="bold red")`.

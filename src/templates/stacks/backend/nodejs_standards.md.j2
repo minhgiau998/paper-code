@@ -3,7 +3,7 @@
 ## 📝 Naming Conventions
 
 - **Files:**
-  {% if "NestJS" in libraries %}
+  {% if libraries | default([]) | select("in", ["NestJS"]) | list | length > 0 %}
   - `kebab-case` with type suffix (e.g., `user.controller.ts`, `auth.service.ts`).
   {% else %}
   - `camelCase` or `kebab-case` (Consistent within project).
@@ -44,7 +44,7 @@ logger.info('User logged in', { userId });
 
 ## 🛡️ Framework Specifics
 
-{% if "NestJS" in libraries %}
+{% if libraries | default([]) | select("in", ["NestJS"]) | list | length > 0 %}
 ### NestJS Rules
 1. **Dependency Injection:** Never manually instantiate services (`new UserService()`). Use constructor injection.
 2. **DTOs:** Use Classes (not Interfaces) for DTOs to leverage `class-validator` decorators.
@@ -57,7 +57,7 @@ const dbHost = this.configService.get<string>('DB_HOST');
 ```
 {% endif %}
 
-{% if "Express" in libraries %}
+{% if libraries | default([]) | select("in", ["Express"]) | list | length > 0 %}
 ### Express Rules
 1. **Middleware Return:** Always `return` when sending a response in middleware/controllers to prevent execution flow continuation.
 2. **Status Codes:** Explicitly set status codes. Don't default to 200 for everything.
@@ -70,9 +70,9 @@ const dbHost = this.configService.get<string>('DB_HOST');
 
 ### 1. Input Validation
 **Rule:** Never trust user input. Validate incoming data at the Controller/Route level.
-{% if "Zod" in libraries %}
+{% if libraries | default([]) | select("in", ["Zod"]) | list | length > 0 %}
 - Use **Zod** for schema validation.
-{% elif "NestJS" in libraries %}
+{% elif libraries | default([]) | select("in", ["NestJS"]) | list | length > 0 %}
 - Use `class-validator` and `class-transformer` with proper DTOs.
 {% else %}
 - Use a validation library (Joi/Zod).
@@ -85,7 +85,7 @@ const dbHost = this.configService.get<string>('DB_HOST');
 
 ## 🧪 Testing
 
-{% if "NestJS" in libraries %}
+{% if libraries | default([]) | select("in", ["NestJS"]) | list | length > 0 %}
 - **Unit Tests:** `*.spec.ts` files alongside source files. Use `Test.createTestingModule` for isolation.
 - **E2E Tests:** Located in `test/` directory.
 {% else %}

@@ -83,7 +83,7 @@ await get_tree().create_timer(1.0).timeout
 **Rule:** Do not `instantiate()` and `queue_free()` projectiles frequently (e.g., machine gun bullets).
 - Use an **Object Pool** to reuse nodes. Memory allocation is expensive in real-time games.
 
-{% if "C#" in libraries %}
+{% if libraries | default([]) | select("in", ["C#"]) | list | length > 0 %}
 ## 🔷 C# Specific Rules (Godot .NET)
 1. **Naming:** Use PascalCase for everything (Variables, Methods) as per standard C# conventions.
 2. **Generics:** Use `GetNode<Type>("Path")` instead of casting.

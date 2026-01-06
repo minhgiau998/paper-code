@@ -50,7 +50,7 @@ def cli(ctx):
 - Commands are organized by domain in `src/mycli/commands/`.
 - Large groups of commands (e.g., `user create`, `user delete`) should be their own `click.Group`.
 
-{% if "Rich" in libraries %}
+{% if libraries | default([]) | select("in", ["Rich"]) | list | length > 0 %}
 ### 4. Rich Output
 - We use the **Rich** library for all terminal output instead of `print()`.
 - **Console:** A global `Console` instance is usually passed via the Context object or a singleton module to ensure consistent styling (themes).

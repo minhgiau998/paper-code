@@ -12,7 +12,7 @@ build/
 out/
 coverage/
 
-{% if "Node" in tech_stack or "React" in tech_stack or "Vue" in tech_stack or "Next" in tech_stack or "Svelte" in tech_stack or "Angular" in tech_stack %}
+{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack or "Vue" in tech_stack or "Next" in tech_stack or "Svelte" in tech_stack or "Angular" in tech_stack) %}
 # Node.js / Frontend
 node_modules/
 npm-debug.log*
@@ -22,7 +22,7 @@ yarn-error.log*
 .nuxt/
 {% endif %}
 
-{% if "Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack or "Flask" in tech_stack %}
+{% if tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack or "Flask" in tech_stack) %}
 # Python
 __pycache__/
 *.py[cod]
@@ -34,7 +34,7 @@ env/
 *.egg-info/
 {% endif %}
 
-{% if "Go" in tech_stack %}
+{% if tech_stack | default("") and "Go" in tech_stack %}
 # Go
 /bin/
 /pkg/
@@ -43,13 +43,13 @@ env/
 vendor/
 {% endif %}
 
-{% if "Rust" in tech_stack or "Tauri" in tech_stack %}
+{% if tech_stack | default("") and ("Rust" in tech_stack or "Tauri" in tech_stack) %}
 # Rust
 /target/
 **/*.rs.bk
 {% endif %}
 
-{% if "Unity" in tech_stack %}
+{% if tech_stack | default("") and "Unity" in tech_stack %}
 # Unity
 /[Ll]ibrary/
 /[Tt]emp/

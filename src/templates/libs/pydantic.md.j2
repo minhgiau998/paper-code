@@ -584,7 +584,7 @@ class DataConverter:
 
 ## 🧪 Testing Strategy
 
-{% if "Pytest" in libraries %}
+{% if libraries | default([]) | select("in", ["Pytest"]) | list | length > 0 %}
 Testing Pydantic models:
 
 ```python

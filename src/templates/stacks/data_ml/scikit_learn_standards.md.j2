@@ -39,7 +39,7 @@ sklearn.set_config(transform_output="pandas")
 ### 4. Serialization
 **Rule:** Use `joblib` over `pickle`.
 - Scikit-learn models often contain large numpy arrays; `joblib` is optimized for this.
-{% if "skops" in libraries %}
+{% if libraries | default([]) | select("in", ["skops"]) | list | length > 0 %}
 - **Better:** Use **skops** for secure persistence (avoids pickle security risks).
 {% endif %}
 

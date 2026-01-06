@@ -50,7 +50,7 @@ We do not manually create API endpoints for form submissions.
 - Use **Form Actions** in `+page.server.ts` (`export const actions = { default: ... }`).
 - Use `use:enhance` in the form element to progressively enhance the experience (no page reload).
 
-{% if "TailwindCSS" in libraries %}
+{% if libraries | default([]) | select("in", ["TailwindCSS"]) | list | length > 0 %}
 ### 4. Styling
 - **Tailwind CSS** is used via PostCSS.
 - Global styles are imported in `src/app.css` (or equivalent).

@@ -3,11 +3,38 @@
 ## 🏗️ High-Level Overview
 
 This project is built as a **Single Page Application (SPA)** using React.
-{% if "TypeScript" in libraries or "TypeScript Lib" in libraries %}
+{% if libraries | default([]) | select("in", ["TypeScript", "TypeScript Lib"]) | list | length > 0 %}
 It utilizes **TypeScript** for type safety and scalability.
 {% endif %}
 
 The architecture follows a **Feature-based** (or Domain-driven) structure rather than a purely technical structure. This ensures that code related to a specific feature stays together.
+
+## 🔄 Data Flow Architecture
+
+The following diagram illustrates the data flow in this React application:
+
+```mermaid
+graph TD
+    A[User Interaction] --> B[Component]
+    B --> C{State Type?}
+    C -->|Local| D[useState/useReducer]
+    C -->|Server| E[TanStack Query/RTK Query]
+    C -->|Global UI| F[Redux/Zustand/Context]
+    E --> G[API Layer]
+    G --> H[Backend Service]
+    H --> G
+    G --> E
+    E --> B
+    F --> B
+    D --> B
+    B --> A
+```
+
+**Key Points:**
+- User interactions trigger component updates
+- State is managed at the appropriate level (local, server, or global)
+- Server state flows through data fetching libraries
+- Components re-render based on state changes
 
 ## 📂 Directory Structure
 
@@ -28,7 +55,7 @@ src/
 │   ├── axios.ts         # Axios instance setup
 │   └── utils.ts         # Global utility functions
 ├── context/             # React Context definitions (Global State)
-{% if "Redux Toolkit" in libraries %}
+{% if libraries | default([]) | select("in", ["Redux Toolkit"]) | list | length > 0 %}
 ├── store/               # Redux Store configuration
 {% endif %}
 ├── types/               # Global type definitions
@@ -49,14 +76,14 @@ We favor composition over inheritance.
 - Use **Layout Components** to manage page structures.
 
 ### 3. State Management Strategy
-{% if "Redux Toolkit" in libraries %}
+{% if libraries | default([]) | select("in", ["Redux Toolkit"]) | list | length > 0 %}
 - **Global Server State:** Managed by **Redux Toolkit (RTK Query)** or separate query library.
 - **Global UI State:** Managed by **Redux Slices**.
 - **Local State:** `useState` or `useReducer` for form inputs/toggles.
-{% elif "Zustand" in libraries %}
+{% elif libraries | default([]) | select("in", ["Zustand"]) | list | length > 0 %}
 - **Global State:** Managed by **Zustand** stores. Keep stores small and focused.
 - **Local State:** `useState`.
-{% elif "TanStack Query" in libraries %}
+{% elif libraries | default([]) | select("in", ["TanStack Query"]) | list | length > 0 %}
 - **Server State:** Strictly managed by **TanStack Query**. Do not store API data in global context manually.
 - **Client State:** React Context or `useState`.
 {% else %}
@@ -65,9 +92,31 @@ We favor composition over inheritance.
 {% endif %}
 
 ### 4. Data Fetching
-{% if "Axios" in libraries %}
+{% if libraries | default([]) | select("in", ["Axios"]) | list | length > 0 %}
 - All API calls are abstracted in `src/lib/axios.ts` or feature-specific `api/` folders.
 - Components never call `fetch` or `axios` directly; they call a Hook or Service function.
 {% else %}
 - API calls are encapsulated in custom hooks (e.g., `useFetchData`).
 {% endif %}
+
+### 5. Performance Optimization
+
+**Code Splitting:**
+- Use React.lazy() for route-based code splitting
+- Load components on-demand to reduce initial bundle size
+
+**Memoization:**
+- Use `React.memo()` for expensive components
+- Use `useMemo()` and `useCallback()` to prevent unnecessary re-renders
+
+**Example:**
+```tsx
+// Route-based code splitting
+const Dashboard = React.lazy(() => import('@/pages/Dashboard'));
+
+// Memoization
+const ExpensiveComponent = React.memo(({ data }: Props) => {
+  const processedData = useMemo(() => expensiveCalculation(data), [data]);
+  return <div>{processedData}</div>;
+});
+```

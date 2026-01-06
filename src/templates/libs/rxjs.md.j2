@@ -31,7 +31,7 @@ Nested subscriptions (`subscribe` inside `subscribe`) are **Strictly Forbidden**
 
 ## 💻 Usage Patterns
 
-{% if "Angular" in tech_stack %}
+{% if tech_stack | default("") and "Angular" in tech_stack %}
 ### Angular Specific Patterns
 
 Angular is the primary home of RxJS. We follow the **Reactive Context** pattern.

@@ -43,7 +43,7 @@ src/
 - **Async/Events:** Use **RxJS** (`Observable`) for streams (HTTP calls, WebSocket, time-based events).
 - **Interop:** Use `toSignal()` to convert Observables to Signals for easier template consumption.
 
-{% if "NgRx" in libraries %}
+{% if libraries | default([]) | select("in", ["NgRx"]) | list | length > 0 %}
 ### 3. Global State (NgRx)
 - We use **NgRx Store** for complex shared state.
 - **Actions:** Define strict action groups (`createActionGroup`).
@@ -60,11 +60,11 @@ src/
 - **Dumb (UI):** Purely presentational. Receives data via `input()` (Signal Inputs) and emits events via `output()`.
 
 ## 🎨 Styling Architecture
-{% if "TailwindCSS" in libraries %}
+{% if libraries | default([]) | select("in", ["TailwindCSS"]) | list | length > 0 %}
 - **Tailwind CSS** is used for styling.
 - Avoid using `encapsulation: ViewEncapsulation.None` unless necessary.
 - Use `@apply` sparingly in component SCSS/CSS files; prefer utility classes in HTML.
-{% elif "Angular Material" in libraries %}
+{% elif libraries | default([]) | select("in", ["Angular Material"]) | list | length > 0 %}
 - Use **Angular Material** components.
 - Custom theming is handled in `styles.scss` using the Material theming API.
 {% else %}

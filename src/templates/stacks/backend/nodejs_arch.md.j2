@@ -3,9 +3,9 @@
 ## 🏗️ High-Level Overview
 
 This project is a **Backend Application** built with **Node.js**.
-{% if "NestJS" in libraries %}
+{% if libraries | default([]) | select("in", ["NestJS"]) | list | length > 0 %}
 It utilizes **NestJS**, following a strictly modular, Angular-inspired architecture with Dependency Injection.
-{% elif "Fastify" in libraries %}
+{% elif libraries | default([]) | select("in", ["Fastify"]) | list | length > 0 %}
 It uses **Fastify** for high-performance processing, structured around a plugin-based architecture.
 {% else %}
 It uses **Express.js** (or standard HTTP), following a classic **Layered Architecture** (Controller-Service-Repository) to separate concerns.
@@ -15,7 +15,7 @@ We strictly adhere to **ES Modules** (`import`/`export`) and **TypeScript** (if 
 
 ## 📂 Directory Structure
 
-{% if "NestJS" in libraries %}
+{% if libraries | default([]) | select("in", ["NestJS"]) | list | length > 0 %}
 ### NestJS Structure
 ```text
 src/
@@ -50,7 +50,7 @@ src/
 ├── middleware/          # Custom Middleware (Auth, Logging)
 ├── utils/               # Helper functions
 ├── types/               # TypeScript Definitions
-{% if "Prisma" in libraries or "TypeORM" in libraries or "Mongoose" in libraries %}
+{% if libraries | default([]) | select("in", ["Prisma", "TypeORM", "Mongoose"]) | list | length > 0 %}
 ├── data-access/         # Database Layer (Repositories/DAO)
 │   └── db.client.ts
 {% endif %}
@@ -61,7 +61,7 @@ src/
 ## 🧩 Key Architectural Patterns
 
 ### 1. Separation of Concerns
-{% if "NestJS" in libraries %}
+{% if libraries | default([]) | select("in", ["NestJS"]) | list | length > 0 %}
 - **Modules:** Organize code by feature (Domain), not technical role.
 - **Controllers:** Handle HTTP requests and DTO validation.
 - **Services:** Contain business logic.
@@ -78,11 +78,11 @@ src/
   - **Express:** Use `express-async-errors` or wrap handlers to catch rejected Promises.
   - **NestJS/Fastify:** Built-in async error handling is active.
 
-{% if "Prisma" in libraries or "TypeORM" in libraries or "Mongoose" in libraries %}
+{% if libraries | default([]) | select("in", ["Prisma", "TypeORM", "Mongoose"]) | list | length > 0 %}
 {% raw %}
 ### 3. Database Layer
 - Database logic is decoupled from Controllers.
-- We use **{{ libraries | select("in", ["Prisma", "TypeORM", "Mongoose"]) | first | default("ORM") }}** to interact with the database.
+- We use **{{ libraries | default([]) | select("in", ["Prisma", "TypeORM", "Mongoose"]) | first | default("ORM") }}** to interact with the database.
 - Database connections are initialized once at startup (`server.ts` or `AppModule`).
 {% endraw %}
 {% endif %}

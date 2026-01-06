@@ -27,7 +27,7 @@ app/
 │   └── token.py
 ├── services/            # Business Logic Layer (Optional but Recommended)
 │   └── user_service.py
-{% if "SQLAlchemy" in libraries %}
+{% if libraries | default([]) | select("in", ["SQLAlchemy"]) | list | length > 0 %}
 ├── db/                  # Database Components
 │   ├── session.py       # Engine & Session factory
 │   └── base.py          # Import all models here for Alembic
@@ -36,7 +36,7 @@ app/
 └── tests/               # Pytest Suite
     ├── conftest.py      # Test fixtures
     └── api/
-{% if "Alembic" in libraries %}
+{% if libraries | default([]) | select("in", ["Alembic"]) | list | length > 0 %}
 alembic/                 # Database Migrations
 alembic.ini
 {% endif %}
@@ -54,14 +54,14 @@ We strictly use **Pydantic v2** for schemas (DTOs).
 - **Schemas (`app/schemas`):** Define what the API expects (Input) and returns (Output).
 - **Separation:** Never return raw ORM models directly; always map them to Pydantic schemas using `response_model`.
 
-{% if "SQLAlchemy" in libraries %}
+{% if libraries | default([]) | select("in", ["SQLAlchemy"]) | list | length > 0 %}
 ### 3. Database Layer (SQLAlchemy 2.0)
 - **Async:** We use `AsyncSession` and `async/await` for all DB interactions.
 - **Pattern:** Use the **Repository Pattern** or **Service Layer** to isolate DB queries from Route logic.
 - **Migrations:** Managed by **Alembic**.
 {% endif %}
 
-{% if "Celery" in libraries %}
+{% if libraries | default([]) | select("in", ["Celery"]) | list | length > 0 %}
 ### 4. Background Tasks (Celery)
 - Heavy operations (Email sending, Image processing) must be offloaded to Celery workers.
 - The API should only enqueue the task and return a status immediately.

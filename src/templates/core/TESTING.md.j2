@@ -1,44 +1,44 @@
 # Testing Strategy
 
-This document outlines the testing strategy for **{{ project_name }}**.
+This document outlines the testing strategy for **{{ project_name | default("this project") }}**.
 
 ## 🧪 Test Stack
 
-{% if "React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack %}
+{% if tech_stack | default("") and ("React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack) %}
 - **Unit Testing**: Jest / Vitest
 - **Component Testing**: React Testing Library / Vue Test Utils
 - **E2E Testing**: Cypress / Playwright
-{% elif "FastAPI" in tech_stack or "Django" in tech_stack or "Python" in tech_stack %}
+{% elif tech_stack | default("") and ("FastAPI" in tech_stack or "Django" in tech_stack or "Python" in tech_stack) %}
 - **Runner**: Pytest
 - **Coverage**: pytest-cov
-{% elif "Go" in tech_stack %}
+{% elif tech_stack | default("") and "Go" in tech_stack %}
 - **Runner**: Go standard library `testing`
 - **Assertions**: Testify
 {% else %}
-- **Framework**: Standard testing tools for {{ tech_stack }}
+- **Framework**: Standard testing tools for {{ tech_stack | default("the selected technology") }}
 {% endif %}
 
 ## 🏃‍♂️ Running Tests
 
 ### Run All Tests
-{% if "Node" in tech_stack or "React" in tech_stack or "Vue" in tech_stack %}
+{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack or "Vue" in tech_stack) %}
 ```bash
 npm test
 # or
 npm run test:ci
 ```
-{% elif "Python" in tech_stack or "FastAPI" in tech_stack %}
-```bash
-pytest
-```
-{% elif "Go" in tech_stack %}
-```bash
-go test ./...
-```
-{% elif "Rust" in tech_stack %}
-```bash
-cargo test
-```
+{% elif tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack) %}
+   ```bash
+   pytest
+   ```
+{% elif tech_stack | default("") and "Go" in tech_stack %}
+   ```bash
+   go test ./...
+   ```
+{% elif tech_stack | default("") and "Rust" in tech_stack %}
+   ```bash
+   cargo test
+   ```
 {% else %}
 Refer to the `package.json` or `Makefile` for specific commands.
 {% endif %}
@@ -47,3 +47,69 @@ Refer to the `package.json` or `Makefile` for specific commands.
 1. Locate the `tests/` directory or `__tests__` folder.
 2. Follow the naming convention `*.test.js` or `test_*.py`.
 3. Ensure you mock external API calls (do not hit real production APIs).
+
+## 📊 Test Coverage
+
+We aim to maintain a minimum test coverage threshold. Run coverage reports:
+
+{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack or "Vue" in tech_stack) %}
+```bash
+npm run test:coverage
+```
+{% elif tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack) %}
+```bash
+pytest --cov=. --cov-report=html
+```
+{% elif tech_stack | default("") and "Go" in tech_stack %}
+```bash
+go test -cover ./...
+```
+{% endif %}
+
+## 🎯 Testing Best Practices
+
+### Unit Tests
+- Test individual functions and methods in isolation.
+- Mock external dependencies (APIs, databases, file system).
+- Aim for fast execution (< 100ms per test).
+
+### Integration Tests
+- Test interactions between components.
+- Use test databases or in-memory stores.
+- Clean up test data after each test.
+
+### E2E Tests
+{% if tech_stack | default("") and ("React" in tech_stack or "Next" in tech_stack or "Vue" in tech_stack) %}
+- Use Playwright or Cypress for browser automation.
+- Test critical user flows (login, checkout, etc.).
+- Run E2E tests in CI/CD pipeline separately from unit tests.
+{% else %}
+- Test complete workflows end-to-end.
+- Use appropriate E2E testing tools for your stack.
+{% endif %}
+
+## 🐛 Debugging Tests
+
+### Common Issues
+1. **Tests failing intermittently**: Check for race conditions or timing issues.
+2. **Mock not working**: Verify mock setup and teardown.
+3. **Test data pollution**: Ensure proper cleanup between tests.
+
+### Debug Commands
+{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack) %}
+```bash
+# Run tests in watch mode
+npm test -- --watch
+
+# Run a specific test file
+npm test -- path/to/test.ts
+```
+{% elif tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack) %}
+```bash
+# Run with verbose output
+pytest -v
+
+# Run with pdb debugger
+pytest --pdb
+```
+{% endif %}

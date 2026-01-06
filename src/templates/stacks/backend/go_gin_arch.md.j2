@@ -25,7 +25,7 @@ root/
 │   │   └── ports/           # Interfaces (Service/Repository contracts)
 │   ├── service/             # Business Logic Layer
 │   └── repository/          # Data Access Layer
-{% if "Gorm" in libraries %}
+{% if libraries | default([]) | select("in", ["Gorm"]) | list | length > 0 %}
 │       └── models/          # GORM Models
 {% endif %}
 ├── pkg/                     # Public Shared Libraries (Utils, Logger)
@@ -58,13 +58,13 @@ In `main.py`, we wire up the application: `Repo -> Service -> Handler`.
 - This ensures request cancellation and timeouts work correctly.
 - Gin's context (`c`) contains the standard context: `ctx := c.Request.Context()`.
 
-{% if "Viper" in libraries %}
+{% if libraries | default([]) | select("in", ["Viper"]) | list | length > 0 %}
 ### 4. Configuration (Viper)
 - **Viper** is used to load configuration from environment variables and config files (`config.yaml`).
 - Config is loaded once at startup and passed to dependencies.
 {% endif %}
 
-{% if "Gorm" in libraries %}
+{% if libraries | default([]) | select("in", ["Gorm"]) | list | length > 0 %}
 ### 5. Database (GORM)
 - We use **GORM** for ORM capabilities.
 - The `repository` layer wraps GORM calls.

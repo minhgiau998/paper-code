@@ -121,7 +121,7 @@ fetchData: async (id: string) => {
 }
 ```
 
-{% if "Next.js" in tech_stack %}
+{% if tech_stack | default("") and "Next.js" in tech_stack %}
 ## ⚠️ Next.js (App Router) Specifics
 
 Since Zustand is a global singleton, using it directly in Next.js Server Components can lead to **State Leakage** between requests.

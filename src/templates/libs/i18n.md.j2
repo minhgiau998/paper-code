@@ -4,7 +4,7 @@
 
 ## 📦 Installation & Setup
 
-{% if "Next.js" in tech_stack %}
+{% if tech_stack | default("") and "Next.js" in tech_stack %}
 ### Next.js (App Router) -> `next-intl`
 We use **next-intl** because it fully supports React Server Components (RSC).
 
@@ -111,7 +111,7 @@ export default i18n;
 
 **Rule:** You MUST configure TypeScript to recognize your translation keys. This prevents typos like `t('hme')` instead of `t('home')`.
 
-{% if "Next.js" in tech_stack %}
+{% if tech_stack | default("") and "Next.js" in tech_stack %}
 **File:** `src/global.d.ts`
 ```typescript
 // Use the English file as the source of truth
@@ -160,7 +160,7 @@ declare module 'i18next' {
 
 ### 2. Implementation
 
-{% if "Next.js" in tech_stack %}
+{% if tech_stack | default("") and "Next.js" in tech_stack %}
 ```tsx
 import { useTranslations } from 'next-intl';
 

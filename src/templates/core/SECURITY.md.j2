@@ -1,16 +1,80 @@
 # Security Policy
 
-## Supported Versions
+## 🔒 Supported Versions
 
 | Version | Supported          |
 | ------- | ------------------ |
 | 1.0.x   | :white_check_mark: |
 | < 1.0   | :x:                |
 
-## Reporting a Vulnerability
+## 🚨 Reporting a Vulnerability
 
-We take security seriously. If you discover a security vulnerability within **{{ project_name }}**, please do not open a public issue on GitHub.
+We take security seriously. If you discover a security vulnerability within **{{ project_name | default("this project") }}**, please do not open a public issue on GitHub.
 
 Instead, please send an email to **security@example.com** (replace with actual email).
 
 We will try to review your report within 48 hours and provide a fix as soon as possible.
+
+## 🛡️ Security Best Practices
+
+### OWASP Top 10 Considerations
+
+This project follows security best practices to mitigate common vulnerabilities:
+
+1. **Injection**: Use parameterized queries and input validation.
+2. **Broken Authentication**: Implement secure session management and password policies.
+3. **Sensitive Data Exposure**: Encrypt sensitive data in transit and at rest.
+4. **XML External Entities (XXE)**: Disable XML external entity processing.
+5. **Broken Access Control**: Implement proper authorization checks.
+6. **Security Misconfiguration**: Keep dependencies updated and use secure defaults.
+7. **Cross-Site Scripting (XSS)**: Sanitize user input and use Content Security Policy.
+8. **Insecure Deserialization**: Avoid deserializing untrusted data.
+9. **Using Components with Known Vulnerabilities**: Regularly update dependencies.
+10. **Insufficient Logging & Monitoring**: Log security events and monitor for anomalies.
+
+### Dependency Management
+
+{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack or "Next" in tech_stack) %}
+- Regularly run `npm audit` to check for vulnerable dependencies.
+- Use `npm audit fix` to automatically fix vulnerabilities where possible.
+- Consider using Dependabot or Snyk for automated dependency updates.
+{% elif tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack) %}
+- Use `pip-audit` or `safety` to check for vulnerable packages.
+- Keep `requirements.txt` or `pyproject.toml` dependencies up to date.
+- Consider using Dependabot for automated dependency updates.
+{% endif %}
+
+### Authentication & Authorization
+
+- Use strong password hashing (bcrypt, Argon2).
+- Implement rate limiting on authentication endpoints.
+- Use HTTPS for all communications.
+- Store tokens securely (httpOnly cookies for web, secure storage for mobile).
+
+### Data Protection
+
+- Encrypt sensitive data at rest.
+- Use HTTPS/TLS for data in transit.
+- Never commit secrets, API keys, or credentials to version control.
+- Use environment variables or secret management services (AWS Secrets Manager, HashiCorp Vault).
+
+### Input Validation
+
+- Validate and sanitize all user inputs.
+- Use type-safe schemas (Pydantic, Zod, Joi) for validation.
+- Implement proper error handling without exposing sensitive information.
+
+## 🔍 Security Checklist
+
+Before deploying to production:
+
+- [ ] All dependencies are up to date
+- [ ] Environment variables are properly configured
+- [ ] Secrets are not hardcoded in the codebase
+- [ ] HTTPS is enabled
+- [ ] Authentication and authorization are properly implemented
+- [ ] Input validation is in place
+- [ ] Error messages don't expose sensitive information
+- [ ] Logging is configured (without logging sensitive data)
+- [ ] CORS is properly configured
+- [ ] Rate limiting is implemented

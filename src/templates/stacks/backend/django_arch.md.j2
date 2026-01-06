@@ -3,7 +3,7 @@
 ## 🏗️ High-Level Overview
 
 This project is built using **Django 5+**.
-{% if "Django REST Framework" in libraries %}
+{% if libraries | default([]) | select("in", ["Django REST Framework"]) | list | length > 0 %}
 It acts primarily as a backend API using **Django REST Framework (DRF)**.
 {% else %}
 It follows the standard MTV (Model-Template-View) pattern with server-side rendering.
@@ -48,14 +48,14 @@ We prefer the **Service Layer** pattern over putting too much logic in Models ("
 - **Services (`services.py`):** Pure Python functions/classes that handle the actual business rules (e.g., `create_user`, `process_payment`).
 - **Models:** Define schema and simple data-integrity methods.
 
-{% if "Django REST Framework" in libraries %}
+{% if libraries | default([]) | select("in", ["Django REST Framework"]) | list | length > 0 %}
 ### 3. API Architecture (DRF)
 - **ViewSets:** Prefer `ModelViewSet` or `GenericViewSet` for standard CRUD to reduce boilerplate.
 - **Serializers:** strictly used for Input Validation and Output Formatting.
 - **Routers:** Use `DefaultRouter` or `SimpleRouter` for automatic URL wiring.
 {% endif %}
 
-{% if "Celery" in libraries %}
+{% if libraries | default([]) | select("in", ["Celery"]) | list | length > 0 %}
 ### 4. Asynchronous Tasks (Celery)
 - Use **Celery** for long-running tasks (Email, Reports, Image Processing).
 - Define tasks in `apps/<app_name>/tasks.py`.

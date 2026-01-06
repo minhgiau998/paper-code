@@ -6,7 +6,7 @@
 
 ```bash
 npm install next-auth@beta
-{% if "Prisma" in libraries %}
+{% if libraries | default([]) | select("in", ["Prisma"]) | list | length > 0 %}
 npm install @auth/prisma-adapter
 {% endif %}
 ```
@@ -63,14 +63,14 @@ import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
 import { z } from 'zod';
 
-{% if "Prisma" in libraries %}
+{% if libraries | default([]) | select("in", ["Prisma"]) | list | length > 0 %}
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/lib/db'; // Your Prisma Singleton
 {% endif %}
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
   ...authConfig,
-{% if "Prisma" in libraries %}
+{% if libraries | default([]) | select("in", ["Prisma"]) | list | length > 0 %}
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'jwt' }, // Prisma default is 'database', change to 'jwt' for Edge compatibility
 {% endif %}

@@ -25,7 +25,7 @@ root/
 │   └── renderer/            # 🟢 Renderer Process (Frontend)
 │       ├── src/
 │       │   ├── App.tsx
-│       │   └── ... (Follows {{ tech_stack }} architecture)
+│       │   └── ... (Follows {{ tech_stack | default("web framework") }} architecture)
 │       └── index.html
 ├── resources/               # Static binaries / icons
 └── package.json
@@ -36,7 +36,7 @@ root/
 ### 1. The Three Layers
 1.  **Main Process (`src/main`):** The "Server". It has full OS access. It manages application lifecycle, windows, and native menus.
 2.  **Preload Script (`src/preload`):** The "Gatekeeper". It runs before the web page loads. It has access to Node.js *and* the DOM, but with restrictions. It exposes a specific API to the world via `contextBridge`.
-3.  **Renderer Process (`src/renderer`):** The "Client". It is a standard **{{ tech_stack }}** web app. It **cannot** access `require`, `process`, or `fs` directly.
+3.  **Renderer Process (`src/renderer`):** The "Client". It is a standard **{{ tech_stack | default("web framework") }}** web app. It **cannot** access `require`, `process`, or `fs` directly.
 
 ### 2. Inter-Process Communication (IPC)
 We strictly use the **Two-Way Asynchronous** pattern for most operations.
@@ -54,7 +54,7 @@ We strictly use the **Two-Way Asynchronous** pattern for most operations.
 - If native Node modules (C++) are needed, they must be loaded in the **Main Process** only.
 - The Renderer requests the result of the native operation via IPC.
 
-{% if "Electron Builder" in libraries %}
+{% if libraries | default([]) | select("in", ["Electron Builder"]) | list | length > 0 %}
 ### 5. Packaging
 - We use **electron-builder** for distribution.
 - Configuration is located in `electron-builder.yml` or `package.json`.

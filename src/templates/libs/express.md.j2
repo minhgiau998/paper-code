@@ -40,7 +40,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(compression());
 
 // 🛡️ Request Logging
-{% if "Winston" in libraries %}
+{% if libraries | default([]) | select("in", ["Winston"]) | list | length > 0 %}
 import { logger } from './utils/logger';
 app.use((req, res, next) => {
   logger.info(`${req.method} ${req.path}`, {
@@ -75,14 +75,14 @@ export { app };
 
 ```typescript
 import { app } from './server';
-{% if "Winston" in libraries %}
+{% if libraries | default([]) | select("in", ["Winston"]) | list | length > 0 %}
 import { logger } from './utils/logger';
 {% endif %}
 
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
-  {% if "Winston" in libraries %}
+  {% if libraries | default([]) | select("in", ["Winston"]) | list | length > 0 %}
   logger.info(`Server running on port ${PORT}`);
   {% else %}
   console.log(`Server running on port ${PORT}`);
@@ -91,7 +91,7 @@ const server = app.listen(PORT, () => {
 
 // Graceful Shutdown
 process.on('SIGTERM', () => {
-  {% if "Winston" in libraries %}
+  {% if libraries | default([]) | select("in", ["Winston"]) | list | length > 0 %}
   logger.info('SIGTERM received, shutting down gracefully');
   {% else %}
   console.log('SIGTERM received, shutting down gracefully');
@@ -137,7 +137,7 @@ export const errorHandler = (
   error.message = err.message;
 
   // Log error
-  {% if "Winston" in libraries %}
+  {% if libraries | default([]) | select("in", ["Winston"]) | list | length > 0 %}
   logger.error(err);
   {% else %}
   console.error(err);
@@ -312,7 +312,7 @@ export const protect = async (
 
 ## 🧪 Testing Strategy
 
-{% if "Jest" in libraries %}
+{% if libraries | default([]) | select("in", ["Jest"]) | list | length > 0 %}
 Use Jest for testing Express.js applications:
 
 ```typescript
@@ -350,3 +350,57 @@ describe('Auth Routes', () => {
   }
 }
 ```
+
+## 🐛 Common Issues & Troubleshooting
+
+### 1. "Cannot GET /route"
+**Cause:** Route not defined or middleware order issue.
+**Solution:** 
+- Check route definitions in `src/routes/`
+- Ensure routes are registered before error handlers
+- Verify route paths match exactly (case-sensitive)
+
+### 2. "req.body is undefined"
+**Cause:** Missing body parsing middleware.
+**Solution:** Ensure `express.json()` and `express.urlencoded()` are added before routes:
+```typescript
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+```
+
+### 3. "CORS error"
+**Cause:** CORS not configured or misconfigured.
+**Solution:** 
+- Add `cors` middleware with correct origin
+- For credentials, set `credentials: true` in both CORS and client requests
+
+### 4. "Port already in use"
+**Cause:** Another process is using the port.
+**Solution:**
+```bash
+# Find and kill process on port 5000
+lsof -ti:5000 | xargs kill -9
+# Or change PORT in .env
+```
+
+### 5. "Middleware not working"
+**Cause:** Middleware order matters in Express.
+**Solution:** Place middleware in correct order:
+1. Security (helmet, cors)
+2. Body parsing
+3. Routes
+4. Error handlers (last)
+
+### 6. "Async errors not caught"
+**Cause:** Async route handlers need special error handling.
+**Solution:** Use `asyncHandler` wrapper or `express-async-errors`:
+```typescript
+import 'express-async-errors'; // Import at top of server.ts
+```
+
+### 7. "Memory leak in production"
+**Cause:** Not closing database connections or event listeners.
+**Solution:**
+- Close database connections on shutdown
+- Remove event listeners
+- Use connection pooling properly

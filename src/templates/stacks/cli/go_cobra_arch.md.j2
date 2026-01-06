@@ -10,7 +10,7 @@ It follows the [Standard Go Project Layout](https://github.com/golang-standards/
 ```text
 root/
 ├── cmd/
-│   └── {{ project_name | lower | replace(" ", "-") }}/
+│   └── {{ project_name | default("mycli") | lower | replace(" ", "-") }}/
 │       └── main.go          # Application Entry Point
 ├── internal/                # Private Logic (Not importable by other apps)
 │   ├── config/              # Configuration loading (Viper)
@@ -40,14 +40,14 @@ Cobra commands are defined in `cmd/` or `internal/commands/`.
 - **Internal (`internal/app`):** Handles "Logic": interacting with files, APIs, or databases.
 - **Integration:** The Cobra command calls functions in `internal/` passing the necessary context and parameters.
 
-{% if "Viper" in libraries %}
+{% if libraries | default([]) | select("in", ["Viper"]) | list | length > 0 %}
 ### 4. Configuration (Viper)
 - **Hierarchy:** Flags > Env Vars > Config File > Defaults.
 - **Binding:** We strictly bind Cobra flags to Viper keys so that `viper.GetString("key")` works regardless of where the value came from.
 - **Env Vars:** Configured with `viper.SetEnvPrefix("APP")` and `viper.AutomaticEnv()`.
 {% endif %}
 
-{% if "Bubbletea" in libraries %}
+{% if libraries | default([]) | select("in", ["Bubbletea"]) | list | length > 0 %}
 ### 5. TUI (Bubbletea)
 - If a command launches an interactive TUI, it initializes the **Bubbletea Model**.
 - The TUI logic lives in `internal/ui/`, following The Elm Architecture (Model-View-Update).

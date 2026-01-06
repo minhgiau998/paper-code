@@ -19,7 +19,7 @@ src/
 ├── layouts/             # Page layouts (Default, Auth, Dashboard)
 ├── router/              # Vue Router configuration
 │   └── index.ts
-{% if "Pinia" in libraries %}
+{% if libraries | default([]) | select("in", ["Pinia"]) | list | length > 0 %}
 ├── stores/              # Global State Management (Pinia)
 │   ├── user.ts
 │   └── counter.ts
@@ -42,14 +42,14 @@ Business logic is extracted into **Composables** (files inside `src/composables/
 - **Do not** use Mixins (they are deprecated/harmful in Vue 3).
 - Composables should return reactive state (`ref`, `computed`) and functions.
 
-{% if "Pinia" in libraries %}
+{% if libraries | default([]) | select("in", ["Pinia"]) | list | length > 0 %}
 ### 3. State Management (Pinia)
 We use **Pinia** for global state.
 - **Store Definition:** Use the "Setup Stores" syntax (similar to standard components) rather than Option Stores.
 - **Persistence:** If needed, use plugins like `pinia-plugin-persistedstate`.
 {% endif %}
 
-{% if "Axios" in libraries %}
+{% if libraries | default([]) | select("in", ["Axios"]) | list | length > 0 %}
 ### 4. API Layer
 - HTTP requests are handled via a configured **Axios** instance (usually in `src/utils/http.ts` or `src/api/client.ts`).
 - Service modules in `src/api/` import the client to perform requests.
@@ -62,7 +62,7 @@ We use a layout system to wrap pages.
 - Pages define their layout via route meta fields.
 
 ## 🎨 Styling Architecture
-{% if "TailwindCSS" in libraries %}
+{% if libraries | default([]) | select("in", ["TailwindCSS"]) | list | length > 0 %}
 - **Tailwind CSS** is used for utility-first styling.
 - Avoid writing custom CSS in `<style>` blocks unless creating complex animations.
 {% else %}

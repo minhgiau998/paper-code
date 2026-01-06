@@ -30,7 +30,7 @@ let cli = Cli::parse();
 ### 2. Error Handling (No Panics)
 **Rule:** **Strictly Forbidden** to use `.unwrap()` or `.expect()` in production code (except in `tests/`).
 - Use the `?` operator to propagate errors.
-{% if "Anyhow" in libraries %}
+{% if libraries | default([]) | select("in", ["Anyhow"]) | list | length > 0 %}
 - Use `.context()` to add info to errors.
 
 ```rust
@@ -44,7 +44,7 @@ let content = std::fs::read_to_string("file.txt")
 {% endif %}
 
 ### 3. Async Main
-{% if "Tokio" in libraries %}
+{% if libraries | default([]) | select("in", ["Tokio"]) | list | length > 0 %}
 **Rule:** Use `#[tokio::main]` for the entry point.
 - Do not use `block_on` manually unless necessary.
 {% endif %}
@@ -55,7 +55,7 @@ let content = std::fs::read_to_string("file.txt")
 
 ## 🎨 User Experience (UX)
 
-{% if "Indicatif" in libraries %}
+{% if libraries | default([]) | select("in", ["Indicatif"]) | list | length > 0 %}
 ### Progress Bars (Indicatif)
 **Rule:** Use `indicatif` for any operation taking > 500ms.
 - **Style:** Use a consistent template for all bars in the app.

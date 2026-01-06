@@ -1,4 +1,4 @@
-# Contributing to {{ project_name }}
+# Contributing to {{ project_name | default("this project") }}
 
 Thank you for your interest in contributing! We welcome contributions from everyone.
 
@@ -27,7 +27,64 @@ See **[docs/TESTING.md](TESTING.md)** for instructions on how to run the test su
 ## 📝 Commit Messages
 
 We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
-- `feat: add new login component`
-- `fix: resolve null pointer exception`
-- `docs: update API documentation`
-- `style: format code with prettier`
+
+**Format:** `<type>(<scope>): <subject>`
+
+**Types:**
+- `feat`: A new feature
+- `fix`: A bug fix
+- `docs`: Documentation only changes
+- `style`: Code style changes (formatting, missing semicolons, etc.)
+- `refactor`: Code refactoring without feature changes or bug fixes
+- `perf`: Performance improvements
+- `test`: Adding or updating tests
+- `chore`: Changes to build process or auxiliary tools
+
+**Examples:**
+- `feat(auth): add OAuth2 login support`
+- `fix(api): resolve null pointer exception in user service`
+- `docs(readme): update installation instructions`
+- `style(components): format code with prettier`
+- `refactor(utils): extract common validation logic`
+
+## 🔍 Code Review Process
+
+1. **Pull Request Requirements:**
+   - All tests must pass
+   - Code must be reviewed by at least one maintainer
+   - CI/CD checks must be green
+   - No merge conflicts
+
+2. **Review Guidelines:**
+   - Be constructive and respectful
+   - Focus on code quality and maintainability
+   - Check for security vulnerabilities
+   - Verify that tests cover new functionality
+
+3. **After Review:**
+   - Address all review comments
+   - Update the PR if requested
+   - Wait for approval before merging
+
+## 🏗️ Local Development Setup
+
+### Prerequisites
+{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack or "Next" in tech_stack) %}
+- Node.js (LTS version)
+- npm or yarn
+{% elif tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack) %}
+- Python 3.8+
+- pip or poetry
+{% elif tech_stack | default("") and "Go" in tech_stack %}
+- Go 1.20+
+{% endif %}
+
+### Setup Steps
+
+1. Fork and clone the repository
+2. Install dependencies (see README.md)
+3. Create a feature branch: `git checkout -b feature/your-feature-name`
+4. Make your changes
+5. Run tests: `{% if tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack) %}pytest{% else %}npm test{% endif %}`
+6. Commit your changes following the commit message guidelines
+7. Push to your fork and create a Pull Request

@@ -29,7 +29,7 @@ export default MyComponent;
 
 ### 3. Prop Destructuring
 Always destructure props for clarity.
-{% if "TypeScript" in libraries or "TypeScript Lib" in libraries %}
+{% if libraries | default([]) | select("in", ["TypeScript", "TypeScript Lib"]) | list | length > 0 %}
 Always define an Interface/Type for props.
 ```tsx
 interface Props {
@@ -50,7 +50,7 @@ export const Header = ({ title, isActive }) => { ... }
 ### 1. `useEffect` Hygiene
 - Avoid huge `useEffect` blocks. Break them down.
 - **Strictly** include all dependencies in the dependency array.
-{% if "TanStack Query" in libraries %}
+{% if libraries | default([]) | select("in", ["TanStack Query"]) | list | length > 0 %}
 - **Avoid** using `useEffect` for data fetching. Use `useQuery` or `useMutation` instead.
 {% endif %}
 
@@ -60,7 +60,7 @@ Extract complex logic into custom hooks.
 
 ## 🎨 Styling Guidelines
 
-{% if "TailwindCSS" in libraries %}
+{% if libraries | default([]) | select("in", ["TailwindCSS"]) | list | length > 0 %}
 ### Tailwind CSS (Strict)
 - Use Utility Classes for everything.
 - **Do not** create `.css` or `.module.css` files unless creating a complex animation that Tailwind cannot handle.
@@ -78,7 +78,7 @@ Extract complex logic into custom hooks.
 
 ## 🧪 Testing
 
-{% if "Jest" in libraries or "Vitest" in libraries %}
+{% if libraries | default([]) | select("in", ["Jest", "Vitest"]) | list | length > 0 %}
 - Place test files alongside components: `MyComponent.test.tsx` (or inside `__tests__`).
 - Test behavior, not implementation details.
 - **RTL (React Testing Library):** Use `screen.getByRole` or `screen.getByText`. Avoid querying by ID or Class.

@@ -36,7 +36,7 @@ export const metadata: Metadata = {
 
 ### 2. Server Actions
 - Always validate input inside Server Actions before processing.
-{% if "Zod" in libraries %}
+{% if libraries | default([]) | select("in", ["Zod"]) | list | length > 0 %}
 - **Mandatory:** Use **Zod** schema validation for all Server Action inputs.
 ```ts
 const schema = z.object({ email: z.string().email() });
@@ -60,7 +60,7 @@ Pass Client Components as `children` to Server Components to avoid "Client Compo
 </ClientWrapper>
 ```
 
-{% if "TailwindCSS" in libraries %}
+{% if libraries | default([]) | select("in", ["TailwindCSS"]) | list | length > 0 %}
 ### 2. Styling (Tailwind)
 - Do not use `@apply` in CSS files. Keep classes in the markup.
 - Avoid dynamic class string concatenation; use `clsx` or `tailwind-merge`.

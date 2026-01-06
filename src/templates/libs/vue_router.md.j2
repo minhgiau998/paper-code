@@ -4,7 +4,7 @@
 
 ## 📦 Installation
 
-{% if "Nuxt" in tech_stack %}
+{% if tech_stack | default("") and "Nuxt" in tech_stack %}
 > **✅ Built-in:** Vue Router is pre-installed and auto-configured in Nuxt.js. You do not need to install it manually.
 {% else %}
 ```bash
@@ -14,7 +14,7 @@ npm install vue-router
 
 ## 🛠️ Configuration
 
-{% if "Nuxt" in tech_stack %}
+{% if tech_stack | default("") and "Nuxt" in tech_stack %}
 ### Nuxt.js (File-System Routing)
 
 Nuxt generates routes automatically based on your file structure in the `pages/` directory.

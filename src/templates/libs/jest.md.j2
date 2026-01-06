@@ -10,7 +10,7 @@ We strictly use **ts-jest** for seamless TypeScript integration.
 npm install -D jest ts-jest @types/jest
 ```
 
-{% if "React" in tech_stack or "Next.js" in tech_stack or "Vue" in tech_stack %}
+{% if tech_stack | default("") and ("React" in tech_stack or "Next.js" in tech_stack or "Vue" in tech_stack) %}
 ### Frontend Specifics
 You need a DOM environment and testing utilities.
 
@@ -31,7 +31,7 @@ const config: Config = {
   preset: 'ts-jest',
   
   // 🌍 Environment: Auto-detected based on stack
-  {% if "React" in tech_stack or "Next.js" in tech_stack or "Vue" in tech_stack %}
+  {% if tech_stack | default("") and ("React" in tech_stack or "Next.js" in tech_stack or "Vue" in tech_stack) %}
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
   {% else %}
@@ -41,7 +41,7 @@ const config: Config = {
   // 📂 Path Aliases (Must match tsconfig.json)
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    {% if "React" in tech_stack %}
+    {% if tech_stack | default("") and "React" in tech_stack %}
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy', // Mock styles
     {% endif %}
   },
@@ -53,7 +53,7 @@ const config: Config = {
 export default config;
 ```
 
-{% if "React" in tech_stack or "Next.js" in tech_stack %}
+{% if tech_stack | default("") and ("React" in tech_stack or "Next.js" in tech_stack) %}
 ### Setup File (`src/test/setup.ts`)
 
 ```typescript
@@ -86,7 +86,7 @@ describe('Math Utils', () => {
 });
 ```
 
-{% if "React" in tech_stack or "Next.js" in tech_stack %}
+{% if tech_stack | default("") and ("React" in tech_stack or "Next.js" in tech_stack) %}
 ### 2. Component Testing (React Testing Library)
 
 **Rule:** Test how the user interacts with the app, not the implementation details (e.g., state).

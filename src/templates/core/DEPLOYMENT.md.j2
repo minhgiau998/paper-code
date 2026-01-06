@@ -17,18 +17,98 @@ We use (GitHub Actions / GitLab CI) to automate deployment.
 3. If successful, the artifact is built (Docker image / Static assets).
 4. The artifact is deployed to the target provider.
 
-### Specific Instructions for {{ tech_stack }}
+### Specific Instructions for {{ tech_stack | default("the selected technology") }}
 
-{% if "Next.js" in tech_stack or "React" in tech_stack %}
+{% if tech_stack | default("") and ("Next.js" in tech_stack or "React" in tech_stack) %}
 **Vercel / Netlify:**
 - Connect your repository.
 - Set build command to `npm run build`.
 - Set output directory to `dist` or `.next`.
-{% elif "FastAPI" in tech_stack or "Python" in tech_stack %}
+- Configure environment variables in the platform dashboard.
+{% elif tech_stack | default("") and ("FastAPI" in tech_stack or "Python" in tech_stack) %}
 **Docker / Cloud:**
 - Build the Docker image: `docker build -t app .`
 - Run the container: `docker run -p 8000:8000 app`
 - Use Gunicorn/Uvicorn for production process management.
+- For production, use a reverse proxy (Nginx) in front of the application.
 {% else %}
-Please refer to the standard deployment practices for **{{ tech_stack }}**.
+Please refer to the standard deployment practices for **{{ tech_stack | default("the selected technology") }}**.
 {% endif %}
+
+## 🔐 Environment Variables
+
+Before deploying, ensure all required environment variables are set:
+
+{% if tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack or "Next" in tech_stack) %}
+- `NODE_ENV=production`
+- `DATABASE_URL` (if applicable)
+- `API_KEY` (if applicable)
+{% elif tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack or "Django" in tech_stack) %}
+- `DATABASE_URL`
+- `SECRET_KEY`
+- `ALLOWED_HOSTS`
+{% endif %}
+
+**Important:** Never commit `.env` files to version control. Use your platform's environment variable configuration.
+
+## 🐳 Docker Deployment
+
+### Dockerfile Example
+
+{% if tech_stack | default("") and ("Python" in tech_stack or "FastAPI" in tech_stack) %}
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+{% elif tech_stack | default("") and ("Node" in tech_stack or "React" in tech_stack) %}
+```dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY . .
+RUN npm run build
+
+EXPOSE 3000
+CMD ["npm", "start"]
+```
+{% endif %}
+
+## 🔄 Rollback Strategy
+
+If a deployment fails:
+
+1. **Immediate Rollback**: Revert to the previous stable version.
+2. **Investigation**: Review logs and error reports.
+3. **Fix and Retry**: Address issues and redeploy.
+
+Most platforms (Vercel, Netlify, AWS, etc.) support one-click rollback to previous deployments.
+
+## 📊 Monitoring & Logging
+
+After deployment, monitor:
+
+- **Application Health**: Set up health check endpoints.
+- **Error Tracking**: Use services like Sentry or Rollbar.
+- **Performance Metrics**: Monitor response times and resource usage.
+- **Logs**: Centralize logs using services like Datadog, LogRocket, or CloudWatch.
+
+## 🚨 Troubleshooting
+
+### Common Deployment Issues
+
+1. **Build Failures**: Check build logs for dependency or compilation errors.
+2. **Environment Variables**: Verify all required variables are set correctly.
+3. **Port Conflicts**: Ensure the application uses the correct port for the platform.
+4. **Database Connections**: Verify database credentials and network access.

@@ -724,7 +724,7 @@ class IsOwnerOrAdmin(permissions.BasePermission):
 
 ## 🧪 Testing Strategy
 
-{% if "Pytest" in libraries %}
+{% if libraries | default([]) | select("in", ["Pytest"]) | list | length > 0 %}
 Testing Django REST Framework:
 
 ```python

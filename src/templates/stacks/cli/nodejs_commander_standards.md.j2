@@ -47,7 +47,7 @@ try {
 
 ## 🎨 User Experience (UX) Rules
 
-{% if "Chalk" in libraries %}
+{% if libraries | default([]) | select("in", ["Chalk"]) | list | length > 0 %}
 ### 1. Color Usage
 - **Green:** Success messages.
 - **Red:** Errors.
@@ -56,7 +56,7 @@ try {
 - **Rule:** Do not overuse colors. Keep it readable.
 {% endif %}
 
-{% if "Ora" in libraries %}
+{% if libraries | default([]) | select("in", ["Ora"]) | list | length > 0 %}
 ### 2. Spinners (Ora)
 - **Rule:** Always stop the spinner (`succeed` or `fail`) before the program exits.
 - **Rule:** If the user is running in a non-interactive TTY (CI/CD), disable the spinner or use a fallback.

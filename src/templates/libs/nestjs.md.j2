@@ -88,7 +88,7 @@ bootstrap();
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-{% if "TypeORM" in libraries %}
+{% if libraries | default([]) | select("in", ["TypeORM"]) | list | length > 0 %}
 import { TypeOrmModule } from '@nestjs/typeorm';
 {% endif %}
 import { UsersModule } from './users/users.module';
@@ -99,10 +99,10 @@ import { AuthModule } from './auth/auth.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    {% if "Mongoose" in libraries %}
+    {% if libraries | default([]) | select("in", ["Mongoose"]) | list | length > 0 %}
     MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/nest'),
     {% endif %}
-    {% if "TypeORM" in libraries %}
+    {% if libraries | default([]) | select("in", ["TypeORM"]) | list | length > 0 %}
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DB_HOST || 'localhost',
@@ -448,7 +448,7 @@ export class UsersService {
 
 ## 🧪 Testing Strategy
 
-{% if "Jest" in libraries %}
+{% if libraries | default([]) | select("in", ["Jest"]) | list | length > 0 %}
 NestJS comes with Jest testing utilities:
 
 ```typescript
@@ -509,3 +509,57 @@ describe('AuthService', () => {
   }
 }
 ```
+
+## 🐛 Common Issues & Troubleshooting
+
+### 1. "Nest can't resolve dependencies"
+**Cause:** Missing provider in module or circular dependency.
+**Solution:**
+- Check all dependencies are provided in the module
+- Use `forwardRef()` for circular dependencies
+- Ensure imports are correct in module files
+
+### 2. "ValidationPipe not working"
+**Cause:** ValidationPipe not registered globally or DTOs missing decorators.
+**Solution:**
+- Add `app.useGlobalPipes(new ValidationPipe())` in `main.ts`
+- Ensure DTOs use `class-validator` decorators
+- Install `class-validator` and `class-transformer`
+
+### 3. "Cannot find module '@nestjs/xxx'"
+**Cause:** Package not installed.
+**Solution:**
+```bash
+npm install @nestjs/xxx
+```
+
+### 4. "Database connection failed"
+**Cause:** Incorrect connection string or database not running.
+**Solution:**
+- Verify `DATABASE_URL` or connection config in `.env`
+- Check database server is running
+- Verify network access
+
+### 5. "Circular dependency detected"
+**Cause:** Modules importing each other.
+**Solution:**
+```typescript
+// Use forwardRef in both modules
+@Module({
+  imports: [forwardRef(() => OtherModule)],
+})
+```
+
+### 6. "Guards not executing"
+**Cause:** Guard not applied or order issue.
+**Solution:**
+- Use `@UseGuards()` decorator on controller or route
+- For global guards, use `app.useGlobalGuards()`
+- Check guard execution order
+
+### 7. "Swagger not showing endpoints"
+**Cause:** Swagger not configured or missing decorators.
+**Solution:**
+- Ensure SwaggerModule is set up in `main.ts`
+- Add `@ApiTags()` and `@ApiOperation()` decorators
+- Check route paths match Swagger setup

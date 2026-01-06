@@ -45,7 +45,7 @@ func (s *userService) Create(ctx context.Context, user *User) error { ... }
 
 ## 💾 Database Guidelines
 
-{% if "Gorm" in libraries %}
+{% if libraries | default([]) | select("in", ["Gorm"]) | list | length > 0 %}
 ### GORM Best Practices
 1. **No Logic in Models:** Structs in `models/` should be dumb data containers.
 2. **Scopes:** Use Gorm Scopes for reusable queries.
@@ -62,7 +62,7 @@ func (r *userRepo) GetUser(ctx context.Context) {
 ```
 {% endif %}
 
-{% if "Zap" in libraries %}
+{% if libraries | default([]) | select("in", ["Zap"]) | list | length > 0 %}
 ### Structured Logging
 **Rule:** Use **Zap** for structured logging. Do not use `fmt.Printf` or `log.Println`.
 ```go

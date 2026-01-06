@@ -21,14 +21,14 @@ The core design principle is **"Server by Default"**, pushing as much logic as p
 │   └── icons/           # Icon components
 ├── lib/                 # Shared libraries and configurations
 │   ├── utils.ts         # CN/Clsx helpers
-{% if "Prisma" in libraries %}
+{% if libraries | default([]) | select("in", ["Prisma"]) | list | length > 0 %}
 │   └── db.ts            # Prisma Client singleton
 {% endif %}
-{% if "NextAuth.js" in libraries %}
+{% if libraries | default([]) | select("in", ["NextAuth.js", "NextAuth"]) | list | length > 0 %}
 │   └── auth.ts          # Auth configuration
 {% endif %}
 ├── types/               # TypeScript definitions
-{% if "Prisma" in libraries %}
+{% if libraries | default([]) | select("in", ["Prisma"]) | list | length > 0 %}
 ├── prisma/              # Database schema and migrations
 │   └── schema.prisma
 {% endif %}
@@ -47,13 +47,13 @@ The core design principle is **"Server by Default"**, pushing as much logic as p
 - **Reads:** Fetch data directly inside Server Components using `async/await`.
 - **Writes:** Use **Server Actions** (`"use server"`) for form submissions and mutations instead of creating API routes manually, unless an external API is required.
 
-{% if "Prisma" in libraries %}
+{% if libraries | default([]) | select("in", ["Prisma"]) | list | length > 0 %}
 ### 3. Database Access (Prisma)
 - Database connections are instantiated in `lib/db.ts` to prevent connection exhaustion during hot-reloads.
 - All database operations should happen in Server Components or Server Actions.
 {% endif %}
 
-{% if "NextAuth.js" in libraries %}
+{% if libraries | default([]) | select("in", ["NextAuth.js", "NextAuth"]) | list | length > 0 %}
 ### 4. Authentication
 - Session management is handled via **NextAuth.js** (or Auth.js).
 - Middleware (`middleware.ts`) is used to protect private routes at the edge.
@@ -64,7 +64,7 @@ The core design principle is **"Server by Default"**, pushing as much logic as p
 - Use `template.tsx` only if you need to reset state on navigation.
 
 ## 🎨 Styling Architecture
-{% if "TailwindCSS" in libraries %}
+{% if libraries | default([]) | select("in", ["TailwindCSS"]) | list | length > 0 %}
 We use **Tailwind CSS** with a utility-first approach.
 - **Global Styles:** Defined in `app/globals.css`.
 - **Component Styles:** Applied directly via classes.

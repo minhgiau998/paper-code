@@ -67,7 +67,7 @@ export default apiClient;
 
 ## 💻 Usage Patterns
 
-{% if "React" in tech_stack or "Next.js" in tech_stack or "React Native" in tech_stack %}
+{% if tech_stack | default("") and ("React" in tech_stack or "Next.js" in tech_stack or "React Native" in tech_stack) %}
 ### React / Next.js / React Native
 
 **Best Practice:** Use inside `useEffect` or Custom Hooks.
@@ -106,11 +106,11 @@ export const UserProfile = () => {
 };
 ```
 
-{% if "React Native" in tech_stack %}
+{% if tech_stack | default("") and "React Native" in tech_stack %}
 > **📱 Mobile Note:** For Android Emulator, use `http://10.0.2.2:3000` instead of `localhost`. For Physical devices, use your computer's LAN IP.
 {% endif %}
 
-{% elif "Vue" in tech_stack %}
+{% elif tech_stack | default("") and "Vue" in tech_stack %}
 ### Vue 3 (Composition API)
 
 **Best Practice:** Use inside `onMounted` or Composables.
@@ -148,7 +148,7 @@ onMounted(async () => {
 ```
 {% endraw %}
 
-{% elif "Nuxt.js" in tech_stack %}
+{% elif tech_stack | default("") and "Nuxt.js" in tech_stack %}
 ### Nuxt.js
 
 > **Warning:** Nuxt 3 recommends using the built-in `useFetch` or `$fetch` over Axios for better SSR support.
@@ -178,7 +178,7 @@ const fetchData = async () => {
 </script>
 ```
 
-{% elif "Node.js" in tech_stack or "NestJS" in tech_stack %}
+{% elif tech_stack | default("") and ("Node.js" in tech_stack or "NestJS" in tech_stack) %}
 ### Node.js / Backend
 
 **Best Practice:** Use in Service Layer / Repository Pattern.

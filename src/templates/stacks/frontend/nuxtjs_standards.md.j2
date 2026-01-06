@@ -50,7 +50,7 @@ useSeoMeta({
 ### 2. Server Routes (Nitro)
 - Validate inputs inside `server/api` handlers.
 - Use `readBody(event)` or `getQuery(event)` to parse requests.
-{% if "Zod" in libraries %}
+{% if libraries | default([]) | select("in", ["Zod"]) | list | length > 0 %}
 - **Mandatory:** Validate all request bodies with **Zod**.
 ```ts
 // server/api/submit.post.ts

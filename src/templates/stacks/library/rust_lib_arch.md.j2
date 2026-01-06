@@ -52,7 +52,7 @@ We heavily utilize `[features]` in `Cargo.toml` to minimize compile times and bi
 - We use **`thiserror`** to define a custom `Error` enum.
 - **Rule:** Never return `Box<dyn Error>` or `anyhow::Result` in the public API. Users need to match on specific error variants.
 
-{% if "Tokio" in libraries %}
+{% if libraries | default([]) | select("in", ["Tokio"]) | list | length > 0 %}
 ### 4. Async Runtime Agnosticism
 - Ideally, the library should be runtime-agnostic.
 - If strictly bound to **Tokio**, expose it via a feature flag so users can ensure runtime compatibility.

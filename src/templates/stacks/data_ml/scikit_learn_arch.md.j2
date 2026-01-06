@@ -53,7 +53,7 @@ root/
 - We use **Joblib** for efficient serialization of large numpy arrays inside the model.
 
 ## 📊 Experiment Tracking
-{% if "MLflow" in libraries %}
+{% if libraries | default([]) | select("in", ["MLflow"]) | list | length > 0 %}
 - **MLflow** is used to track runs, parameters, and metrics.
 - Artifacts (plots, models) are logged to the MLflow server.
 {% else %}
