@@ -24,7 +24,7 @@
 
 <div align="center">
 
-![PAPER-CODE Demo](https://asciinema.org/a/0pN60C3Cn8D59QGGPCJt9AXiG)
+[![PAPER-CODE Demo](https://asciinema.org/a/766262.svg)](https://asciinema.org/a/766262)
 
 _Watch PAPER-CODE generate AI-ready documentation in seconds_
 
