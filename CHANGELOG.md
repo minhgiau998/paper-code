@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-01-08
+
+### 🤖 AI-Powered Description Generation
+- **OpenAI API Integration:** Connect to OpenAI GPT models to generate intelligent, context-aware project descriptions
+- **Smart Context Analysis:** AI analyzes project type, tech stack, and selected libraries to create tailored descriptions
+- **Fallback Support:** Gracefully degrades to generic descriptions when AI service is unavailable
+- **Environment Configuration:** Secure API key management via `.env` file with `python-dotenv` integration
+
+### 📜 Custom Template System
+- **Template Directory Override:** `--template-dir` option allows users to specify custom template folders
+- **Priority-Based Loading:** Custom templates take precedence over built-in templates while maintaining fallback support
+- **Flexible Structure:** Supports the same template hierarchy as built-in templates (core/, ai/, stacks/, libs/, github/)
+- **Developer Experience:** Seamless integration with existing CLI workflow
+
+### ⚙️ Intelligent Update Mode
+- **Safe Updates:** `--update` flag enables non-destructive documentation regeneration
+- **Custom Section Preservation:** Detects and preserves user-defined sections in `AI_RULES.md`
+- **Architecture Merge:** Intelligently merges existing `ARCHITECTURE.md` content with new templates
+- **File Protection:** Automatically skips user-modified files (README.md, CONTRIBUTING.md, CHANGELOG.md, docs/libs/, .github/)
+
+### 🔧 Technical Improvements
+
+- **Dependency Management:** Added `openai>=1.0.0` and `python-dotenv>=1.0.0` for AI features
+- **Security:** Enhanced `.gitignore` to protect API keys and environment files
+- **Error Handling:** Robust error recovery for AI service failures
+- **Documentation:** Updated README with comprehensive AI feature examples
+
+### 📚 Documentation Updates
+
+- **AI Setup Guide:** Step-by-step instructions for OpenAI API configuration
+- **Template Structure:** Detailed custom template directory layout examples
+- **Update Mode Guide:** Clear documentation of merge behavior and file preservation rules
+- **Environment Variables:** `.env.example` file with configuration options
+
 ## [0.4.0] - 2026-01-07
 
 ### 🧩 Template Coverage & Library Stubs

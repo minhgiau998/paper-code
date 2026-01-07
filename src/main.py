@@ -13,6 +13,7 @@ from .config import PROJECT_TYPES, TECH_STACKS, LIBRARIES
 from .generator import DocGenerator
 from .banner import display_banner, display_success_banner, display_divider
 from .detector import detect_project_context
+from .ai_service import AIService
 
 # Initialize Typer app
 app = typer.Typer(
@@ -92,6 +93,26 @@ def main(
         False,
         "--verbose",
         help="Enable verbose output."
+    ),
+    ai_generate: bool = typer.Option(
+        False,
+        "--ai-generate",
+        help="Use AI to generate project description (requires OPENAI_API_KEY environment variable)."
+    ),
+    ai_hint: Optional[str] = typer.Option(
+        None,
+        "--ai-hint",
+        help="Additional hint for AI description generation."
+    ),
+    template_dir: Optional[str] = typer.Option(
+        None,
+        "--template-dir",
+        help="Path to custom template directory."
+    ),
+    update_mode: bool = typer.Option(
+        False,
+        "--update",
+        help="Update existing documentation without overwriting custom changes."
     )
 ):
     """
@@ -160,7 +181,7 @@ def main(
         
         # In batch mode, we skip prompts and jump straight to generation
         typer.secho("🚀 Running in Batch Mode...", fg=typer.colors.BLUE)
-        run_generator(output, context)
+        run_generator(output, context, template_dir, update_mode)
         return
 
     # ---------------------------------------------------------
@@ -290,7 +311,34 @@ def main(
             context["libraries"] = []
 
     # ---------------------------------------------------------
-    # 4. Final Execution
+    # 5. AI Description Generation (if requested)
+    # ---------------------------------------------------------
+    if ai_generate and not batch:
+        # Initialize AI service
+        ai_service = AIService()
+        
+        if not ai_service.is_available():
+            typer.secho("⚠️ AI service not available. Set OPENAI_API_KEY environment variable to use AI generation.", fg=typer.colors.YELLOW)
+        else:
+            typer.secho("🤖 Generating AI-powered project description...", fg=typer.colors.BLUE)
+            
+            # Generate description using AI
+            ai_description = ai_service.generate_project_description(
+                project_name=context.get("project_name", "My Project"),
+                project_type=context.get("project_type", "Unknown"),
+                tech_stack=context.get("tech_stack", "Unknown"),
+                libraries=context.get("libraries", []),
+                user_hint=ai_hint or ""
+            )
+            
+            context["description"] = ai_description
+            typer.secho("✅ AI description generated successfully!", fg=typer.colors.GREEN)
+            
+            if verbose:
+                typer.echo(f"Generated description:\n{ai_description}\n")
+
+    # ---------------------------------------------------------
+    # 6. Final Execution
     # ---------------------------------------------------------
     if verbose:
         typer.echo(f"\n📋 Final Configuration:\n{json.dumps(context, indent=2)}\n")
@@ -299,15 +347,15 @@ def main(
     if save_config:
         save_config_file(context)
 
-    run_generator(output, context)
+    run_generator(output, context, template_dir, update_mode)
 
 
-def run_generator(output_dir: str, context: Dict[str, Any]):
+def run_generator(output_dir: str, context: Dict[str, Any], template_dir: Optional[str] = None, update_mode: bool = False):
     """
-    Instantiates the generator and runs the rendering process.
+    Instantiates generator and runs rendering process.
     """
     try:
-        gen = DocGenerator(output_dir)
+        gen = DocGenerator(output_dir, template_dir, update_mode)
         gen.generate_project(context)
         
         # Success message with beautiful banner

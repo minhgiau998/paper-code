@@ -2,7 +2,8 @@
 
 import os
 import logging
-from typing import Dict, Any, List
+import shutil
+from typing import Dict, Any, List, Optional
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 # Configure logging for clearer output
@@ -16,24 +17,39 @@ class DocGenerator:
     and renders them into the output directory.
     """
 
-    def __init__(self, output_dir: str):
+    def __init__(self, output_dir: str, custom_template_dir: Optional[str] = None, update_mode: bool = False):
         """
         Initialize the generator with the output directory.
         
         Args:
             output_dir (str): The root path where files will be generated.
+            custom_template_dir (Optional[str]): Path to custom template directory.
+            update_mode (bool): If True, update existing files without overwriting custom changes.
         """
         self.output_dir = output_dir
+        self.custom_template_dir = custom_template_dir
+        self.update_mode = update_mode
         
-        # Determine the absolute path to the 'templates' directory
-        # This assumes the structure: src/generator.py -> src/templates/
+        # Determine template directories
+        template_dirs = []
+        
+        # Add custom template directory first (highest priority)
+        if custom_template_dir and os.path.exists(custom_template_dir):
+            template_dirs.append(custom_template_dir)
+            logger.info(f"📁 Using custom templates from: {custom_template_dir}")
+        
+        # Add default templates directory
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        template_dir = os.path.join(base_dir, "templates")
+        default_template_dir = os.path.join(base_dir, "templates")
+        if os.path.exists(default_template_dir):
+            template_dirs.append(default_template_dir)
         
-        # Initialize Jinja2 Environment
-        # trim_blocks=True and lstrip_blocks=True help keep the Markdown output clean
+        if not template_dirs:
+            raise FileNotFoundError("No template directories found!")
+        
+        # Initialize Jinja2 Environment with multiple template paths
         self.env = Environment(
-            loader=FileSystemLoader(template_dir),
+            loader=FileSystemLoader(template_dirs),
             trim_blocks=True,
             lstrip_blocks=True,
             keep_trailing_newline=True
@@ -59,13 +75,13 @@ class DocGenerator:
         Internal method to render a single template to a file.
         
         Args:
-            template_path (str): Path to the template relative to the 'templates' folder.
+            template_path (str): Path to template relative to 'templates' folder.
             context (Dict): Dictionary containing data for Jinja2 (project_name, stack, etc.).
             output_rel_path (str): Desired output path relative to the project root.
         """
         try:
             template = self.env.get_template(template_path)
-            content = template.render(context)
+            new_content = template.render(context)
 
             # Construct full output path
             full_path = os.path.join(self.output_dir, output_rel_path)
@@ -73,9 +89,19 @@ class DocGenerator:
             # Ensure the directory exists
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
 
+            # Handle update mode for specific files
+            if self.update_mode and os.path.exists(full_path):
+                if self._should_preserve_file(output_rel_path):
+                    logger.info(f"🔄 Preserving existing file: {output_rel_path}")
+                    return
+                elif output_rel_path.endswith("AI_RULES.md"):
+                    new_content = self._merge_ai_rules(full_path, new_content)
+                elif output_rel_path.endswith("ARCHITECTURE.md"):
+                    new_content = self._merge_architecture(full_path, new_content)
+
             # Write the file
             with open(full_path, "w", encoding="utf-8") as f:
-                f.write(content)
+                f.write(new_content)
             
             logger.info(f"✅ Generated: {output_rel_path}")
 
@@ -83,6 +109,97 @@ class DocGenerator:
             logger.warning(f"⚠️ Template not found: {template_path}. Skipping {output_rel_path}.")
         except Exception as e:
             logger.error(f"❌ Error generating {output_rel_path}: {str(e)}")
+
+    def _should_preserve_file(self, output_rel_path: str) -> bool:
+        """
+        Determine if a file should be preserved in update mode.
+        Some files are typically user-customized and shouldn't be overwritten.
+        """
+        preserve_patterns = [
+            "README.md",
+            "CONTRIBUTING.md", 
+            "CHANGELOG.md",
+            "docs/libs/",
+            ".github/"
+        ]
+        
+        for pattern in preserve_patterns:
+            if output_rel_path.startswith(pattern) or output_rel_path == pattern:
+                return True
+        return False
+
+    def _merge_ai_rules(self, existing_file: str, new_content: str) -> str:
+        """
+        Intelligently merge existing AI_RULES.md with new content.
+        Preserves custom rules while adding new ones.
+        """
+        try:
+            with open(existing_file, 'r', encoding='utf-8') as f:
+                existing_content = f.read()
+            
+            # Simple merge strategy: preserve custom sections
+            # Look for custom sections that start with "## Custom Rules" or similar
+            custom_sections = []
+            lines = existing_content.split('\n')
+            in_custom_section = False
+            custom_section_content = []
+            
+            for line in lines:
+                if line.startswith('## Custom') or line.startswith('## User-Defined'):
+                    in_custom_section = True
+                    custom_section_content.append(line)
+                elif in_custom_section and line.startswith('## '):
+                    in_custom_section = False
+                    if custom_section_content:
+                        custom_sections.append('\n'.join(custom_section_content))
+                        custom_section_content = []
+                elif in_custom_section:
+                    custom_section_content.append(line)
+            
+            if custom_section_content:
+                custom_sections.append('\n'.join(custom_section_content))
+            
+            # Merge new content with custom sections
+            if custom_sections:
+                merged_content = new_content + "\n\n" + "\n\n".join(custom_sections)
+                logger.info("🔄 Merged AI_RULES.md with custom sections")
+                return merged_content
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to merge AI_RULES.md: {e}")
+        
+        return new_content
+
+    def _merge_architecture(self, existing_file: str, new_content: str) -> str:
+        """
+        Intelligently merge existing ARCHITECTURE.md with new content.
+        Preserves custom architecture decisions.
+        """
+        try:
+            with open(existing_file, 'r', encoding='utf-8') as f:
+                existing_content = f.read()
+            
+            # Simple merge: add a note about existing documentation
+            merge_note = f"""## 📝 Existing Architecture Notes
+
+> The following section contains preserved content from the previous documentation:
+
+{existing_content}
+
+---
+
+## 🆕 Generated Architecture Content
+
+"""
+            
+            merged_content = merge_note + new_content
+            logger.info("🔄 Merged ARCHITECTURE.md with existing content")
+            return merged_content
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to merge ARCHITECTURE.md: {e}")
+        
+        return new_content
 
     def generate_project(self, context: Dict[str, Any]):
         """

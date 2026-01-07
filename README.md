@@ -9,6 +9,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000?style=for-the-badge)](https://github.com/psf/black)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](docs/CONTRIBUTING.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue?style=for-the-badge)](https://github.com/minhgiau998/paper-code/releases/tag/v0.5.0)
 
 > **Stop writing boilerplate docs.**
 > Automatically generate **AI Context**, **Architecture Guides**, and **Governance Files** optimized for Cursor, Windsurf, and Copilot.
@@ -23,7 +24,7 @@
 
 <div align="center">
 
-![PAPER-CODE Demo](https://i.ibb.co/W4tWtys8/render1767576944566.gif)
+![PAPER-CODE Demo](https://asciinema.org/a/0pN60C3Cn8D59QGGPCJt9AXiG)
 
 _Watch PAPER-CODE generate AI-ready documentation in seconds_
 
@@ -44,9 +45,12 @@ If you ask an AI to "build a feature" without context, it generates generic, leg
 ## ✨ Features
 
 - **🤖 AI-First Context:** Auto-generates `.cursorrules` and prompt instructions tailored to your specific stack (e.g., "Use Next.js App Router, not Pages").
-- **🎯 Multi-Stack Support:** Specialized templates for Frontend, Backend, Mobile, Game Dev, and ML.
-- **📚 Library Awareness:** Smart docs for 30+ libraries (Tailwind, Prisma, Redux, Zod...).
+- **🧠 AI-Powered Descriptions:** Generate intelligent project descriptions using OpenAI API with context-aware analysis of your tech stack and libraries.
+- **🎯 Multi-Stack Support:** Specialized templates for Frontend, Backend, Mobile, Game Dev, ML, DevOps, and CLI applications.
+- **📚 Library Awareness:** Smart docs for 30+ libraries (Tailwind, Prisma, Redux, Zod, Docker, Kubernetes, etc.).
 - **🛡️ Governance Ready:** Generates `LICENSE`, `CHANGELOG.md`, `SECURITY.md`, and GitHub Issue Templates.
+- **🔄 Safe Update Mode:** Intelligently update existing documentation without overwriting custom changes.
+- **📁 Custom Templates:** Support for custom template directories to match your organization's standards.
 - **💻 Interactive & Batch:** Use the beautiful CLI wizard or a JSON config file for automation.
 
 ## 🚀 Installation
@@ -96,6 +100,24 @@ Just run the command and follow the wizard.
 paper-code
 ```
 
+### 2. AI-Powered Description Generation
+
+For enhanced project descriptions, set up your OpenAI API key:
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit .env and add your OpenAI API key
+# OPENAI_API_KEY=your_actual_api_key_here
+
+# Generate docs with AI-powered descriptions
+paper-code --ai-generate
+
+# Or provide additional context for better AI descriptions
+paper-code --ai-generate --ai-hint "This is an e-commerce platform with real-time inventory"
+```
+
 **Terminal Output Preview:**
 
 ```text
@@ -103,11 +125,49 @@ paper-code
 [?] Select Project Type: Frontend
 [?] Select Frontend Stack: Next.js
 [?] Select Modules/Libraries: [x] TailwindCSS, [x] Prisma, [x] NextAuth.js, [x] Zod
+🤖 Generating AI-powered project description...
+✅ AI description generated successfully!
 
-✨ Done! Generated AI-ready docs in ./docs
+✨ Done! Generated AI-ready docs in ./output
 ```
 
-### 2. Quick Start (Templates)
+### 3. Custom Templates
+
+Use your own template directory:
+
+```bash
+paper-code --template-dir ./my-custom-templates
+```
+
+Your custom templates should follow the same structure as the default templates:
+```
+my-custom-templates/
+├── core/
+│   ├── README.md.j2
+│   ├── LICENSE.j2
+│   └── ...
+├── ai/
+│   ├── AI_RULES.md.j2
+│   └── ...
+└── stacks/
+    └── frontend/
+        └── nextjs_arch.md.j2
+```
+
+### 4. Update Mode
+
+Update existing documentation without losing custom changes:
+
+```bash
+paper-code --update --template Frontend --tech-stack Next.js
+```
+
+Update mode:
+- ✅ Preserves custom sections in `AI_RULES.md`
+- ✅ Merges existing `ARCHITECTURE.md` content
+- ✅ Skips user-modified files (README.md, CONTRIBUTING.md, etc.)
+
+### 5. Quick Start (Templates)
 
 Skip the questions if you know what you want.
 
@@ -116,7 +176,7 @@ paper-code --template "Next.js" --output ./my-app
 paper-code --template "FastAPI" --output ./my-api
 ```
 
-### 3. Batch Mode (For CI/CD)
+### 6. Batch Mode (For CI/CD)
 
 Generate docs based on a configuration file.
 
@@ -128,16 +188,17 @@ paper-code --config paper.config.json --batch
 
 **PAPER-CODE** isn't just generic markdown. It contains deep, opinionated knowledge for:
 
-| Category      | Supported Stacks                                             |
-| :------------ | :----------------------------------------------------------- |
-| **Frontend**  | React, Vue, Next.js, Nuxt.js, Angular, SvelteKit             |
-| **Backend**   | Node.js (Express/NestJS/Fastify), FastAPI, Django, Go (Gin)  |
-| **Mobile**    | React Native (Expo/CLI), Flutter                             |
-| **Desktop**   | Electron, Tauri v2                                           |
-| **Data & ML** | PyTorch, TensorFlow, Scikit-learn                            |
-| **Game Dev**  | Godot 4, Unity                                               |
-| **CLI**       | Node.js (Commander), Python (Click), Go (Cobra), Rust (Clap) |
-| **Libraries** | TypeScript Lib, Python Lib, Go Lib, Rust Lib                 |
+| Category      | Supported Stacks                                                |
+| :------------ | :-------------------------------------------------------------- |
+| **Frontend**  | React, Vue, Next.js, Nuxt.js, Angular, Svelte                   |
+| **Backend**   | Node.js (Express/NestJS/Fastify), FastAPI, Django, Go (Gin)     |
+| **Mobile**    | React Native (Expo/CLI), Flutter, Kotlin (Android), Swift (iOS) |
+| **Desktop**   | Electron, Tauri                                                 |
+| **Data & ML** | PyTorch, TensorFlow, Scikit-learn                               |
+| **Game Dev**  | Godot, Unity                                                    |
+| **CLI**       | Node.js (Commander), Python (Click), Go (Cobra), Rust (Clap)    |
+| **Libraries** | TypeScript Lib, Python Lib, Go Lib, Rust Lib                    |
+| **DevOps**    | Docker, Kubernetes, Terraform                                   |
 
 ## 📂 Generated Structure
 

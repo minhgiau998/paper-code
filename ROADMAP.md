@@ -23,9 +23,9 @@ This document outlines the development plan for **PAPER-CODE**.
     - [x] Mobile (Kotlin, Swift native).
 
 ## 📍 Phase 3: AI Integration & Customization
-- [ ] **LLM Integration:** Connect to OpenAI API to write the "Project Description" based on a short summary.
-- [ ] **Custom Templates:** Allow users to point to a local folder of `.j2` templates (`--template-dir ./my-custom-templates`).
-- [ ] **Update Mode:** Ability to update existing `AI_RULES.md` without overwriting custom changes (intelligent merge).
+- [x] **LLM Integration:** Connect to OpenAI API to write the "Project Description" based on a short summary.
+- [x] **Custom Templates:** Allow users to point to a local folder of `.j2` templates (`--template-dir ./my-custom-templates`).
+- [x] **Update Mode:** Ability to update existing `AI_RULES.md` without overwriting custom changes (intelligent merge).
 
 ## 📍 Phase 4: Ecosystem
 - [ ] **Web GUI:** A simple web interface to generate docs visually.
