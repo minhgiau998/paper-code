@@ -14,7 +14,7 @@
 > **Stop writing boilerplate docs.**
 > Automatically generate **AI Context**, **Architecture Guides**, and **Governance Files** optimized for Cursor, Windsurf, and Copilot.
 
-[✨ Features](#-features) • [🚀 Installation](#-installation) • [📖 Usage](#-usage) • [🗺️ Roadmap](ROADMAP.md)
+[✨ Features](#-features) • [🚀 Installation](#-installation) • [📖 Usage](#-usage) • [� Docs](https://paper-code-docs.vercel.app) • [�🗺️ Roadmap](ROADMAP.md)
 
 </div>
 
@@ -140,6 +140,7 @@ paper-code --template-dir ./my-custom-templates
 ```
 
 Your custom templates should follow the same structure as the default templates:
+
 ```
 my-custom-templates/
 ├── core/
@@ -163,6 +164,7 @@ paper-code --update --template Frontend --tech-stack Next.js
 ```
 
 Update mode:
+
 - ✅ Preserves custom sections in `AI_RULES.md`
 - ✅ Merges existing `ARCHITECTURE.md` content
 - ✅ Skips user-modified files (README.md, CONTRIBUTING.md, etc.)
