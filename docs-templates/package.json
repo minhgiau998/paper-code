@@ -1,0 +1,54 @@
+{
+  "name": "@paper-code/templates",
+  "version": "0.5.0",
+  "description": "Official documentation templates for PAPER-CODE projects",
+  "main": "index.js",
+  "files": [
+    "core/",
+    "ai/",
+    "stacks/",
+    "libs/",
+    "github/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "validate": "node scripts/validate-templates.js",
+    "lint": "node scripts/lint-templates.js"
+  },
+  "keywords": [
+    "documentation",
+    "templates",
+    "paper-code",
+    "ai",
+    "cursor",
+    "copilot",
+    "jinja2",
+    "generator",
+    "scaffold"
+  ],
+  "author": "Nguyen Minh Giau <minhgiau04041998@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/minhgiau998/paper-code.git",
+    "directory": "docs-templates"
+  },
+  "bugs": {
+    "url": "https://github.com/minhgiau998/paper-code/issues"
+  },
+  "homepage": "https://github.com/minhgiau998/paper-code/tree/main/docs-templates",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "tags": [
+    "documentation",
+    "templates",
+    "documentation-generator"
+  ]
+}

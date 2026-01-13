@@ -48,10 +48,12 @@ This document outlines the development plan for **PAPER-CODE**.
   - [x] GitHub Actions workflow for automated publishing
   - [x] Semantic versioning and release tagging
   - [x] PyPI badges and installation instructions
-- [ ] **NPM Publishing (Optional):** Publish docs template package
-  - [ ] Create standalone npm package for documentation templates
-  - [ ] CLI integration with npm registry
-  - [ ] Version management and release automation
+- [x] **NPM Publishing:** Publish docs template package
+  - [x] Create standalone npm package for documentation templates
+  - [x] CLI integration with npm registry
+  - [x] Version management and release automation
+  - [x] GitHub Actions workflow for automated publishing
+  - [x] NPM publishing documentation
 
 ## 📍 Phase 6: Advanced Features (Future)
 

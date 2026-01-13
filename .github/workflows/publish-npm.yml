@@ -1,0 +1,107 @@
+name: Publish NPM Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to publish to"
+        required: true
+        type: choice
+        options:
+          - npm
+          - npm-dry-run
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs-templates
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Get version from package.json
+        id: package
+        run: echo "version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
+
+      - name: Validate package.json
+        run: |
+          if [ ! -f "package.json" ]; then
+            echo "❌ package.json not found"
+            exit 1
+          fi
+          echo "✅ Package name: $(jq -r .name package.json)"
+          echo "✅ Package version: ${{ steps.package.outputs.version }}"
+
+      - name: Check for required files
+        run: |
+          required_files=("README.md" "LICENSE" "index.js")
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing required file: $file"
+              exit 1
+            fi
+          done
+          echo "✅ All required files present"
+
+      - name: Publish to NPM (Dry Run)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'npm-dry-run'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish --dry-run
+
+      - name: Publish to NPM
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'npm')
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish
+
+      - name: Create deployment summary
+        if: success()
+        run: |
+          echo "## 📦 NPM Package Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** $(jq -r .name package.json)" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.package.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** https://www.npmjs.com/package/$(jq -r .name package.json)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "npm install $(jq -r .name package.json)" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  verify:
+    needs: publish
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Wait for NPM registry update
+        run: sleep 15
+
+      - name: Install published package
+        run: |
+          npm install @paper-code/templates@${{ github.event.release.tag_name }}
+
+      - name: Verify installation
+        run: |
+          node -e "const pkg = require('@paper-code/templates'); console.log('✅ Package installed successfully'); console.log('Templates path:', pkg.getTemplatesPath());"
