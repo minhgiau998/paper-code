@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-01-13
+
+### 🚀 Publishing Infrastructure & Package Management
+- **PyPI Publishing Setup:** Automated GitHub Actions workflow for publishing to Python Package Index
+- **NPM Publishing Setup:** Standalone npm package (`@paper-code/templates`) with automated CI/CD pipeline
+- **Package Registry Documentation:** Comprehensive guides for PyPI and NPM publishing workflows
+- **Dual Registry Support:** Coordinated release process for both Python and JavaScript ecosystems
+
+### 🐛 Bug Fixes
+- **Fixed pyproject.toml Configuration:** Corrected `readme` field format to comply with PEP 621 standard (was using invalid `readme-content-type` property)
+- **Improved Package Metadata:** Enhanced project metadata for better registry compatibility
+
+### 📚 Documentation
+- **Official VitePress Site:** Comprehensive documentation site with 20+ pages
+- **Publishing Guides:** Step-by-step instructions for PyPI and NPM releases
+- **Architecture Documentation:** Updated with publishing workflow details
+
 ## [0.5.0] - 2026-01-08
 
 ### 🤖 AI-Powered Description Generation

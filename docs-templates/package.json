@@ -1,6 +1,6 @@
 {
   "name": "@paper-code/templates",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Official documentation templates for PAPER-CODE projects",
   "main": "index.js",
   "files": [
