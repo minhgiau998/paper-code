@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PAPER-CODE Web GUI</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #8b5cf6;
+            --accent: #ec4899;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --gray: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: var(--dark);
+        }
+
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            padding: 80px 0 120px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,138.7C960,139,1056,117,1152,106.7C1248,96,1344,96,1392,96L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') no-repeat bottom;
+            background-size: cover;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .nav-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 80px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            color: white;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .logo-text h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .logo-text p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .nav-actions {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .status-badge {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hero-content {
+            text-align: center;
+            color: white;
+            position: relative;
+            z-index: 10;
+        }
+
+        .hero-title {
+            font-size: 56px;
+            font-weight: 800;
+            margin-bottom: 24px;
+            line-height: 1.1;
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            opacity: 0.9;
+            margin-bottom: 48px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 24px;
+            margin-top: -60px;
+            position: relative;
+            z-index: 20;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            min-height: 600px;
+        }
+
+        .form-section {
+            padding: 48px;
+            border-right: 1px solid #e5e7eb;
+        }
+
+        .results-section {
+            padding: 48px;
+            background: var(--light);
+        }
+
+        .form-header {
+            margin-bottom: 32px;
+        }
+
+        .form-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 8px;
+        }
+
+        .form-subtitle {
+            color: var(--gray);
+            font-size: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 8px;
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .libraries-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .library-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .library-item:hover {
+            background: var(--light);
+        }
+
+        .checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+        }
+
+        .ai-section {
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            padding: 24px;
+            border-radius: 16px;
+            margin-top: 32px;
+        }
+
+        .ai-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .ai-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ai-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .switch {
+            position: relative;
+            width: 48px;
+            height: 24px;
+            background: #e5e7eb;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .switch.active {
+            background: var(--primary);
+        }
+
+        .switch-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .switch.active .switch-slider {
+            transform: translateX(24px);
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border: none;
+            padding: 16px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 32px;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .error-text {
+            color: var(--error);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-section {
+                border-right: none;
+                border-bottom: 1px solid #e5e7eb;
+            }
+
+            .hero-title {
+                font-size: 42px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .hero-section {
+                padding: 60px 0 80px;
+            }
+
+            .hero-title {
+                font-size: 32px;
+            }
+
+            .form-section,
+            .results-section {
+                padding: 24px;
+            }
+
+            .libraries-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const App = () => {
+            const [config, setConfig] = useState({
+                project_types: [],
+                tech_stacks: {},
+                libraries: {}
+            });
+            const [formData, setFormData] = useState({
+                project_name: '',
+                description: '',
+                project_type: '',
+                tech_stack: '',
+                libraries: [],
+                ai_generate: false,
+                ai_hint: '',
+                template_dir: '',
+                update_mode: false
+            });
+            const [loading, setLoading] = useState(false);
+            const [result, setResult] = useState(null);
+            const [aiAvailable, setAiAvailable] = useState(false);
+            const [errors, setErrors] = useState({});
+
+            useEffect(() => {
+                loadConfig();
+                checkAIStatus();
+            }, []);
+
+            const loadConfig = async () => {
+                try {
+                    const response = await fetch('/api/config/full');
+                    const data = await response.json();
+                    setConfig(data);
+                } catch (error) {
+                    console.error('Failed to load config:', error);
+                }
+            };
+
+            const checkAIStatus = async () => {
+                try {
+                    const response = await fetch('/api/ai/status');
+                    const data = await response.json();
+                    setAiAvailable(data.available);
+                } catch (error) {
+                    console.error('Failed to check AI status:', error);
+                }
+            };
+
+            const handleInputChange = (field, value) => {
+                setFormData(prev => ({
+                    ...prev,
+                    [field]: value
+                }));
+
+                // Clear dependent fields when parent changes
+                if (field === 'project_type') {
+                    setFormData(prev => ({
+                        ...prev,
+                        tech_stack: '',
+                        libraries: []
+                    }));
+                } else if (field === 'tech_stack') {
+                    setFormData(prev => ({
+                        ...prev,
+                        libraries: []
+                    }));
+                }
+
+                // Clear errors
+                if (errors[field]) {
+                    setErrors(prev => ({
+                        ...prev,
+                        [field]: null
+                    }));
+                }
+            };
+
+            const handleLibraryToggle = (library) => {
+                setFormData(prev => ({
+                    ...prev,
+                    libraries: prev.libraries.includes(library)
+                        ? prev.libraries.filter(lib => lib !== library)
+                        : [...prev.libraries, library]
+                }));
+            };
+
+            const validateForm = () => {
+                const newErrors = {};
+
+                if (!formData.project_name.trim()) {
+                    newErrors.project_name = 'Project name is required';
+                }
+                if (!formData.description.trim()) {
+                    newErrors.description = 'Description is required';
+                }
+                if (!formData.project_type) {
+                    newErrors.project_type = 'Project type is required';
+                }
+                if (!formData.tech_stack) {
+                    newErrors.tech_stack = 'Tech stack is required';
+                }
+
+                setErrors(newErrors);
+                return Object.keys(newErrors).length === 0;
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+
+                if (!validateForm()) {
+                    return;
+                }
+
+                setLoading(true);
+                setResult(null);
+
+                try {
+                    const response = await fetch('/api/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            config: formData
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setResult(data);
+                    } else {
+                        throw new Error(data.detail || 'Generation failed');
+                    }
+                } catch (error) {
+                    setResult({
+                        success: false,
+                        message: error.message
+                    });
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleDownload = async (projectId) => {
+                try {
+                    const response = await fetch(`/api/download/${projectId}`);
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `paper-code-project-${projectId}.zip`;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                    }
+                } catch (error) {
+                    console.error('Download failed:', error);
+                }
+            };
+
+            const getTechStacks = () => {
+                return config.tech_stacks[formData.project_type] || [];
+            };
+
+            const getLibraries = () => {
+                return config.libraries[formData.tech_stack] || [];
+            };
+
+            const extractProjectId = (outputPath) => {
+                const match = outputPath.match(/project_(\d+)/);
+                return match ? match[1] : null;
+            };
+
+            return (
+                <div>
+                    {/* Hero Section */}
+                    <section className="hero-section">
+                        <div className="container">
+                            <header className="nav-header">
+                                <div className="logo">
+                                    <div className="logo-icon">
+                                        <i className="fas fa-file-code"></i>
+                                    </div>
+                                    <div className="logo-text">
+                                        <h1>PAPER-CODE</h1>
+                                        <p>Interactive Project Documentation Generator</p>
+                                    </div>
+                                </div>
+                                <div className="nav-actions">
+                                    {aiAvailable && (
+                                        <div className="status-badge">
+                                            <i className="fas fa-robot"></i>
+                                            AI Available
+                                        </div>
+                                    )}
+                                </div>
+                            </header>
+
+                            <div className="hero-content">
+                                <h2 className="hero-title">Generate Professional Project Documentation</h2>
+                                <p className="hero-subtitle">
+                                    Create comprehensive project structures with AI-powered descriptions in seconds.
+                                    Choose from multiple templates, tech stacks, and libraries.
+                                </p>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Main Content */}
+                    <main className="main-content">
+                        <div className="container">
+                            <div className="content-grid">
+                                {/* Form Section */}
+                                <div className="form-section">
+                                    <div className="form-header">
+                                        <h3 className="form-title">Configure Your Project</h3>
+                                        <p className="form-subtitle">Fill in the details to generate your documentation</p>
+                                    </div>
+
+                                    <form onSubmit={handleSubmit} className="fade-in">
+                                        {/* Project Name */}
+                                        <div className="form-group">
+                                            <label className="form-label">Project Name *</label>
+                                            <input
+                                                type="text"
+                                                value={formData.project_name}
+                                                onChange={(e) => handleInputChange('project_name', e.target.value)}
+                                                className={`form-input ${errors.project_name ? 'border-red-500' : ''}`}
+                                                placeholder="My Awesome Project"
+                                            />
+                                            {errors.project_name && (
+                                                <div className="error-text">{errors.project_name}</div>
+                                            )}
+                                        </div>
+
+                                        {/* Description */}
+                                        <div className="form-group">
+                                            <label className="form-label">Project Description *</label>
+                                            <textarea
+                                                value={formData.description}
+                                                onChange={(e) => handleInputChange('description', e.target.value)}
+                                                className={`form-textarea ${errors.description ? 'border-red-500' : ''}`}
+                                                placeholder="A robust project using modern technologies..."
+                                            />
+                                            {errors.description && (
+                                                <div className="error-text">{errors.description}</div>
+                                            )}
+                                        </div>
+
+                                        {/* Project Type */}
+                                        <div className="form-group">
+                                            <label className="form-label">Project Type *</label>
+                                            <select
+                                                value={formData.project_type}
+                                                onChange={(e) => handleInputChange('project_type', e.target.value)}
+                                                className={`form-select ${errors.project_type ? 'border-red-500' : ''}`}
+                                            >
+                                                <option value="">Select a project type</option>
+                                                {config.project_types.map(type => (
+                                                    <option key={type} value={type}>{type}</option>
+                                                ))}
+                                            </select>
+                                            {errors.project_type && (
+                                                <div className="error-text">{errors.project_type}</div>
+                                            )}
+                                        </div>
+
+                                        {/* Tech Stack */}
+                                        <div className="form-group">
+                                            <label className="form-label">Tech Stack *</label>
+                                            <select
+                                                value={formData.tech_stack}
+                                                onChange={(e) => handleInputChange('tech_stack', e.target.value)}
+                                                className={`form-select ${errors.tech_stack ? 'border-red-500' : ''}`}
+                                                disabled={!formData.project_type}
+                                            >
+                                                <option value="">Select a tech stack</option>
+                                                {getTechStacks().map(stack => (
+                                                    <option key={stack} value={stack}>{stack}</option>
+                                                ))}
+                                            </select>
+                                            {errors.tech_stack && (
+                                                <div className="error-text">{errors.tech_stack}</div>
+                                            )}
+                                        </div>
+
+                                        {/* Libraries */}
+                                        {getLibraries().length > 0 && (
+                                            <div className="form-group">
+                                                <label className="form-label">Libraries & Modules</label>
+                                                <div className="libraries-grid">
+                                                    {getLibraries().map(library => (
+                                                        <label key={library} className="library-item">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={formData.libraries.includes(library)}
+                                                                onChange={() => handleLibraryToggle(library)}
+                                                                className="checkbox"
+                                                            />
+                                                            <span>{library}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* AI Options */}
+                                        {aiAvailable && (
+                                            <div className="ai-section">
+                                                <div className="ai-header">
+                                                    <div className="ai-icon">
+                                                        <i className="fas fa-robot"></i>
+                                                    </div>
+                                                    <div className="ai-title">AI-Powered Description</div>
+                                                </div>
+
+                                                <div className="toggle-switch">
+                                                    <div
+                                                        className={`switch ${formData.ai_generate ? 'active' : ''}`}
+                                                        onClick={() => handleInputChange('ai_generate', !formData.ai_generate)}
+                                                    >
+                                                        <div className="switch-slider"></div>
+                                                    </div>
+                                                    <span>Generate AI description</span>
+                                                </div>
+
+                                                {formData.ai_generate && (
+                                                    <div className="form-group">
+                                                        <label className="form-label">AI Hint (Optional)</label>
+                                                        <textarea
+                                                            value={formData.ai_hint}
+                                                            onChange={(e) => handleInputChange('ai_hint', e.target.value)}
+                                                            className="form-textarea"
+                                                            placeholder="Additional context for AI generation..."
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Submit Button */}
+                                        <button type="submit" disabled={loading} className="submit-btn">
+                                            {loading ? (
+                                                <>
+                                                    <div className="spinner"></div>
+                                                    Generating Documentation...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <i className="fas fa-magic"></i>
+                                                    Generate Documentation
+                                                </>
+                                            )}
+                                        </button>
+                                    </form>
+                                </div>
+
+                                {/* Results Section */}
+                                <div className="results-section">
+                                    {result ? (
+                                        <div className={`fade-in ${result.success ? 'text-green-600' : 'text-red-600'}`}>
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <i className={`fas ${result.success ? 'fa-check-circle' : 'fa-exclamation-circle'} text-2xl`}></i>
+                                                <h3 className="text-xl font-semibold">
+                                                    {result.success ? 'Generation Successful!' : 'Generation Failed'}
+                                                </h3>
+                                            </div>
+
+                                            <p className="mb-6">{result.message}</p>
+
+                                            {result.success && result.files_generated && (
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <h4 className="font-semibold mb-3">Generated Files:</h4>
+                                                        <div className="max-h-48 overflow-y-auto space-y-2">
+                                                            {result.files_generated.map((file, index) => (
+                                                                <div key={index} className="flex items-center gap-2 text-sm text-gray-600">
+                                                                    <i className="fas fa-file-alt text-purple-500"></i>
+                                                                    {file}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    {result.output_path && (
+                                                        <button
+                                                            onClick={() => handleDownload(extractProjectId(result.output_path))}
+                                                            className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                                        >
+                                                            <i className="fas fa-download"></i>
+                                                            Download ZIP
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center">
+                                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <i className="fas fa-info-circle text-2xl text-gray-400"></i>
+                                            </div>
+                                            <h3 className="text-lg font-semibold mb-2">Ready to Generate</h3>
+                                            <p className="text-gray-600 text-sm mb-6">
+                                                Configure your project details and click generate to create professional documentation.
+                                            </p>
+
+                                            <div className="text-left space-y-3">
+                                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                                    <i className="fas fa-check text-green-500"></i>
+                                                    Multiple project templates
+                                                </div>
+                                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                                    <i className="fas fa-check text-green-500"></i>
+                                                    AI-powered descriptions
+                                                </div>
+                                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                                    <i className="fas fa-check text-green-500"></i>
+                                                    Customizable tech stacks
+                                                </div>
+                                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                                    <i className="fas fa-check text-green-500"></i>
+                                                    Instant download
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+
+</html>

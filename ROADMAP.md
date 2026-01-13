@@ -28,6 +28,6 @@ This document outlines the development plan for **PAPER-CODE**.
 - [x] **Update Mode:** Ability to update existing `AI_RULES.md` without overwriting custom changes (intelligent merge).
 
 ## 📍 Phase 4: Ecosystem
-- [ ] **Web GUI:** A simple web interface to generate docs visually.
+- [x] **Web GUI:** A simple web interface to generate docs visually.
 - [ ] **VS Code Extension:** Right-click folder -> "Generate Docs".
 - [ ] **Official Documentation Site:** Using VitePress or Docusaurus.
