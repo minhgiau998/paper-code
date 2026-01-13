@@ -41,7 +41,19 @@ This document outlines the development plan for **PAPER-CODE**.
   - [x] Architecture guide for developers
   - [x] Contributing guidelines
 
-## 📍 Phase 5: Advanced Features (Future)
+## 📍 Phase 5: Package Registry Publishing
+
+- [x] **PyPI Publishing:** Automated release to Python Package Index
+  - [x] Configure `pyproject.toml` with all metadata
+  - [x] GitHub Actions workflow for automated publishing
+  - [x] Semantic versioning and release tagging
+  - [x] PyPI badges and installation instructions
+- [ ] **NPM Publishing (Optional):** Publish docs template package
+  - [ ] Create standalone npm package for documentation templates
+  - [ ] CLI integration with npm registry
+  - [ ] Version management and release automation
+
+## 📍 Phase 6: Advanced Features (Future)
 
 - [ ] **Template Marketplace:** Community template repository
 - [ ] **Diff Viewer:** Visual comparison of changes in update mode

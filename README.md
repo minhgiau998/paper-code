@@ -6,6 +6,8 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python)](https://www.python.org/)
 [![PyPI Version](https://img.shields.io/pypi/v/paper-code?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/paper-code/)
+[![PyPI Downloads](https://img.shields.io/pypi/dm/paper-code?style=for-the-badge&logo=python&logoColor=white)](https://pypi.org/project/paper-code/)
+[![PyPI Status](https://img.shields.io/pypi/status/paper-code?style=for-the-badge)](https://pypi.org/project/paper-code/)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000?style=for-the-badge)](https://github.com/psf/black)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](docs/CONTRIBUTING.md)
@@ -239,7 +241,38 @@ Please read our [CONTRIBUTING.md](docs/CONTRIBUTING.md) to get started.
 4.  Push to the branch.
 5.  Open a Pull Request.
 
-## 📄 License
+## � Publishing & Releases
+
+PAPER-CODE is published to PyPI and automatically deployed on every release.
+
+### For Maintainers
+
+See [PUBLISHING.md](PUBLISHING.md) for detailed instructions on:
+
+- Preparing releases
+- Publishing to PyPI
+- Version management
+- Release verification
+
+Quick publish:
+
+```bash
+# 1. Update version in pyproject.toml
+# 2. Create and push git tag
+git tag v0.6.0
+git push origin --tags
+
+# 3. GitHub Actions automatically publishes to PyPI
+# 4. Verify at https://pypi.org/project/paper-code/
+```
+
+### Check Package Status
+
+- **PyPI Package:** https://pypi.org/project/paper-code/
+- **Download Stats:** https://pypistats.org/packages/paper-code
+- **Latest Release:** https://github.com/minhgiau998/paper-code/releases
+
+## �📄 License
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
